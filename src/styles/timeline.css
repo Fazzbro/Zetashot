@@ -1,0 +1,142 @@
+/* OpenShot UI Camera - Presentation Timeline Styles */
+
+.timeline-container {
+  height: 140px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  z-index: 80;
+  user-select: none;
+}
+
+.timeline-header {
+  height: 36px;
+  padding: 0 16px;
+  background: var(--bg-panel-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline-controls-left, .timeline-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timeline-time-display {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.timeline-body {
+  flex: 1;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 12px 24px;
+  background: #090c14;
+}
+
+.timeline-track {
+  position: relative;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.timeline-time-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Playhead Needle */
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-rose);
+  box-shadow: 0 0 8px var(--accent-rose);
+  z-index: 30;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.playhead-handle {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: var(--accent-rose);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* Keyframe Markers on Track */
+.keyframe-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  background: var(--accent-primary);
+  border: 2px solid #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+  z-index: 20;
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
+}
+
+.keyframe-marker:hover {
+  transform: translate(-50%, -50%) scale(1.25);
+  background: #a855f7;
+}
+
+.keyframe-marker.selected {
+  background: #facc15;
+  border-color: #000000;
+  transform: translate(-50%, -50%) scale(1.3);
+  box-shadow: 0 0 12px #facc15;
+}
+
+.keyframe-info-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #020617;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: #e2e8f0;
+  white-space: nowrap;
+  pointer-events: none;
+}
