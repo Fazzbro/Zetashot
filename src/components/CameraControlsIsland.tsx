@@ -6,7 +6,6 @@ import { Camera3DState, PERSPECTIVE_PRESETS, PerspectivePreset } from '../utils/
 import { BackgroundConfig } from '../utils/gradientUtils';
 import {
   Grid,
-  Sun,
   Box,
   CornerDownRight,
   Layers,
@@ -287,18 +286,6 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
                 aria-label="Canvas Aspect Ratio"
               >
                 <span className="island-ratio-icon">{aspectRatio}</span>
-              </button>
-            </span>
-
-            {/* Ambient Sun / Exposure */}
-            <span className="top-setting-hit">
-              <button
-                type="button"
-                onClick={() => onCameraChange({ ...camera, zoom: camera.zoom === 1 ? 1.2 : 1 })}
-                title="Lighting Exposure"
-                aria-label="Lighting Exposure"
-              >
-                <Sun size={16} />
               </button>
             </span>
           </div>
