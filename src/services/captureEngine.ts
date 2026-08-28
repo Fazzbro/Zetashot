@@ -114,7 +114,7 @@ export class CaptureEngine {
 
     // 4. Offscreen 2D Frame Content Canvas
     const aspectDims = getMockupDimensions(options.aspectRatio || '16:9');
-    const baseScale = width / 960;
+    const baseScale = height / 540;
     const frameW = Math.round(aspectDims.width * baseScale);
     const frameH = Math.round(aspectDims.height * baseScale);
     const cornerRadius = Math.round((options.borderRadius || 20) * baseScale);

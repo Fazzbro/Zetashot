@@ -204,6 +204,30 @@ export function App() {
   const frameSceneRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  // 12. Dynamic Stage Reference Scale for 100% Identical Preview-to-Export Framing
+  const [stageScale, setStageScale] = useState<number>(1.0);
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (stageRef.current) {
+        const rect = stageRef.current.getBoundingClientRect();
+        // 540 is the standard reference height in 960x540 base space
+        const scale = rect.height > 0 ? rect.height / 540 : 1.0;
+        setStageScale(scale);
+      }
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    if (stageRef.current) {
+      observer.observe(stageRef.current);
+    }
+    window.addEventListener('resize', updateScale);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [aspectRatio]);
+
   // When selected clip changes, load its camera angle and seek to its keyframe point (0s for 1st set, 3s for 2nd set)
   const handleSelectClip = (clipId: string) => {
     setSelectedClipId(clipId);
@@ -656,7 +680,7 @@ export function App() {
   };
 
   const bgStyle = generateBackgroundCss(background);
-  const transform3D = calculate3DTransform(camera);
+  const transform3D = calculate3DTransform(camera, stageScale);
   const mockupDims = getMockupDimensions(aspectRatio);
 
   // Compute crop transform
@@ -785,7 +809,7 @@ export function App() {
           <div
             className={`frame-anchor ${isDraggingScene ? 'is-dragging' : ''}`}
             onMouseDown={handleSceneMouseDown}
-            style={{ perspective: `${camera.perspective || 1000}px` }}
+            style={{ perspective: `${(camera.perspective || 1000) * stageScale}px` }}
           >
             {/* 3D Rotated Frame Scene with zero-stutter dynamic transition */}
             <div
@@ -795,10 +819,10 @@ export function App() {
               }`}
               style={{
                 transform: transform3D,
-                borderRadius: `${borderRadius}px`,
+                borderRadius: `${borderRadius * stageScale}px`,
                 opacity: frameOpacity,
-                width: `${mockupDims.width}px`,
-                height: `${mockupDims.height}px`,
+                width: `${mockupDims.width * stageScale}px`,
+                height: `${mockupDims.height * stageScale}px`,
               }}
             >
               {/* Edge / Periphery Tilt-Shift Blur: Center stays 100% sharp, edges get blurred */}
@@ -833,9 +857,9 @@ export function App() {
                 style={{
                   position: 'relative',
                   overflow: 'hidden',
-                  borderRadius: `${borderRadius}px`,
-                  width: `${mockupDims.width}px`,
-                  height: `${mockupDims.height}px`,
+                  borderRadius: `${borderRadius * stageScale}px`,
+                  width: `${mockupDims.width * stageScale}px`,
+                  height: `${mockupDims.height * stageScale}px`,
                 }}
               >
                 <div
@@ -843,7 +867,7 @@ export function App() {
                     width: isCropped ? `${(100 / cropRect.width) * 100}%` : '100%',
                     height: isCropped ? `${(100 / cropRect.height) * 100}%` : '100%',
                     transform: isCropped
-                      ? `translate(-${(cropRect.x / 100) * mockupDims.width}px, -${(cropRect.y / 100) * mockupDims.height}px)`
+                      ? `translate(-${(cropRect.x / 100) * mockupDims.width * stageScale}px, -${(cropRect.y / 100) * mockupDims.height * stageScale}px)`
                       : 'none',
                     transformOrigin: 'top left',
                   }}

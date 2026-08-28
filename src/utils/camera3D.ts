@@ -70,9 +70,9 @@ export function clampRotation(angle: number, min: number = -85, max: number = 85
   return Math.max(min, Math.min(max, angle));
 }
 
-export function calculate3DTransform(camera: Camera3DState): string {
+export function calculate3DTransform(camera: Camera3DState, scale: number = 1): string {
   const { rotX, rotY, rotZ, zoom, panX, panY } = camera;
-  return `translate3d(${panX}px, ${panY}px, 0) scale(${zoom}) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
+  return `translate3d(${panX * scale}px, ${panY * scale}px, 0) scale(${zoom}) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
 }
 
 export function interpolateCamera3D(

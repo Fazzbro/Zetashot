@@ -187,7 +187,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
   // 5. 2D Frame Content Offscreen Canvas
   const aspectDims = getMockupDimensions(options.aspectRatio || '16:9');
-  const baseScale = width / 960;
+  const baseScale = height / 540;
   const frameW = Math.round(aspectDims.width * baseScale);
   const frameH = Math.round(aspectDims.height * baseScale);
   const cornerRadius = Math.round((options.borderRadius || 20) * baseScale);
