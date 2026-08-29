@@ -161,6 +161,32 @@
   box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
+/* 3x3 Framing Grid Overlay */
+.framing-grid-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  pointer-events: none;
+  z-index: 55;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.framing-grid-overlay > div {
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+}
+
+.studio-root.dark-theme .framing-grid-overlay > div {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.framing-grid-overlay > div:nth-child(5) {
+  border: 1px dashed rgba(234, 179, 8, 0.45);
+}
+
 /* 3D Anchor & Scene */
 .frame-anchor {
   position: relative;
