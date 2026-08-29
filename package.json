@@ -2,6 +2,8 @@
   "name": "zetashot",
   "private": true,
   "version": "1.0.0",
+  "description": "Modern 3D Camera Mockup & Video Animation Studio for web apps and screen recordings",
+  "homepage": "https://zetashot.netlify.app",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -30,6 +30,8 @@ import {
   Volume2,
   VolumeX,
   Zap,
+  Share2,
+  Check,
 } from 'lucide-react';
 
 import './styles/index.css';
@@ -227,6 +229,16 @@ export function App() {
       window.removeEventListener('resize', updateScale);
     };
   }, [aspectRatio]);
+
+  // 13. Shareable Hosted Link State
+  const [isCopiedLink, setIsCopiedLink] = useState(false);
+
+  const handleShareLink = () => {
+    navigator.clipboard.writeText('https://zetashot.netlify.app');
+    setIsCopiedLink(true);
+    confetti({ particleCount: 30, spread: 60, origin: { y: 0.1, x: 0.85 } });
+    setTimeout(() => setIsCopiedLink(false), 2500);
+  };
 
   // When selected clip changes, load its camera angle and seek to its keyframe point (0s for 1st set, 3s for 2nd set)
   const handleSelectClip = (clipId: string) => {
@@ -739,6 +751,17 @@ export function App() {
           title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
         >
           {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+        </button>
+
+        {/* Share Live Link Pill */}
+        <button
+          type="button"
+          className="top-pill-btn"
+          onClick={handleShareLink}
+          title="Share live studio link (https://zetashot.netlify.app)"
+        >
+          {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
+          <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
         </button>
 
         {/* Upgrade / Export Pill */}

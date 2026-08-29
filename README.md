@@ -1,11 +1,14 @@
 # Zetashot 🎥✨
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-indigo.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19-cyan.svg)](https://react.dev/)
-[![Tests](https://img.shields.io/badge/Tests-Passing%20(Vitest)-brightgreen.svg)]()
+[![Live Web App](https://img.shields.io/badge/Live%20App-zetashot.netlify.app-00ad9f?style=for-the-badge&logo=netlify&logoColor=white)](https://zetashot.netlify.app)
+[![GitHub Stars](https://img.shields.io/github/stars/Fazzbro/Zetashot?style=for-the-badge&logo=github&color=gold)](https://github.com/Fazzbro/Zetashot)
+[![License: MIT](https://img.shields.io/badge/License-MIT-indigo.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg?style=for-the-badge)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-cyan.svg?style=for-the-badge)](https://react.dev/)
 
-> **"Cinematic 3D Camera Mockup Studio for Web Apps, Screen Recordings & Presentations."**
+> **Live Hosted Studio**: 🌐 [**https://zetashot.netlify.app**](https://zetashot.netlify.app)
+>
+> **"Cinematic 3D Camera Mockup & Video Animation Studio for Web Apps, Screen Recordings & Presentations."**
 
 **Zetashot** is a free, open-source, local-first professional 3D camera mockup studio and animation tool for turning screen recordings, product screenshots, and interactive demos into stunning 60 FPS 3D videos and high-resolution captures.
 
