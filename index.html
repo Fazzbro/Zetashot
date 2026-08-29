@@ -4,39 +4,85 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Zetashot — 3D Camera Mockup & Video Studio</title>
-    <meta name="description" content="Free, open-source, local-first professional 3D camera mockup studio. Record, orbit, animate, and export cinematic 3D product videos directly in your browser." />
-    <meta name="keywords" content="3D mockup, video animation, camera mockup, screen recorder, rotato alternative, device mockup, cinematic 3D, WebGL" />
+    <title>Zetashot — 3D Camera Mockup & Video Animation Studio</title>
+    <meta name="description" content="Free, open-source, local-first professional 3D camera mockup studio. Record, orbit, animate, and export 60 FPS cinematic 3D product videos directly in your browser." />
+    <meta name="keywords" content="3D mockup, video animation, camera mockup, screen recorder, rotato alternative, device mockup, cinematic 3D, WebGL, FFmpeg WASM, product mockup, 3D video export" />
     <meta name="author" content="Fazzbro" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://zetashot.netlify.app/" />
 
     <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://zetashot.netlify.app/" />
-    <meta property="og:title" content="Zetashot — 3D Camera Mockup & Video Studio" />
+    <meta property="og:title" content="Zetashot — 3D Camera Mockup & Video Animation Studio" />
     <meta property="og:description" content="Free, local-first professional 3D camera mockup studio. Animate, orbit, and export 60 FPS cinematic product videos directly in your browser." />
     <meta property="og:image" content="https://zetashot.netlify.app/default-codex-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="Zetashot" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter / X Cards -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://zetashot.netlify.app/" />
-    <meta name="twitter:title" content="Zetashot — 3D Camera Mockup & Video Studio" />
+    <meta name="twitter:title" content="Zetashot — 3D Camera Mockup & Video Animation Studio" />
     <meta name="twitter:description" content="Free, local-first professional 3D camera mockup studio. Animate, orbit, and export 60 FPS cinematic product videos directly in your browser." />
     <meta name="twitter:image" content="https://zetashot.netlify.app/default-codex-image.png" />
 
-    <!-- Theme & Colors -->
+    <!-- Theme & Mobile App Capability -->
     <meta name="theme-color" content="#0d111d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
     <!-- Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Structured Data for Search Engines -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Zetashot",
+      "alternateName": "Zetashot 3D Camera Mockup Studio",
+      "url": "https://zetashot.netlify.app",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "All modern browsers (Chrome, Edge, Firefox, Safari)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Free, open-source, local-first 3D camera mockup studio for creating cinematic 60 FPS video animations and high-resolution captures.",
+      "browserRequirements": "Requires WebGL & WebAssembly support",
+      "softwareVersion": "1.0.0",
+      "creator": {
+        "@type": "Person",
+        "name": "Fazzbro",
+        "url": "https://github.com/Fazzbro"
+      },
+      "featureList": [
+        "60 FPS Deterministic 3D Video Export (MP4 / WebM)",
+        "Intelligent Multi-Region Choreography Engine",
+        "Dynamic Multi-Ratio Canvas (16:9, 9:16, 1:1, 4:3, 21:9)",
+        "Hardware-Accelerated WebGL 3D Perspective & Shader Engine",
+        "Instant High-Resolution Photo Mockup Capture",
+        "Local-First Architecture with zero upload requirements"
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="font-family: system-ui, sans-serif; padding: 40px; max-width: 720px; margin: 0 auto; color: #1e293b;">
+        <h1>Zetashot — 3D Camera Mockup & Video Animation Studio</h1>
+        <p>Zetashot is a free, local-first professional 3D camera mockup studio for turning screen recordings and product designs into 60 FPS cinematic videos and high-res mockups.</p>
+        <p>Please enable JavaScript to run the interactive WebGL studio in your browser.</p>
+        <p><a href="https://github.com/Fazzbro/Zetashot" target="_blank" rel="noopener noreferrer">View Source Code on GitHub</a></p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
