@@ -14,7 +14,7 @@ import {
   Download,
   Video,
   X,
-  Star,
+  Heart,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
@@ -416,16 +416,16 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             </button>
           </div>
 
-          {/* Star on GitHub link */}
+          {/* Support Creator link */}
           <a
-            href="https://github.com/Fazzbro/Zetashot"
+            href="https://paypal.me/zetabyteIN"
             target="_blank"
             rel="noopener noreferrer"
-            className="timeline-star-github-link"
-            title="Star Zetashot on GitHub"
+            className="timeline-support-creator-link"
+            title="Support Creator on PayPal (@zetabyteIN)"
           >
-            <Star size={11} fill="#eab308" color="#eab308" />
-            <span>Star on GitHub</span>
+            <Heart size={11} fill="#ec4899" color="#ec4899" />
+            <span>Support Creator</span>
           </a>
 
           {showFormatMenu && (

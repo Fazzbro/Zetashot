@@ -32,6 +32,7 @@ import {
   Zap,
   Share2,
   Check,
+  Heart,
 } from 'lucide-react';
 
 import './styles/index.css';
@@ -764,20 +765,32 @@ export function App() {
           <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
         </button>
 
-        {/* Upgrade / Export Pill */}
-        <button
-          type="button"
-          className="top-pill-btn top-upgrade-btn"
-          onClick={() => handleExport(exportFormat)}
-          disabled={isProcessing}
-        >
-          <Zap size={13} />
-          <span>
-            {isProcessing
-              ? `Exporting ${exportFormat.toUpperCase()} ${exportProgress}%`
-              : `Export ${exportFormat.toUpperCase()}`}
-          </span>
-        </button>
+        {/* Export & Support Creator Group */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <button
+            type="button"
+            className="top-pill-btn top-upgrade-btn"
+            onClick={() => handleExport(exportFormat)}
+            disabled={isProcessing}
+          >
+            <Zap size={13} />
+            <span>
+              {isProcessing
+                ? `Exporting ${exportFormat.toUpperCase()} ${exportProgress}%`
+                : `Export ${exportFormat.toUpperCase()}`}
+            </span>
+          </button>
+          <a
+            href="https://paypal.me/zetabyteIN"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="support-creator-pill-link"
+            title="Support Creator on PayPal (@zetabyteIN)"
+          >
+            <Heart size={11} fill="#ec4899" color="#ec4899" />
+            <span>Support Creator</span>
+          </a>
+        </div>
       </div>
 
       {/* 4. MEDIA LIBRARY MODAL */}

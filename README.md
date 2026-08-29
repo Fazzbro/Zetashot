@@ -1,7 +1,7 @@
 # Zetashot 🎥✨
 
 [![Live Web App](https://img.shields.io/badge/Live%20App-zetashot.netlify.app-00ad9f?style=for-the-badge&logo=netlify&logoColor=white)](https://zetashot.netlify.app)
-[![GitHub Stars](https://img.shields.io/github/stars/Fazzbro/Zetashot?style=for-the-badge&logo=github&color=gold)](https://github.com/Fazzbro/Zetashot)
+[![Support Creator](https://img.shields.io/badge/Support%20Creator-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/zetabyteIN)
 [![License: MIT](https://img.shields.io/badge/License-MIT-indigo.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg?style=for-the-badge)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan.svg?style=for-the-badge)](https://react.dev/)
