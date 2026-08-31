@@ -55,6 +55,7 @@ interface VideoTimelineProps {
   onEasingValuesChange: (vals: CubicBezierValues) => void;
   onCompose?: () => void;
   onTotalDurationChange?: (duration: number) => void;
+  onMediaDurationChange?: (duration: number) => void;
   mediaThumbnailUrl?: string;
   mediaThumbnails?: string[];
   mediaDuration?: number;
@@ -82,6 +83,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   onEasingValuesChange,
   onCompose,
   onTotalDurationChange,
+  onMediaDurationChange,
   mediaThumbnailUrl,
   mediaThumbnails,
   mediaDuration = 3.0,
@@ -144,6 +146,18 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           }
         }
         onClipsChange(updated);
+
+        // Synchronously stretch media below in real time with keyframes block
+        let maxClipsEnd = Number((baseStart + newTotal).toFixed(2));
+        for (let k = 0; k < updated.length; k++) {
+          const c = updated[k];
+          const end = (c.startTime || 0) + (c.duration || 0);
+          if (end > maxClipsEnd) maxClipsEnd = end;
+        }
+        if (onMediaDurationChange) {
+          onMediaDurationChange(Number(maxClipsEnd.toFixed(2)));
+        }
+
         dragNewTotalRef.current = newTotal;
       } else {
         // Left handle: resize starting from left
@@ -163,6 +177,18 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           }
         }
         onClipsChange(updated);
+
+        // Synchronously stretch media below in real time with keyframes block
+        let maxClipsEnd = Number((newStart + newTotal).toFixed(2));
+        for (let k = 0; k < updated.length; k++) {
+          const c = updated[k];
+          const end = (c.startTime || 0) + (c.duration || 0);
+          if (end > maxClipsEnd) maxClipsEnd = end;
+        }
+        if (onMediaDurationChange) {
+          onMediaDurationChange(Number(maxClipsEnd.toFixed(2)));
+        }
+
         dragNewTotalRef.current = newTotal;
       }
     };
@@ -178,7 +204,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, clips, totalDuration, onClipsChange, onTotalDurationChange]);
+  }, [isResizing, clips, totalDuration, onClipsChange, onTotalDurationChange, onMediaDurationChange]);
 
   const [isScrubbing, setIsScrubbing] = useState(false);
 
@@ -246,6 +272,10 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
     const updated = [...clips, newClip];
     onClipsChange(updated);
+    const newSpan = Number((newStartTime + stepDur).toFixed(2));
+    if (onMediaDurationChange) {
+      onMediaDurationChange(newSpan);
+    }
     onSelectClip(newClip.id);
     onSeek(newStartTime);
   };
@@ -254,6 +284,14 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     const targetId = idToDelete || selectedClipId;
     const updated = clips.filter((c) => c.id !== targetId);
     onClipsChange(updated);
+    if (onMediaDurationChange && updated.length > 0) {
+      let maxEnd = 0;
+      for (const c of updated) {
+        const end = (c.startTime || 0) + (c.duration || 0);
+        if (end > maxEnd) maxEnd = end;
+      }
+      if (maxEnd > 0) onMediaDurationChange(Number(maxEnd.toFixed(2)));
+    }
     if (targetId === selectedClipId) {
       onSelectClip(updated[0]?.id || '');
     }

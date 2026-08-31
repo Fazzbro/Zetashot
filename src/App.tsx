@@ -279,6 +279,43 @@ export function App() {
     );
   };
 
+  // Synchronous Media Duration and Playback Rate Sync Handler
+  const handleMediaDurationChange = useCallback((newDur: number) => {
+    const clamped = Math.max(0.6, Number(newDur.toFixed(2)));
+    setMediaDuration(clamped);
+    mediaDurationRef.current = clamped;
+    if (videoRef.current && activeMediaRef.current.type === 'video') {
+      const naturalDur = (videoRef.current.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+        ? videoRef.current.duration
+        : clamped;
+      if (isComposedRef.current) {
+        videoRef.current.playbackRate = Math.max(0.1, Math.min(4.0, naturalDur / clamped));
+      }
+    }
+  }, []);
+
+  const handleClipsChange = useCallback((newClips: TimelinePositionClip[]) => {
+    setClips(newClips);
+    let maxEnd = 0;
+    for (const c of newClips) {
+      const end = (c.startTime || 0) + (c.duration || 0);
+      if (end > maxEnd) maxEnd = end;
+    }
+    if (maxEnd > 0) {
+      const clamped = Number(maxEnd.toFixed(2));
+      setMediaDuration(clamped);
+      mediaDurationRef.current = clamped;
+      if (videoRef.current && activeMediaRef.current.type === 'video') {
+        const naturalDur = (videoRef.current.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+          ? videoRef.current.duration
+          : clamped;
+        if (isComposedRef.current) {
+          videoRef.current.playbackRate = Math.max(0.1, Math.min(4.0, naturalDur / clamped));
+        }
+      }
+    }
+  }, []);
+
   // Auto-compose macro generator: transforms into choreographed sequence from interest regions
   // Core Rule: Compose = Synchronize media duration to Number of Interest Points * 1.0s, master timeline stays 12s
   // If 0 Interest Points exist: DO NOT create zoom keyframes, DO NOT change camera, DO NOT modify timeline.
@@ -1007,7 +1044,7 @@ export function App() {
       {studioMode === 'video' && (
         <VideoTimeline
           clips={clips}
-          onClipsChange={setClips}
+          onClipsChange={handleClipsChange}
           selectedClipId={selectedClipId}
           onSelectClip={handleSelectClip}
           currentTime={currentTime}
@@ -1027,6 +1064,7 @@ export function App() {
           onEasingValuesChange={setEasingValues}
           onCompose={handleCompose}
           onTotalDurationChange={(newDur) => setTotalDuration(newDur)}
+          onMediaDurationChange={handleMediaDurationChange}
           mediaThumbnailUrl={activeMedia.type === 'image' ? activeMedia.url : undefined}
           mediaThumbnails={videoThumbnails}
           mediaDuration={mediaDuration}
