@@ -305,43 +305,33 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         frameCtx.fillText('UI Camera Mockup', frameW / 2, frameH / 2);
       }
 
-      // Edge tilt-shift blur
-      if (options.blurAmount && options.blurAmount > 0) {
-        const grad = frameCtx.createRadialGradient(
-          frameW / 2,
-          frameH / 2,
-          Math.min(frameW, frameH) * 0.25,
-          frameW / 2,
-          frameH / 2,
-          Math.max(frameW, frameH) * 0.55
-        );
-        grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(1, `rgba(15, 23, 42, ${Math.min(0.85, (options.blurAmount / 30) * 0.7)})`);
-        frameCtx.fillStyle = grad;
-        frameCtx.fillRect(0, 0, frameW, frameH);
-      }
-
       frameCtx.restore();
 
-      // --- B. Render 3D Perspective with WebGL ---
-      webglRenderer.render(frameCanvas, frameW, frameH, camera, baseScale, 1.0);
+      // --- B. Render 3D Perspective & Depth-of-Field Bokeh with WebGL on GPU ---
+      const focusPoint = (options.cropRect || options.crop)
+        ? { x: ((options.cropRect || options.crop)!.x / 100) + ((options.cropRect || options.crop)!.width / 200), y: ((options.cropRect || options.crop)!.y / 100) + ((options.cropRect || options.crop)!.height / 200) }
+        : { x: 0.5, y: 0.5 };
+      webglRenderer.render(frameCanvas, frameW, frameH, camera, baseScale, 1.0, options.blurAmount || 0, focusPoint);
 
       // --- C. Composite onto Main Export Canvas ---
       drawBackground(ctx, options.background || { type: 'solid', color: '#ffffff' }, width, height, bgImgElem);
 
-      // Drop shadow pass
+      // Drop shadow pass: isolated offscreen cast so only the blurred shadow lands on (0,0) without double-drawing the frame
       if (options.shadowDepth !== 'none') {
         ctx.save();
         const shadowBlur = (options.shadowDepth === 'small' ? 20 : options.shadowDepth === 'medium' ? 35 : 55) * (baseScale * 0.8);
         ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
         ctx.shadowBlur = shadowBlur;
-        ctx.shadowOffsetX = -camera.rotY * 1.5 * baseScale;
-        ctx.shadowOffsetY = (25 + camera.rotX * 1.5) * baseScale;
-        ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+        const offX = -camera.rotY * 1.5 * baseScale;
+        const offY = (25 + camera.rotX * 1.5) * baseScale;
+        const FAR_OFFSET = 10000;
+        ctx.shadowOffsetX = offX + FAR_OFFSET;
+        ctx.shadowOffsetY = offY;
+        ctx.drawImage(webglRenderer.getCanvas(), -FAR_OFFSET, 0);
         ctx.restore();
       }
 
-      // Main 3D frame pass
+      // Main 3D frame pass: single crisp render with zero corner-radius ghosting
       ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
 
       // Capture frame Blob with ultra-high fidelity to prevent edge crawling

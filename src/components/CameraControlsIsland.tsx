@@ -137,11 +137,11 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
           {activeSlider === 'blur' ? (
             <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
               <RulerSliderStrip
-                label="BLUR"
-                valueText={`ƒ ${blurAmount.toFixed(1)}`}
+                label="DEPTH BLUR"
+                valueText={blurAmount > 0 ? `ƒ ${(Math.max(1.2, 22.0 - (blurAmount / 50) * 20.8)).toFixed(1)} (${blurAmount}px)` : 'OFF'}
                 value={blurAmount}
                 min={0}
-                max={30}
+                max={50}
                 step={0.5}
                 onChange={onBlurChange}
                 onClose={() => setActiveSlider(null)}

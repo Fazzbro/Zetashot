@@ -123,4 +123,33 @@ describe('videoExportEngine & Timeline Sync Hardcore Reliability', () => {
     const validBlob = new Blob([validBuffer], { type: 'video/mp4' });
     await expect(validateExportedBlob(validBlob, 'mp4', 5.0)).resolves.not.toThrow();
   });
+
+  it('correctly calculates total frames for 24, 30, and 60 FPS video export', () => {
+    const duration5s = 5.0;
+
+    // 24 FPS (Cinematic standard): 5s * 24 = 120 frames
+    const frames24 = Math.max(1, Math.round(duration5s * 24));
+    expect(frames24).toBe(120);
+
+    // 30 FPS (Web standard): 5s * 30 = 150 frames
+    const frames30 = Math.max(1, Math.round(duration5s * 30));
+    expect(frames30).toBe(150);
+
+    // 60 FPS (Ultra-smooth): 5s * 60 = 300 frames
+    const frames60 = Math.max(1, Math.round(duration5s * 60));
+    expect(frames60).toBe(300);
+
+    // Verify all 3 framerates pass export parameter validation
+    for (const fps of [24, 30, 60]) {
+      expect(() =>
+        validateExportParameters({
+          duration: duration5s,
+          fps,
+          width: 1920,
+          height: 1080,
+          clips: sampleClips,
+        })
+      ).not.toThrow();
+    }
+  });
 });

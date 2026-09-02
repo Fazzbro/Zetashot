@@ -15,6 +15,7 @@ import {
   Video,
   X,
   Heart,
+  Check,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
@@ -44,11 +45,13 @@ interface VideoTimelineProps {
   onPlayPause: () => void;
   onSeek: (time: number) => void;
   onResetScene: () => void;
-  onExportVideo: (format: 'mp4' | 'webm') => void;
+  onExportVideo: (format: 'mp4' | 'webm', fps?: 24 | 30 | 60) => void;
   isExporting: boolean;
   exportProgress?: number;
   exportFormat: 'mp4' | 'webm';
   onExportFormatChange: (fmt: 'mp4' | 'webm') => void;
+  exportFps?: 24 | 30 | 60;
+  onExportFpsChange?: (fps: 24 | 30 | 60) => void;
   onOpenCrop: () => void;
   onOpenMediaLibrary: () => void;
   easingValues: CubicBezierValues;
@@ -77,6 +80,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   exportProgress = 0,
   exportFormat,
   onExportFormatChange,
+  exportFps = 60,
+  onExportFpsChange,
   onOpenCrop,
   onOpenMediaLibrary,
   easingValues,
@@ -433,12 +438,12 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             <button
               type="button"
               className="timeline-export-btn"
-              onClick={() => onExportVideo(exportFormat)}
+              onClick={() => onExportVideo(exportFormat, exportFps)}
               disabled={isExporting}
-              title={`Export as ${exportFormat.toUpperCase()}`}
+              title={`Export as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
             >
               <Download size={14} />
-              {isExporting ? `${exportProgress}%` : ''}
+              <span>{isExporting ? `${exportProgress}%` : `${exportFormat.toUpperCase()} • ${exportFps}fps`}</span>
             </button>
             <button
               type="button"
@@ -448,7 +453,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                 setShowFormatMenu(!showFormatMenu);
               }}
               disabled={isExporting}
-              title="Select video export format (MP4 or WEBM)"
+              title="Export Settings (Format & Framerate)"
             >
               <ChevronDown size={12} />
             </button>
@@ -468,28 +473,52 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
           {showFormatMenu && (
             <div className="timeline-format-dropdown-menu">
+              <div className="format-dropdown-section-title">FORMAT</div>
               <button
                 type="button"
                 className={`format-option-row ${exportFormat === 'mp4' ? 'is-active' : ''}`}
                 onClick={() => {
                   onExportFormatChange('mp4');
-                  setShowFormatMenu(false);
                 }}
               >
-                <span>MP4 Video</span>
-                <small>High compatibility H.264</small>
+                <div className="format-option-content">
+                  <span className="format-option-name">MP4 Video</span>
+                  <small>High compatibility H.264</small>
+                </div>
+                {exportFormat === 'mp4' && <Check size={13} color="#818cf8" />}
               </button>
               <button
                 type="button"
                 className={`format-option-row ${exportFormat === 'webm' ? 'is-active' : ''}`}
                 onClick={() => {
                   onExportFormatChange('webm');
-                  setShowFormatMenu(false);
                 }}
               >
-                <span>WEBM Video</span>
-                <small>VP9 / Web stream</small>
+                <div className="format-option-content">
+                  <span className="format-option-name">WEBM Video</span>
+                  <small>VP9 / Web stream</small>
+                </div>
+                {exportFormat === 'webm' && <Check size={13} color="#818cf8" />}
               </button>
+
+              <div className="format-dropdown-divider" />
+              <div className="format-dropdown-section-title">FRAME RATE</div>
+              <div className="format-fps-grid">
+                {([24, 30, 60] as const).map((fpsVal) => (
+                  <button
+                    key={fpsVal}
+                    type="button"
+                    className={`fps-option-chip ${exportFps === fpsVal ? 'is-active' : ''}`}
+                    onClick={() => {
+                      if (onExportFpsChange) onExportFpsChange(fpsVal);
+                    }}
+                    title={`${fpsVal} Frames Per Second`}
+                  >
+                    <span>{fpsVal} FPS</span>
+                    <small>{fpsVal === 24 ? 'Film' : fpsVal === 30 ? 'Web' : 'Smooth'}</small>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

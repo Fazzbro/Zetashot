@@ -111,15 +111,92 @@ const FS_SOURCE = `
 precision highp float;
 uniform sampler2D u_texture;
 uniform float u_opacity;
-uniform vec2 u_rotation;
+uniform vec2 u_rotation; // (rotX, rotY) in radians
+uniform float u_blurAmount; // blur slider value (0.0 to 50.0+)
+uniform vec2 u_resolution; // (frameW, frameH)
+uniform vec2 u_focusPoint; // (fx, fy) normalized [0..1]
 varying vec2 v_texCoord;
 
 void main() {
-  vec4 texColor = texture2D(u_texture, v_texCoord);
-
-  // Dynamic glass sheen sweep reacting to 3D rotation
   float sinX = sin(u_rotation.x);
   float sinY = sin(u_rotation.y);
+  
+  // 1. Physically-based 3D Distance relative to focus point (u_focusPoint)
+  // Distance along camera optical axis Z:
+  float zPixel = -(v_texCoord.y - u_focusPoint.y) * sinX + (v_texCoord.x - u_focusPoint.x) * sinY;
+  float totalTilt = sqrt(sinX * sinX + sinY * sinY);
+
+  float blurFactor = 0.0;
+
+  if (totalTilt > 0.01) {
+    // 3D Tilt-Shift: Circle of Confusion expands proportionally to |zPixel| with smooth curvature
+    // Focal band is pin-sharp (0 blur), background and foreground smoothly expand into bokeh
+    float zDist = abs(zPixel);
+    float normDist = clamp(zDist / 0.55, 0.0, 1.0);
+    float tiltBlur = pow(normDist, 1.35);
+
+    // Peripheral aperture falloff so outer corners have natural lens depth separation
+    float radialAperture = smoothstep(0.3, 0.95, length(v_texCoord - u_focusPoint));
+    
+    blurFactor = mix(tiltBlur, max(tiltBlur, radialAperture), 0.35);
+  } else {
+    // Flat 2D View: Optical Center-Weighted Aperture Blur (Center is razor-sharp, edges creamy)
+    float radialDist = length(v_texCoord - u_focusPoint);
+    blurFactor = smoothstep(0.18, 0.85, radialDist);
+  }
+
+  // Optical Blur Radius scaling with rich cinematic dynamic range
+  float blurRadius = u_blurAmount * blurFactor * 1.6;
+
+  vec4 finalColor = vec4(0.0);
+
+  if (blurRadius < 0.25) {
+    finalColor = texture2D(u_texture, v_texCoord);
+  } else {
+    vec2 texelSize = vec2(1.0 / max(1.0, u_resolution.x), 1.0 / max(1.0, u_resolution.y));
+    float totalWeight = 0.0;
+    const float GOLDEN_ANGLE = 2.39996323;
+    const int SAMPLES = 18;
+
+    // Optical chromatic dispersion strength (subtle chromatic split on deep blur)
+    float chromaDisp = min(1.8, blurRadius * 0.06);
+
+    for (int i = 0; i < SAMPLES; i++) {
+      float fi = float(i) + 0.5;
+      float r = sqrt(fi / float(SAMPLES)) * blurRadius;
+      float theta = fi * GOLDEN_ANGLE;
+      vec2 dir = vec2(cos(theta), sin(theta));
+      
+      vec2 offset = dir * r * texelSize;
+      vec2 offsetR = dir * (r + chromaDisp) * texelSize;
+      vec2 offsetB = dir * max(0.0, r - chromaDisp) * texelSize;
+
+      vec2 coordG = clamp(v_texCoord + offset, vec2(0.001), vec2(0.999));
+      vec2 coordR = clamp(v_texCoord + offsetR, vec2(0.001), vec2(0.999));
+      vec2 coordB = clamp(v_texCoord + offsetB, vec2(0.001), vec2(0.999));
+
+      vec4 sampleG = texture2D(u_texture, coordG);
+      float sampleR = texture2D(u_texture, coordR).r;
+      float sampleB = texture2D(u_texture, coordB).b;
+
+      // Bokeh highlight expansion (bright out-of-focus areas glow softly)
+      float luma = dot(sampleG.rgb, vec3(0.299, 0.587, 0.114));
+      float highlightWeight = 1.0 + pow(luma, 2.5) * 1.6;
+
+      // Radial falloff weighting for round bokeh discs
+      float w = (1.0 - (r / (blurRadius + 0.001)) * 0.25) * highlightWeight;
+
+      finalColor.r += sampleR * w;
+      finalColor.g += sampleG.g * w;
+      finalColor.b += sampleB * w;
+      finalColor.a += sampleG.a * w;
+      totalWeight += w;
+    }
+
+    finalColor /= max(0.0001, totalWeight);
+  }
+
+  // Dynamic glass sheen sweep reacting to 3D rotation
   vec2 lightPos = vec2(0.4 + sinY * 0.35, 0.3 - sinX * 0.35);
   float distToLight = abs((v_texCoord.x * 0.65 + v_texCoord.y * 0.75) - (lightPos.x * 0.65 + lightPos.y * 0.75));
   float sheen = exp(-distToLight * distToLight * 24.0) * 0.05;
@@ -128,8 +205,8 @@ void main() {
   float edgeDist = min(min(v_texCoord.x, 1.0 - v_texCoord.x), min(v_texCoord.y, 1.0 - v_texCoord.y));
   float fresnel = (1.0 - smoothstep(0.0, 0.06, edgeDist)) * 0.04;
 
-  vec3 litRgb = texColor.rgb + vec3(sheen + fresnel);
-  gl_FragColor = vec4(litRgb * u_opacity, texColor.a * u_opacity);
+  vec3 litRgb = finalColor.rgb + vec3(sheen + fresnel);
+  gl_FragColor = vec4(litRgb * u_opacity, finalColor.a * u_opacity);
 }
 `;
 
@@ -143,6 +220,9 @@ export class WebGL3DRenderer {
   private uMatrixLocation: WebGLUniformLocation;
   private uOpacityLocation: WebGLUniformLocation;
   private uRotationLocation: WebGLUniformLocation;
+  private uBlurAmountLocation: WebGLUniformLocation;
+  private uResolutionLocation: WebGLUniformLocation;
+  private uFocusPointLocation: WebGLUniformLocation;
 
   constructor(width: number, height: number) {
     this.canvas = document.createElement('canvas');
@@ -174,6 +254,9 @@ export class WebGL3DRenderer {
     this.uMatrixLocation = gl.getUniformLocation(program, 'u_matrix')!;
     this.uOpacityLocation = gl.getUniformLocation(program, 'u_opacity')!;
     this.uRotationLocation = gl.getUniformLocation(program, 'u_rotation')!;
+    this.uBlurAmountLocation = gl.getUniformLocation(program, 'u_blurAmount')!;
+    this.uResolutionLocation = gl.getUniformLocation(program, 'u_resolution')!;
+    this.uFocusPointLocation = gl.getUniformLocation(program, 'u_focusPoint')!;
 
     // Quad positions: Triangle Strip (-1,-1), (1,-1), (-1,1), (1,1)
     const positions = new Float32Array([
@@ -229,7 +312,9 @@ export class WebGL3DRenderer {
     frameH: number,
     camera: Camera3DState,
     baseScale: number = 1,
-    opacity: number = 1.0
+    opacity: number = 1.0,
+    blurAmount: number = 0.0,
+    focusPoint?: { x: number; y: number }
   ): void {
     const gl = this.gl;
     const width = this.canvas.width;
@@ -283,6 +368,17 @@ export class WebGL3DRenderer {
     gl.uniform1f(this.uOpacityLocation, opacity);
     if (this.uRotationLocation) {
       gl.uniform2f(this.uRotationLocation, degToRad(camera.rotX), degToRad(camera.rotY));
+    }
+    if (this.uBlurAmountLocation) {
+      gl.uniform1f(this.uBlurAmountLocation, (blurAmount || 0) * baseScale);
+    }
+    if (this.uResolutionLocation) {
+      gl.uniform2f(this.uResolutionLocation, frameW, frameH);
+    }
+    if (this.uFocusPointLocation) {
+      const fx = focusPoint ? Math.max(0, Math.min(1, focusPoint.x)) : 0.5;
+      const fy = focusPoint ? Math.max(0, Math.min(1, focusPoint.y)) : 0.5;
+      gl.uniform2f(this.uFocusPointLocation, fx, fy);
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

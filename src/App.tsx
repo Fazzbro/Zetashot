@@ -38,6 +38,40 @@ import {
 import './styles/index.css';
 import './styles/uicamera.css';
 
+/**
+ * Computes dynamic directional 3D Tilt-Shift & Depth-of-Field mask with autofocus support.
+ * When the plane tilts in 3D (rotX/rotY), regions around the focal point remain crystal sharp (0% blur),
+ * while receding/distant regions in Z-space smoothly blend into optical cinema bokeh.
+ */
+export function getTiltShiftMask(
+  rotX: number,
+  rotY: number,
+  focusPoint?: { x: number; y: number }
+): string {
+  const radX = (rotX * Math.PI) / 180;
+  const radY = (rotY * Math.PI) / 180;
+  const sinX = Math.sin(radX);
+  const sinY = Math.sin(radY);
+  const totalTilt = Math.sqrt(sinX * sinX + sinY * sinY);
+
+  const fx = focusPoint ? Math.max(10, Math.min(90, focusPoint.x * 100)) : 50;
+  const fy = focusPoint ? Math.max(10, Math.min(90, focusPoint.y * 100)) : 50;
+
+  if (totalTilt > 0.015) {
+    // Direction angle from focal center to receding background
+    const angleRad = Math.atan2(sinX, -sinY);
+    const angleDeg = ((angleRad * 180) / Math.PI + 360) % 360;
+    
+    // Rich multi-stop anamorphic depth ramp:
+    // Focus band is 100% crisp & transparent (unblurred)
+    // Distant depth achieves full deep bokeh
+    return `linear-gradient(${angleDeg.toFixed(1)}deg, transparent 0%, transparent 20%, rgba(0,0,0,0.3) 42%, rgba(0,0,0,0.75) 68%, black 100%)`;
+  }
+
+  // Flat angle: Photorealistic center-weighted lens aperture bokeh
+  return `radial-gradient(circle at ${fx.toFixed(1)}% ${fy.toFixed(1)}%, transparent 0%, transparent 18%, rgba(0,0,0,0.38) 48%, rgba(0,0,0,0.85) 75%, black 100%)`;
+}
+
 export function App() {
   // 1. Media & Project State
   const DEFAULT_BLANK_MEDIA: MediaItem = BUILTIN_MEDIA_ITEMS[0] || {
@@ -197,8 +231,9 @@ export function App() {
   // 10. Cursor Follower
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number }>({ x: 380, y: 220 });
 
-  // 11. Export Status & Format (Default MP4)
+  // 11. Export Status, Format & Framerate (Default MP4 @ 60 FPS)
   const [exportFormat, setExportFormat] = useState<'mp4' | 'webm'>('mp4');
+  const [exportFps, setExportFps] = useState<24 | 30 | 60>(60);
   const [isProcessing, setIsProcessing] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
@@ -630,8 +665,8 @@ export function App() {
     }
   };
 
-  // Capture / Video Export Handler (Supports MP4 & WebM)
-  const handleExport = async (format: 'mp4' | 'webm' = exportFormat) => {
+  // Capture / Video Export Handler (Supports MP4 & WebM, 24/30/60 FPS)
+  const handleExport = async (format: 'mp4' | 'webm' = exportFormat, fps: 24 | 30 | 60 = exportFps) => {
     if (!stageRef.current || isProcessing) return;
 
     try {
@@ -677,7 +712,7 @@ export function App() {
 
         confetti({ particleCount: 70, spread: 75 });
       } else {
-        // Video Mockup Rendering via VideoExportEngine (MP4 / WebM)
+        // Video Mockup Rendering via VideoExportEngine (MP4 / WebM with accurate framerate)
         // Strictly exports the active length of the video/composition (e.g. 3.0s, 4.0s, etc.)
         const activeExportDuration = calculateTimelineDuration(clips, mediaDuration);
         const stageDims = getStageDimensions(aspectRatio, 1920, 1080);
@@ -685,7 +720,7 @@ export function App() {
           clips,
           totalDuration: activeExportDuration,
           mediaDuration,
-          fps: 60,
+          fps,
           format,
           width: stageDims.width,
           height: stageDims.height,
@@ -807,14 +842,15 @@ export function App() {
           <button
             type="button"
             className="top-pill-btn top-upgrade-btn"
-            onClick={() => handleExport(exportFormat)}
+            onClick={() => handleExport(exportFormat, exportFps)}
             disabled={isProcessing}
+            title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
           >
             <Zap size={13} />
             <span>
               {isProcessing
-                ? `Exporting ${exportFormat.toUpperCase()} ${exportProgress}%`
-                : `Export ${exportFormat.toUpperCase()}`}
+                ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
+                : `Export ${exportFormat.toUpperCase()} • ${exportFps}fps`}
             </span>
           </button>
           <a
@@ -898,19 +934,6 @@ export function App() {
                 height: `${mockupDims.height * stageScale}px`,
               }}
             >
-              {/* Edge / Periphery Tilt-Shift Blur: Center stays 100% sharp, edges get blurred */}
-              {blurAmount > 0 && (
-                <div
-                  className="edge-tilt-shift-blur-overlay"
-                  style={{
-                    backdropFilter: `blur(${blurAmount}px)`,
-                    WebkitBackdropFilter: `blur(${blurAmount}px)`,
-                    maskImage: 'radial-gradient(circle at center, transparent 40%, black 85%)',
-                    WebkitMaskImage: 'radial-gradient(circle at center, transparent 40%, black 85%)',
-                  }}
-                />
-              )}
-
               {/* Depth of field / Laser red focus overlay */}
               {showLaserFocusIndicator && !isPlaying && <div className="laser-focus-overlay" />}
 
@@ -992,6 +1015,27 @@ export function App() {
                     />
                   )}
                 </div>
+
+                {/* Optical 3D Depth-of-Field & Tilt-Shift Blur Overlay (over the media) */}
+                {blurAmount > 0 && (
+                  <div
+                    className="edge-tilt-shift-blur-overlay"
+                    style={{
+                      backdropFilter: `blur(${(blurAmount * 1.6).toFixed(1)}px)`,
+                      WebkitBackdropFilter: `blur(${(blurAmount * 1.6).toFixed(1)}px)`,
+                      maskImage: getTiltShiftMask(
+                        camera.rotX,
+                        camera.rotY,
+                        autoFocus ? { x: cursorPos.x / Math.max(1, mockupDims.width * stageScale), y: cursorPos.y / Math.max(1, mockupDims.height * stageScale) } : undefined
+                      ),
+                      WebkitMaskImage: getTiltShiftMask(
+                        camera.rotX,
+                        camera.rotY,
+                        autoFocus ? { x: cursorPos.x / Math.max(1, mockupDims.width * stageScale), y: cursorPos.y / Math.max(1, mockupDims.height * stageScale) } : undefined
+                      ),
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1058,6 +1102,8 @@ export function App() {
           exportProgress={exportProgress}
           exportFormat={exportFormat}
           onExportFormatChange={setExportFormat}
+          exportFps={exportFps}
+          onExportFpsChange={setExportFps}
           onOpenCrop={() => setIsCropModalOpen(true)}
           onOpenMediaLibrary={() => setIsMediaLibraryOpen(true)}
           easingValues={easingValues}
