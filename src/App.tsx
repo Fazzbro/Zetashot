@@ -25,6 +25,7 @@ import {
   STAGE_BASE_DIMS,
 } from './utils/interestRegionEngine';
 import { calculateTimelineDuration } from './utils/timelineDurationEngine';
+import { isCropActive, calculateCroppedDimensions, calculateMediaCropOffset } from './utils/cropMath';
 import {
   Plus,
   RotateCcw,
@@ -208,6 +209,11 @@ export function App() {
   const clipsRef = useRef<TimelinePositionClip[]>(clips);
   const activeMediaRef = useRef<MediaItem>(activeMedia);
   const totalDurationRef = useRef<number>(totalDuration);
+  const selectedClipIdRef = useRef<string>(selectedClipId);
+
+  useEffect(() => {
+    selectedClipIdRef.current = selectedClipId;
+  }, [selectedClipId]);
 
   useEffect(() => {
     clipsRef.current = clips;
@@ -317,6 +323,7 @@ export function App() {
   // When selected clip changes, load its camera angle and seek to its keyframe point (0s for 1st set, 3s for 2nd set)
   const handleSelectClip = useCallback((clipId: string) => {
     setSelectedClipId(clipId);
+    selectedClipIdRef.current = clipId;
     if (isGuideOpen) {
       if (clipId === 'P01') {
         setGuidePhase('start');
@@ -324,18 +331,22 @@ export function App() {
         setGuidePhase('end');
       }
     }
-    const clipIdx = clips.findIndex((c) => c.id === clipId);
-    const found = clips[clipIdx];
+    const currentClips = clipsRef.current;
+    const clipIdx = currentClips.findIndex((c) => c.id === clipId);
+    const found = currentClips[clipIdx];
     if (found) {
       setCamera(found.camera);
       if (frameAnchorRef.current) {
         frameAnchorRef.current.style.perspective = `${(found.camera.perspective || 1000) * (stageScaleRef.current || 1.0)}px`;
       }
+      if (frameSceneRef.current) {
+        frameSceneRef.current.style.transform = calculate3DTransform(found.camera, stageScaleRef.current);
+      }
       let targetTime = found.startTime;
-      if (clips.length === 2 && clipIdx === 1) {
-        const d1 = typeof clips[0]?.duration === 'number' && clips[0].duration > 0 ? clips[0].duration : 1.5;
+      if (currentClips.length === 2 && clipIdx === 1) {
+        const d1 = typeof currentClips[0]?.duration === 'number' && currentClips[0].duration > 0 ? currentClips[0].duration : 1.5;
         const d2 = typeof found.duration === 'number' && found.duration > 0 ? found.duration : 1.5;
-        targetTime = Number((clips[0].startTime + d1 + d2).toFixed(2));
+        targetTime = Number((currentClips[0].startTime + d1 + d2).toFixed(2));
       }
       currentTimeRef.current = targetTime;
       setCurrentTime(targetTime);
@@ -346,9 +357,9 @@ export function App() {
         }
       }
     }
-  }, [clips, isGuideOpen, guidePhase]);
+  }, [isGuideOpen, guidePhase]);
 
-  // Helper to update camera and sync with active clip
+  // Helper to update camera and sync with active clip (ensures perspective and angles persist immediately)
   const handleCameraChange = (newCamera: Camera3DState) => {
     const cleanedCam: Camera3DState = {
       ...newCamera,
@@ -366,11 +377,33 @@ export function App() {
     if (frameAnchorRef.current) {
       frameAnchorRef.current.style.perspective = `${cleanedCam.perspective * (stageScaleRef.current || 1.0)}px`;
     }
+    if (frameSceneRef.current) {
+      frameSceneRef.current.style.transform = calculate3DTransform(cleanedCam, stageScaleRef.current);
+    }
 
-    // Sync changes to selected clip in timeline
-    setClips((prevClips) =>
-      prevClips.map((c) => (c.id === selectedClipId ? { ...c, camera: cleanedCam } : c))
-    );
+    // Determine target clip: selectedClipId, or active clip at currentTime, or first clip
+    const currentClips = clipsRef.current;
+    let targetId = selectedClipIdRef.current || selectedClipId;
+    if (!targetId || !currentClips.some((c) => c.id === targetId)) {
+      if (currentClips.length === 2 && !currentClips[0].blockId && !currentClips[1].blockId) {
+        const d1 = currentClips[0].duration || 1.5;
+        targetId = currentTimeRef.current >= (currentClips[0].startTime + d1) ? currentClips[1].id : currentClips[0].id;
+      } else {
+        const atTime = currentClips.find(
+          (c) => currentTimeRef.current >= c.startTime && currentTimeRef.current <= c.startTime + (c.duration || 1.5)
+        );
+        targetId = atTime ? atTime.id : (currentClips[0]?.id || '');
+      }
+      if (targetId) {
+        setSelectedClipId(targetId);
+        selectedClipIdRef.current = targetId;
+      }
+    }
+
+    // Synchronously update clipsRef.current and setClips
+    const nextClips = currentClips.map((c) => (c.id === targetId ? { ...c, camera: cleanedCam } : c));
+    clipsRef.current = nextClips;
+    setClips(nextClips);
   };
 
   // Synchronous Media Duration and Playback Rate Sync Handler
@@ -545,7 +578,24 @@ export function App() {
         videoRef.current.pause();
       }
     }
-    const interpolated = getCameraAtTime(clipsRef.current, time);
+    const currentClips = clipsRef.current;
+    if (currentClips.length > 0) {
+      let targetClip = currentClips[0];
+      if (currentClips.length === 2 && !currentClips[0].blockId && !currentClips[1].blockId) {
+        const d1 = currentClips[0].duration || 1.5;
+        targetClip = time >= (currentClips[0].startTime + d1) ? currentClips[1] : currentClips[0];
+      } else {
+        const found = currentClips.find(
+          (c) => time >= c.startTime && time <= c.startTime + (c.duration || 1.5)
+        );
+        if (found) targetClip = found;
+      }
+      if (targetClip && selectedClipIdRef.current !== targetClip.id) {
+        selectedClipIdRef.current = targetClip.id;
+        setSelectedClipId(targetClip.id);
+      }
+    }
+    const interpolated = getCameraAtTime(currentClips, time);
     setCamera(interpolated);
     if (frameAnchorRef.current) {
       frameAnchorRef.current.style.perspective = `${(interpolated.perspective || 1000) * (stageScaleRef.current || 1.0)}px`;
@@ -915,10 +965,10 @@ export function App() {
 
   const bgStyle = generateBackgroundCss(background);
   const transform3D = calculate3DTransform(camera, stageScale);
-  const mockupDims = getMockupDimensions(aspectRatio);
-
-  // Compute crop transform
-  const isCropped = cropRect.width < 100 || cropRect.height < 100 || cropRect.x > 0 || cropRect.y > 0;
+  const baseMockupDims = getMockupDimensions(aspectRatio);
+  const isCropped = isCropActive(cropRect);
+  const mockupDims = calculateCroppedDimensions(baseMockupDims, cropRect);
+  const cropOffset = calculateMediaCropOffset(baseMockupDims, cropRect, stageScale);
 
   return (
     <div className={`studio-root ${theme === 'dark' ? 'dark-theme' : ''}`}>
@@ -936,7 +986,7 @@ export function App() {
       </div>
 
       {/* 2. TOP CENTER MODE ISLAND (Unified Operator & Compose matching Screenshot 1) */}
-      <div data-guide="top-mode-island">
+      <div className="top-center-mode-island-wrap" data-guide="top-mode-island">
         <TopModeIsland
           isComposeActive={topMode === 'compose'}
           onToggleCompose={() => {
@@ -1160,10 +1210,11 @@ export function App() {
               >
                 <div
                   style={{
-                    width: isCropped ? `${(100 / cropRect.width) * 100}%` : '100%',
-                    height: isCropped ? `${(100 / cropRect.height) * 100}%` : '100%',
+                    position: 'relative',
+                    width: `${baseMockupDims.width * stageScale}px`,
+                    height: `${baseMockupDims.height * stageScale}px`,
                     transform: isCropped
-                      ? `translate(-${(cropRect.x / 100) * mockupDims.width * stageScale}px, -${(cropRect.y / 100) * mockupDims.height * stageScale}px)`
+                      ? `translate(-${cropOffset.offsetX}px, -${cropOffset.offsetY}px)`
                       : 'none',
                     transformOrigin: 'top left',
                   }}

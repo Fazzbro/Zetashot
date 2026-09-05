@@ -3,6 +3,7 @@ import { BackgroundConfig } from '../utils/gradientUtils';
 import { Camera3DState } from '../utils/camera3D';
 import { AspectRatioType, getMockupDimensions, getStageDimensions, calculateObjectFitCover } from '../utils/aspectRatioHelper';
 import { WebGL3DRenderer } from './webgl3DRenderer';
+import { isCropActive, calculateCroppedDimensions } from '../utils/cropMath';
 
 export interface CaptureResult {
   blob: Blob;
@@ -112,11 +113,16 @@ export class CaptureEngine {
     // 3. WebGL 3D Perspective Renderer
     const webglRenderer = new WebGL3DRenderer(width, height);
 
-    // 4. Offscreen 2D Frame Content Canvas
+    // 4. Offscreen 2D Frame Content Canvas with proportional unscaled cropping
     const aspectDims = getMockupDimensions(options.aspectRatio || '16:9');
     const baseScale = height / 540;
-    const frameW = Math.round(aspectDims.width * baseScale);
-    const frameH = Math.round(aspectDims.height * baseScale);
+    const crop = options.cropRect || { x: 0, y: 0, width: 100, height: 100 };
+    const isCropped = isCropActive(crop);
+    const croppedDims = calculateCroppedDimensions(aspectDims, crop);
+    const baseFrameW = Math.round(aspectDims.width * baseScale);
+    const baseFrameH = Math.round(aspectDims.height * baseScale);
+    const frameW = Math.round(croppedDims.width * baseScale);
+    const frameH = Math.round(croppedDims.height * baseScale);
     const cornerRadius = Math.round((options.borderRadius || 20) * baseScale);
 
     const frameCanvas = document.createElement('canvas');
@@ -139,13 +145,10 @@ export class CaptureEngine {
     const videoElem = (options.mediaElement as HTMLVideoElement) || (document.getElementById('mockup-video-player') as HTMLVideoElement | null);
     const imageElem = (options.mediaElement as HTMLImageElement) || (document.getElementById('mockup-image-player') as HTMLImageElement | null);
 
-    const crop = options.cropRect || { x: 0, y: 0, width: 100, height: 100 };
-    const isCropped = crop.width < 100 || crop.height < 100 || crop.x > 0 || crop.y > 0;
-
     if (videoElem && options.mediaType === 'video' && videoElem.videoWidth > 0) {
       const vidW = videoElem.videoWidth;
       const vidH = videoElem.videoHeight;
-      const coords = calculateObjectFitCover(vidW, vidH, frameW, frameH);
+      const coords = calculateObjectFitCover(vidW, vidH, baseFrameW, baseFrameH);
 
       if (isCropped) {
         const cropX = (crop.x / 100) * coords.sw + coords.sx;
@@ -157,9 +160,9 @@ export class CaptureEngine {
         frameCtx.drawImage(videoElem, coords.sx, coords.sy, coords.sw, coords.sh, 0, 0, frameW, frameH);
       }
     } else if (imageElem && (options.mediaType === 'image' || options.mediaType === 'demo') && (imageElem.naturalWidth > 0 || imageElem.width > 0)) {
-      const imgW = imageElem.naturalWidth || imageElem.width || frameW;
-      const imgH = imageElem.naturalHeight || imageElem.height || frameH;
-      const coords = calculateObjectFitCover(imgW, imgH, frameW, frameH);
+      const imgW = imageElem.naturalWidth || imageElem.width || baseFrameW;
+      const imgH = imageElem.naturalHeight || imageElem.height || baseFrameH;
+      const coords = calculateObjectFitCover(imgW, imgH, baseFrameW, baseFrameH);
 
       if (isCropped) {
         const cropX = (crop.x / 100) * coords.sw + coords.sx;

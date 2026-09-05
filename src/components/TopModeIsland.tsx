@@ -33,7 +33,7 @@ export const TopModeIsland: React.FC<TopModeIslandProps> = ({
 
   if (!isComposeActive) {
     return (
-      <div className="top-center-mode-island" style={{ position: 'relative' }}>
+      <div className="top-center-mode-island">
         <button
           type="button"
           className={`top-operator-pill-btn ${isOperatorGuideActive ? 'guide-operator-highlight-ring' : ''}`}
@@ -71,7 +71,7 @@ export const TopModeIsland: React.FC<TopModeIslandProps> = ({
   // Unified Compose Pill matching user screenshot 1:
   // [ 🔀 Compose (Blue) ]  [ ⛶ ⁵ (Focus) ]  [ 🗑️ (Trash) ]  |  [ ✕ (Close) ]
   return (
-    <div className="top-center-mode-island" style={{ position: 'relative' }}>
+    <div className="top-center-mode-island">
       <div className="unified-compose-island-pill" role="group" aria-label="Compose Mode Controls">
         {/* 1. Primary Vibrant Blue Compose Button */}
         <button

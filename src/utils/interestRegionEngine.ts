@@ -197,7 +197,14 @@ export function generateClipsFromInterestRegions(
   sortedRegions.forEach((region, idx) => {
     const num = idx + 2;
     const pad = num < 10 ? `0${num}` : `${num}`;
-    let targetCam = calculateCameraForRegion(region, stageDims, baseCamera, 1000, true, style);
+    let targetCam = calculateCameraForRegion(
+      region,
+      stageDims,
+      baseCamera,
+      baseCamera?.perspective ?? 1000,
+      true,
+      style
+    );
 
     const currCenter = {
       x: region.x + region.width / 2,

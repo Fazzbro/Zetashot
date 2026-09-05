@@ -80,12 +80,19 @@
 }
 
 /* Top Center Mode / Operator Wrapper */
-.top-center-mode-island {
+.top-center-mode-island-wrap {
   position: absolute;
-  top: 14px;
+  top: 18px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 120;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.top-center-mode-island {
+  position: relative;
   display: flex;
   align-items: center;
 }
@@ -2458,11 +2465,7 @@
    ========================================================================== */
 
 .top-center-mode-island {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 120;
+  position: relative;
   display: flex;
   align-items: center;
 }

@@ -4,6 +4,7 @@ import { TimelinePositionClip } from '../components/VideoTimeline';
 import { getMockupDimensions, getStageDimensions, calculateObjectFitCover } from '../utils/aspectRatioHelper';
 import { interpolateCameraSpline } from '../utils/splineInterpolation';
 import { WebGL3DRenderer } from './webgl3DRenderer';
+import { isCropActive, calculateCroppedDimensions } from '../utils/cropMath';
 import {
   encodeFrameSequenceToMP4,
   transcodeWebMToMP4,
@@ -187,11 +188,17 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   // 4. WebGL 3D Perspective Renderer
   const webglRenderer = new WebGL3DRenderer(width, height);
 
-  // 5. 2D Frame Content Offscreen Canvas
+  // 5. 2D Frame Content Offscreen Canvas with proportional unscaled cropping
   const aspectDims = getMockupDimensions(options.aspectRatio || '16:9');
   const baseScale = height / 540;
-  const frameW = Math.round(aspectDims.width * baseScale);
-  const frameH = Math.round(aspectDims.height * baseScale);
+  const rawCrop = options.crop || options.cropRect;
+  const isCropped = isCropActive(rawCrop);
+  const crop = rawCrop || { x: 0, y: 0, width: 100, height: 100 };
+  const baseFrameW = Math.round(aspectDims.width * baseScale);
+  const baseFrameH = Math.round(aspectDims.height * baseScale);
+  const croppedDims = calculateCroppedDimensions(aspectDims, crop);
+  const frameW = Math.round(croppedDims.width * baseScale);
+  const frameH = Math.round(croppedDims.height * baseScale);
   const cornerRadius = Math.round((options.borderRadius || 20) * baseScale);
 
   const frameCanvas = document.createElement('canvas');
@@ -202,12 +209,6 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
   // 6. Resolve source DOM element (video or image)
   const imageElem = (options.mediaElement as HTMLImageElement) || (document.getElementById('mockup-image-player') as HTMLImageElement | null);
-
-  const rawCrop = options.crop || options.cropRect;
-  const isCropped =
-    rawCrop &&
-    (rawCrop.width < 100 || rawCrop.height < 100 || rawCrop.x > 0 || rawCrop.y > 0);
-  const crop = rawCrop || { x: 0, y: 0, width: 100, height: 100 };
 
   const frameBlobs: Blob[] = [];
 
@@ -250,9 +251,9 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
       // Media rendering with object-fit: cover & cropping
       if (videoElem && options.mediaType === 'video') {
-        const vidW = videoElem.videoWidth || frameW;
-        const vidH = videoElem.videoHeight || frameH;
-        const coords = calculateObjectFitCover(vidW, vidH, frameW, frameH);
+        const vidW = videoElem.videoWidth || baseFrameW;
+        const vidH = videoElem.videoHeight || baseFrameH;
+        const coords = calculateObjectFitCover(vidW, vidH, baseFrameW, baseFrameH);
 
         if (isCropped) {
           const cropX = (crop.x / 100) * coords.sw + coords.sx;
@@ -274,9 +275,9 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           );
         }
       } else if (imageElem && options.mediaType === 'image') {
-        const imgW = imageElem.naturalWidth || frameW;
-        const imgH = imageElem.naturalHeight || frameH;
-        const coords = calculateObjectFitCover(imgW, imgH, frameW, frameH);
+        const imgW = imageElem.naturalWidth || baseFrameW;
+        const imgH = imageElem.naturalHeight || baseFrameH;
+        const coords = calculateObjectFitCover(imgW, imgH, baseFrameW, baseFrameH);
 
         if (isCropped) {
           const cropX = (crop.x / 100) * coords.sw + coords.sx;
