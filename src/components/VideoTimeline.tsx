@@ -21,6 +21,7 @@ import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
 import { CubicBezierValues } from '../utils/bezierSolver';
 import { TransitionType } from '../utils/transitionMath';
+import { getKeyframeTimesForGroup } from '../utils/splineInterpolation';
 
 export interface TimelinePositionClip {
   id: string;
@@ -388,7 +389,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       onMediaDurationChange(newSpan);
     }
     onSelectClip(newClip.id);
-    onSeek(newStartTime);
+    onSeek(newSpan);
   };
 
   const handleDeleteClip = (idToDelete?: string) => {
@@ -727,18 +728,20 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     />
 
                     {/* All Sub-blocks (P01, P02, P03, P04...) */}
-                    {subClips.map((subClip, subIdx) => {
-                      const isFirst = subIdx === 0;
-                      const isLast = subIdx === subClips.length - 1;
-                      const isSelected = subClip.id === selectedClipId;
-                      const isPairLast = subClips.length === 2 && isLast;
-                      const isGuideP02Highlight = isGuideOpen && guidePhase === 'start' && isPairLast;
-                      const seekTime = isPairLast
-                        ? Number((firstClip.startTime + seqDuration).toFixed(2))
-                        : subClip.startTime;
+                    {(() => {
+                      const subClipTimes = getKeyframeTimesForGroup(subClips);
+                      return subClips.map((subClip, subIdx) => {
+                        const isFirst = subIdx === 0;
+                        const isLast = subIdx === subClips.length - 1;
+                        const isSelected = subClip.id === selectedClipId;
+                        const isPairLast = subClips.length === 2 && isLast;
+                        const isGuideP02Highlight = isGuideOpen && guidePhase === 'start' && isPairLast;
+                        const seekTime = isLast
+                          ? Number((firstClip.startTime + seqDuration).toFixed(2))
+                          : (subClipTimes[subIdx] ?? subClip.startTime);
 
-                      return (
-                        <React.Fragment key={subClip.id}>
+                        return (
+                          <React.Fragment key={subClip.id}>
                           <div
                             className={`sequence-keyframe-subblock ${isSelected ? 'is-active-subblock' : ''} ${isGuideP02Highlight ? 'guide-subblock-highlight-ring' : ''}`}
                             style={{
@@ -880,7 +883,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                           )}
                         </React.Fragment>
                       );
-                    })}
+                    });
+                  })()}
 
                     {/* Right Drag Handle */}
                     <div

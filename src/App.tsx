@@ -14,7 +14,7 @@ import { CaptureEngine } from './services/captureEngine';
 import { exportMockupVideo, getCameraAtTime } from './services/videoExportEngine';
 import { storageService } from './services/storageService';
 import { CubicBezierValues } from './utils/bezierSolver';
-import { interpolateCameraSpline } from './utils/splineInterpolation';
+import { interpolateCameraSpline, getKeyframeTargetTime, getActiveClipAtTime } from './utils/splineInterpolation';
 import { playGearSound, setSoundEnabled as setGlobalSoundEnabled } from './utils/soundEffects';
 import { getMockupDimensions, getAspectRatioCss, getStageDimensions } from './utils/aspectRatioHelper';
 import { generateVideoThumbnails } from './utils/thumbnailGenerator';
@@ -342,12 +342,7 @@ export function App() {
       if (frameSceneRef.current) {
         frameSceneRef.current.style.transform = calculate3DTransform(found.camera, stageScaleRef.current);
       }
-      let targetTime = found.startTime;
-      if (currentClips.length === 2 && clipIdx === 1) {
-        const d1 = typeof currentClips[0]?.duration === 'number' && currentClips[0].duration > 0 ? currentClips[0].duration : 1.5;
-        const d2 = typeof found.duration === 'number' && found.duration > 0 ? found.duration : 1.5;
-        targetTime = Number((currentClips[0].startTime + d1 + d2).toFixed(2));
-      }
+      const targetTime = getKeyframeTargetTime(currentClips, clipId);
       currentTimeRef.current = targetTime;
       setCurrentTime(targetTime);
       if (videoRef.current) {
@@ -385,15 +380,8 @@ export function App() {
     const currentClips = clipsRef.current;
     let targetId = selectedClipIdRef.current || selectedClipId;
     if (!targetId || !currentClips.some((c) => c.id === targetId)) {
-      if (currentClips.length === 2 && !currentClips[0].blockId && !currentClips[1].blockId) {
-        const d1 = currentClips[0].duration || 1.5;
-        targetId = currentTimeRef.current >= (currentClips[0].startTime + d1) ? currentClips[1].id : currentClips[0].id;
-      } else {
-        const atTime = currentClips.find(
-          (c) => currentTimeRef.current >= c.startTime && currentTimeRef.current <= c.startTime + (c.duration || 1.5)
-        );
-        targetId = atTime ? atTime.id : (currentClips[0]?.id || '');
-      }
+      const active = getActiveClipAtTime(currentClips, currentTimeRef.current);
+      targetId = active ? active.id : (currentClips[0]?.id || '');
       if (targetId) {
         setSelectedClipId(targetId);
         selectedClipIdRef.current = targetId;
@@ -580,16 +568,7 @@ export function App() {
     }
     const currentClips = clipsRef.current;
     if (currentClips.length > 0) {
-      let targetClip = currentClips[0];
-      if (currentClips.length === 2 && !currentClips[0].blockId && !currentClips[1].blockId) {
-        const d1 = currentClips[0].duration || 1.5;
-        targetClip = time >= (currentClips[0].startTime + d1) ? currentClips[1] : currentClips[0];
-      } else {
-        const found = currentClips.find(
-          (c) => time >= c.startTime && time <= c.startTime + (c.duration || 1.5)
-        );
-        if (found) targetClip = found;
-      }
+      const targetClip = getActiveClipAtTime(currentClips, time);
       if (targetClip && selectedClipIdRef.current !== targetClip.id) {
         selectedClipIdRef.current = targetClip.id;
         setSelectedClipId(targetClip.id);

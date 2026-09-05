@@ -10,59 +10,215 @@ export interface KeyframeSpan {
 }
 
 /**
+ * Groups contiguous clips by sequence block (sharing blockId, or contiguous without blockId).
+ */
+export function groupClipsIntoSequences(clips: TimelinePositionClip[]): TimelinePositionClip[][] {
+  if (!clips || clips.length === 0) return [];
+  const sorted = [...clips].sort((a, b) => a.startTime - b.startTime);
+  const groups: TimelinePositionClip[][] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    const current = sorted[i];
+    const group: TimelinePositionClip[] = [current];
+    let j = i + 1;
+    if (current.blockId) {
+      while (j < sorted.length && sorted[j].blockId === current.blockId) {
+        group.push(sorted[j]);
+        j++;
+      }
+    } else {
+      while (j < sorted.length && !sorted[j].blockId) {
+        group.push(sorted[j]);
+        j++;
+      }
+    }
+    groups.push(group);
+    i = j;
+  }
+  return groups;
+}
+
+/**
+ * Calculates accurate keyframe timestamp locations across a sequence group.
+ * Guarantees:
+ * - Keyframe 0 is at sequence start time
+ * - Last Keyframe (N-1) is at sequence end time (the very last frame!)
+ * - Intermediate keyframes are distributed smoothly across the sequence duration
+ */
+export function getKeyframeTimesForGroup(group: TimelinePositionClip[]): number[] {
+  if (!group || group.length === 0) return [];
+  if (group.length === 1) return [group[0].startTime];
+
+  const firstClip = group[0];
+  const lastClip = group[group.length - 1];
+  const seqStart = firstClip.startTime;
+
+  // If Compose mode created a block where last keyframe has duration 0,
+  // keyframe times are already explicitly positioned at each clip's startTime.
+  if (lastClip.duration === 0) {
+    return group.map((c) => c.startTime);
+  }
+
+  const seqDuration = Math.max(
+    0.1,
+    lastClip.startTime + (lastClip.duration ?? 1.5) - firstClip.startTime
+  );
+  const seqEnd = Number((seqStart + seqDuration).toFixed(2));
+  const N = group.length;
+
+  if (N === 2) {
+    return [seqStart, seqEnd];
+  }
+
+  // For N >= 3, apportion the N - 1 transition segments across the entire sequence duration
+  const durations = group.map((c) => Math.max(0.1, c.duration ?? 1.5));
+  const sumDurations = durations.reduce((acc, d) => acc + d, 0);
+
+  // Cumulative boundaries: B[0] = 0, B[N] = sumDurations
+  const B: number[] = [0];
+  for (let i = 0; i < N; i++) {
+    B.push(B[i] + durations[i]);
+  }
+
+  const times: number[] = [seqStart];
+  for (let k = 1; k < N - 1; k++) {
+    const u = k / (N - 1);
+    const p = u * N;
+    const idx = Math.min(N - 1, Math.floor(p));
+    const alpha = p - idx;
+    const durFraction = (B[idx] + alpha * (B[idx + 1] - B[idx])) / sumDurations;
+    const time = seqStart + durFraction * seqDuration;
+    times.push(Number(time.toFixed(2)));
+  }
+  times.push(seqEnd);
+
+  // Ensure strictly monotonic timestamps
+  for (let k = 1; k < times.length; k++) {
+    if (times[k] <= times[k - 1]) {
+      times[k] = Number((times[k - 1] + 0.01).toFixed(2));
+    }
+  }
+
+  return times;
+}
+
+/**
+ * Returns the exact timeline seek target timestamp for a clip.
+ * When the last keyframe in a sequence is selected, it targets the very last frame of that sequence.
+ */
+export function getKeyframeTargetTime(
+  clips: TimelinePositionClip[],
+  clipIdOrIndex: string | number
+): number {
+  if (!clips || clips.length === 0) return 0;
+  const groups = groupClipsIntoSequences(clips);
+
+  for (const group of groups) {
+    const idx = typeof clipIdOrIndex === 'string'
+      ? group.findIndex((c) => c.id === clipIdOrIndex)
+      : (clipIdOrIndex >= 0 && clipIdOrIndex < group.length && group[clipIdOrIndex] ? clipIdOrIndex : -1);
+
+    if (idx !== -1) {
+      const times = getKeyframeTimesForGroup(group);
+      return times[idx] ?? group[idx].startTime;
+    }
+  }
+
+  // Fallback if not found in groups
+  if (typeof clipIdOrIndex === 'string') {
+    const found = clips.find((c) => c.id === clipIdOrIndex);
+    return found ? found.startTime : 0;
+  }
+  return clips[clipIdOrIndex]?.startTime ?? 0;
+}
+
+/**
+ * Resolves which clip is currently active or closest at a given timeline timestamp.
+ */
+export function getActiveClipAtTime(
+  clips: TimelinePositionClip[],
+  time: number
+): TimelinePositionClip | null {
+  if (!clips || clips.length === 0) return null;
+  const groups = groupClipsIntoSequences(clips);
+
+  for (const group of groups) {
+    const first = group[0];
+    const last = group[group.length - 1];
+    const groupStart = first.startTime;
+    const groupEnd = last.startTime + (last.duration ?? 1.5);
+
+    if (time >= groupStart && time <= groupEnd) {
+      const times = getKeyframeTimesForGroup(group);
+      // Find the keyframe index closest to time
+      let closestIdx = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < times.length; i++) {
+        const diff = Math.abs(time - times[i]);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
+        }
+      }
+      return group[closestIdx] || group[0];
+    }
+  }
+
+  // If outside all sequence groups, pick overall closest
+  let bestClip = clips[0];
+  let minDiff = Infinity;
+  for (const c of clips) {
+    const diff = Math.abs(time - c.startTime);
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestClip = c;
+    }
+  }
+  return bestClip;
+}
+
+/**
  * Converts timeline clips into sequence motion spans.
  * Supports isolated pairs (P01/P02), multi-point sequences (P01..P0N),
  * and composed blocks.
+ * Spans smoothly cover the full duration up to the very last frame of each sequence group.
  */
 export function getKeyframeSpans(clips: TimelinePositionClip[]): KeyframeSpan[] {
   if (!clips || clips.length === 0) return [];
 
-  const sorted = [...clips].sort((a, b) => a.startTime - b.startTime);
-
-  if (sorted.length === 1) {
-    const c = sorted[0];
-    const dur = c.duration || 1.5;
-    return [{
-      startTime: c.startTime,
-      endTime: c.startTime + dur,
-      startCamera: c.camera,
-      endCamera: c.camera,
-      color: c.color || 'yellow',
-    }];
-  }
-
-  // 2-keyframe isolated pair (e.g. default P01 / P02 covering full sequence block)
-  if (sorted.length === 2 && !sorted[0].blockId && !sorted[1].blockId) {
-    const c1 = sorted[0];
-    const c2 = sorted[1];
-    const d1 = typeof c1.duration === 'number' && c1.duration > 0 ? c1.duration : 1.5;
-    const d2 = typeof c2.duration === 'number' && c2.duration > 0 ? c2.duration : 1.5;
-    const seqDuration = d1 + d2;
-    return [{
-      startTime: c1.startTime,
-      endTime: c1.startTime + seqDuration,
-      startCamera: c1.camera,
-      endCamera: c2.camera,
-      color: c1.color || c2.color || 'yellow',
-    }];
-  }
-
-  // Multi-keyframe sequence (3 or more keyframes, or Compose block)
-  // Every keyframe P01 -> P02 -> P03 -> P04 -> ... connects smoothly to the next
+  const groups = groupClipsIntoSequences(clips);
   const spans: KeyframeSpan[] = [];
-  for (let k = 0; k < sorted.length - 1; k++) {
-    const cA = sorted[k];
-    const cB = sorted[k + 1];
-    const startTime = cA.startTime;
-    const endTime = cB.startTime > cA.startTime ? cB.startTime : cA.startTime + (cA.duration || 1.5);
 
-    spans.push({
-      startTime,
-      endTime,
-      startCamera: cA.camera,
-      endCamera: cB.camera,
-      color: cA.color || cB.color || 'yellow',
-    });
+  for (const group of groups) {
+    const N = group.length;
+    if (N === 1) {
+      const c = group[0];
+      const dur = c.duration || 1.5;
+      spans.push({
+        startTime: c.startTime,
+        endTime: Number((c.startTime + dur).toFixed(2)),
+        startCamera: c.camera,
+        endCamera: c.camera,
+        color: c.color || 'yellow',
+      });
+      continue;
+    }
+
+    const times = getKeyframeTimesForGroup(group);
+    for (let k = 0; k < N - 1; k++) {
+      const cA = group[k];
+      const cB = group[k + 1];
+      const startTime = times[k];
+      const endTime = times[k + 1];
+
+      spans.push({
+        startTime,
+        endTime,
+        startCamera: cA.camera,
+        endCamera: cB.camera,
+        color: cA.color || cB.color || 'yellow',
+      });
+    }
   }
 
   return spans.sort((a, b) => a.startTime - b.startTime);
