@@ -11,6 +11,9 @@ interface InterestRegionOverlayProps {
   onSelectRegion: (id: string | null) => void;
   width: number;
   height: number;
+  isGuideOpen?: boolean;
+  guidePhase?: 'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete';
+  onGuideAdvance?: () => void;
 }
 
 export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
@@ -22,6 +25,9 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
   onSelectRegion,
   width,
   height,
+  isGuideOpen = false,
+  guidePhase = 'start',
+  onGuideAdvance,
 }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
@@ -123,6 +129,9 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
         const updated = [...regions, newRegion];
         onRegionsChange(updated);
         onSelectRegion(newRegion.id);
+        if (isGuideOpen && onGuideAdvance) {
+          onGuideAdvance();
+        }
       }
 
       isDrawingRef.current = false;
@@ -140,7 +149,29 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-  }, [width, height, regions, onRegionsChange, onSelectRegion]);
+  }, [width, height, regions, onRegionsChange, onSelectRegion, isGuideOpen, onGuideAdvance]);
+
+  const handleAutoPlaceGuideRegion = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const rw = Math.round(width * 0.55);
+    const rh = Math.round(height * 0.45);
+    const rx = Math.round((width - rw) / 2);
+    const ry = Math.round((height - rh) / 2);
+    const newRegion: InterestRegion = {
+      id: `region_${Date.now()}_1`,
+      index: 1,
+      x: rx,
+      y: ry,
+      width: rw,
+      height: rh,
+      label: 'Region 1',
+    };
+    onRegionsChange([newRegion]);
+    onSelectRegion(newRegion.id);
+    if (onGuideAdvance) {
+      onGuideAdvance();
+    }
+  };
 
   const handleDeleteRegion = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -183,6 +214,21 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
       }}
       onMouseDown={handleMouseDown}
     >
+      {/* Guide Cue for Creating a Rectangle */}
+      {isGuideOpen && isComposeActive && regions.length === 0 && (
+        <>
+          <div className="stage-rect-guide-box-cue" />
+          <button
+            type="button"
+            className="reference-guide-pill stage-rect-guide-pill"
+            onClick={handleAutoPlaceGuideRegion}
+            title="Click or drag with mouse to frame a focus rectangle"
+          >
+            Drag to make a <strong>Rectangle</strong> on media
+          </button>
+        </>
+      )}
+
       {/* Existing Marked Regions */}
       {regions.map((region) => {
         const isSelected = region.id === selectedRegionId;

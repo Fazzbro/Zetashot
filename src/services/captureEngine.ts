@@ -186,7 +186,7 @@ export class CaptureEngine {
     const focusPoint = options.cropRect
       ? { x: (options.cropRect.x / 100) + (options.cropRect.width / 200), y: (options.cropRect.y / 100) + (options.cropRect.height / 200) }
       : { x: 0.5, y: 0.5 };
-    webglRenderer.render(frameCanvas, frameW, frameH, options.camera, baseScale, 1.0, options.blurAmount || 0, focusPoint);
+    webglRenderer.render(frameCanvas, frameW, frameH, options.camera, baseScale, 1.0, options.blurAmount || 0, focusPoint, cornerRadius);
 
     // 7. Composite onto Main Canvas
     drawBackground(ctx, options.background || { type: 'solid', color: '#ffffff' }, width, height, bgImgElem);

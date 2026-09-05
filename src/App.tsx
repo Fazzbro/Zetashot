@@ -7,6 +7,7 @@ import { InterestRegionOverlay } from './components/InterestRegionOverlay';
 import { MediaLibraryModal, BUILTIN_MEDIA_ITEMS, MediaItem } from './components/MediaLibraryModal';
 import { CropModal, CropRect } from './components/CropModal';
 import { InteractiveDemoUI } from './components/InteractiveDemoUI';
+import { BeginnerGuide } from './components/BeginnerGuide';
 import { Camera3DState, calculate3DTransform, clampRotation } from './utils/camera3D';
 import { BackgroundConfig, generateBackgroundCss } from './utils/gradientUtils';
 import { CaptureEngine } from './services/captureEngine';
@@ -33,6 +34,10 @@ import {
   Share2,
   Check,
   Heart,
+  Sparkles,
+  HelpCircle,
+  Move,
+  RotateCw,
 } from 'lucide-react';
 
 import './styles/index.css';
@@ -58,14 +63,16 @@ export function getTiltShiftMask(
   const fy = focusPoint ? Math.max(10, Math.min(90, focusPoint.y * 100)) : 50;
 
   if (totalTilt > 0.015) {
-    // Direction angle from focal center to receding background
-    const angleRad = Math.atan2(sinX, -sinY);
+    // Direction angle from close focal foreground to receding distant background:
+    // In CSS linear-gradient: 0deg points UP, 90deg points RIGHT, 180deg points DOWN, 270deg points LEFT.
+    // sinY > 0 means right side recedes (90deg); sinX > 0 means top recedes (0deg).
+    const angleRad = Math.atan2(sinY, sinX);
     const angleDeg = ((angleRad * 180) / Math.PI + 360) % 360;
     
     // Rich multi-stop anamorphic depth ramp:
-    // Focus band is 100% crisp & transparent (unblurred)
+    // Close to camera / focus plane is 100% crisp & transparent (unblurred)
     // Distant depth achieves full deep bokeh
-    return `linear-gradient(${angleDeg.toFixed(1)}deg, transparent 0%, transparent 20%, rgba(0,0,0,0.3) 42%, rgba(0,0,0,0.75) 68%, black 100%)`;
+    return `linear-gradient(${angleDeg.toFixed(1)}deg, transparent 0%, transparent 32%, rgba(0,0,0,0.3) 54%, rgba(0,0,0,0.75) 76%, black 100%)`;
   }
 
   // Flat angle: Photorealistic center-weighted lens aperture bokeh
@@ -109,7 +116,22 @@ export function App() {
     setGlobalSoundEnabled(soundEnabled);
   }, [soundEnabled]);
 
-  // 2. Studio Mode (Photo vs Video)
+  // 2. Beginner Guide Tour State
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(() => {
+    return !localStorage.getItem('zetashot_guide_completed');
+  });
+  const [guideStepIndex, setGuideStepIndex] = useState<number>(0);
+  const [guidePhase, setGuidePhase] = useState<
+    'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete'
+  >('start');
+
+  const handleCompleteTour = () => {
+    setIsGuideOpen(false);
+    setGuidePhase('complete');
+    localStorage.setItem('zetashot_guide_completed', 'true');
+  };
+
+  // 3. Studio Mode (Photo vs Video)
   const [studioMode, setStudioMode] = useState<'photo' | 'video'>('video');
 
   // 3. Top Mode State (Operator vs Compose) & Interest Regions
@@ -159,6 +181,7 @@ export function App() {
     setBlurAmount(val);
     setShowLaserFocusIndicator(true);
     playGearSound();
+    setGuideStepIndex((prev) => (prev === 2 ? 3 : prev));
     if (blurTimerRef.current) {
       window.clearTimeout(blurTimerRef.current);
     }
@@ -219,13 +242,23 @@ export function App() {
     }
   }, [activeMedia, totalDuration]);
 
-  // 9. Interactive Dragging State on Stage
+  // 9. Interactive Dragging State on Stage: Move (Pan) vs Orbit (Rotate 3D)
+  const [dragMode, setDragMode] = useState<'move' | 'orbit'>('move');
   const [isDraggingScene, setIsDraggingScene] = useState(false);
-  const dragStartRef = useRef<{ x: number; y: number; rotX: number; rotY: number }>({
+  const dragStartRef = useRef<{
+    x: number;
+    y: number;
+    rotX: number;
+    rotY: number;
+    panX: number;
+    panY: number;
+  }>({
     x: 0,
     y: 0,
     rotX: 0,
     rotY: 0,
+    panX: 0,
+    panY: 0,
   });
 
   // 10. Cursor Follower
@@ -239,11 +272,16 @@ export function App() {
 
   // DOM Refs
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const frameAnchorRef = useRef<HTMLDivElement | null>(null);
   const frameSceneRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // 12. Dynamic Stage Reference Scale for 100% Identical Preview-to-Export Framing
   const [stageScale, setStageScale] = useState<number>(1.0);
+  const stageScaleRef = useRef<number>(1.0);
+  useEffect(() => {
+    stageScaleRef.current = stageScale;
+  }, [stageScale]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -277,14 +315,28 @@ export function App() {
   };
 
   // When selected clip changes, load its camera angle and seek to its keyframe point (0s for 1st set, 3s for 2nd set)
-  const handleSelectClip = (clipId: string) => {
+  const handleSelectClip = useCallback((clipId: string) => {
     setSelectedClipId(clipId);
+    if (isGuideOpen) {
+      if (clipId === 'P01') {
+        setGuidePhase('start');
+      } else if (clipId === 'P02' && guidePhase === 'start') {
+        setGuidePhase('end');
+      }
+    }
     const clipIdx = clips.findIndex((c) => c.id === clipId);
     const found = clips[clipIdx];
     if (found) {
       setCamera(found.camera);
-      const isSecondSet = clipIdx % 2 === 1;
-      const targetTime = isSecondSet ? found.startTime + (found.duration || 1.5) : found.startTime;
+      if (frameAnchorRef.current) {
+        frameAnchorRef.current.style.perspective = `${(found.camera.perspective || 1000) * (stageScaleRef.current || 1.0)}px`;
+      }
+      let targetTime = found.startTime;
+      if (clips.length === 2 && clipIdx === 1) {
+        const d1 = typeof clips[0]?.duration === 'number' && clips[0].duration > 0 ? clips[0].duration : 1.5;
+        const d2 = typeof found.duration === 'number' && found.duration > 0 ? found.duration : 1.5;
+        targetTime = Number((clips[0].startTime + d1 + d2).toFixed(2));
+      }
       currentTimeRef.current = targetTime;
       setCurrentTime(targetTime);
       if (videoRef.current) {
@@ -294,7 +346,7 @@ export function App() {
         }
       }
     }
-  };
+  }, [clips, isGuideOpen, guidePhase]);
 
   // Helper to update camera and sync with active clip
   const handleCameraChange = (newCamera: Camera3DState) => {
@@ -304,9 +356,16 @@ export function App() {
       rotY: Math.round(newCamera.rotY),
       rotZ: Math.round(newCamera.rotZ),
       zoom: Number(newCamera.zoom.toFixed(2)),
+      panX: Math.round(newCamera.panX || 0),
+      panY: Math.round(newCamera.panY || 0),
+      perspective: Math.round(newCamera.perspective || 1000),
     };
     setCamera(cleanedCam);
     playGearSound();
+
+    if (frameAnchorRef.current) {
+      frameAnchorRef.current.style.perspective = `${cleanedCam.perspective * (stageScaleRef.current || 1.0)}px`;
+    }
 
     // Sync changes to selected clip in timeline
     setClips((prevClips) =>
@@ -422,6 +481,8 @@ export function App() {
 
   // Explicit Play / Pause handler with guaranteed immediate synchronous execution
   const handlePlayPause = useCallback(() => {
+    setGuidePhase((prev) => (prev === 'preview' || prev === 'end' ? 'export' : prev));
+    setGuideStepIndex((prev) => (prev === 4 ? 5 : prev));
     if (isPlayingRef.current) {
       isPlayingRef.current = false;
       setIsPlaying(false);
@@ -486,6 +547,12 @@ export function App() {
     }
     const interpolated = getCameraAtTime(clipsRef.current, time);
     setCamera(interpolated);
+    if (frameAnchorRef.current) {
+      frameAnchorRef.current.style.perspective = `${(interpolated.perspective || 1000) * (stageScaleRef.current || 1.0)}px`;
+    }
+    if (frameSceneRef.current) {
+      frameSceneRef.current.style.transform = calculate3DTransform(interpolated, stageScaleRef.current);
+    }
   }, []);
 
   // Master Timeline Playback Animation Loop (Frame-Accurate & Zero-Drift)
@@ -527,8 +594,11 @@ export function App() {
       setFrameOpacity(1.0);
 
       // Direct GPU transform update for instantaneous, buttery smooth 60fps response
+      if (frameAnchorRef.current) {
+        frameAnchorRef.current.style.perspective = `${(interpolated.perspective || 1000) * (stageScaleRef.current || 1.0)}px`;
+      }
       if (frameSceneRef.current) {
-        frameSceneRef.current.style.transform = calculate3DTransform(interpolated);
+        frameSceneRef.current.style.transform = calculate3DTransform(interpolated, stageScaleRef.current);
       }
 
       // Sync video drift gently if needed without stuttering decoder
@@ -580,9 +650,39 @@ export function App() {
     setCursorPos({ x, y });
   };
 
-  // Direct 3D Scene Dragging with smooth pointer tracking
+  // Global Keyboard Shortcuts for Move (V), Orbit (R) and Spacebar (Play/Pause)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement).isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        handlePlayPause();
+      } else if (e.key === 'v' || e.key === 'V') {
+        setDragMode('move');
+      } else if (e.key === 'r' || e.key === 'R') {
+        setDragMode('orbit');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handlePlayPause]);
+
+  // Direct 3D Scene Dragging with smooth pointer tracking (Move/Pan vs Orbit)
   const handleSceneMouseDown = (e: React.MouseEvent) => {
     if (isMarkingRegion) return;
+
+    // Shift or Middle Click (button 1) or Right Click (button 2) temporarily forces Move
+    const isModifierPan = e.shiftKey || e.button === 1 || e.button === 2;
+    const effectiveMode = isModifierPan ? 'move' : dragMode;
+
     e.preventDefault();
     setIsDraggingScene(true);
     dragStartRef.current = {
@@ -590,20 +690,39 @@ export function App() {
       y: e.clientY,
       rotX: camera.rotX,
       rotY: camera.rotY,
+      panX: camera.panX || 0,
+      panY: camera.panY || 0,
     };
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - dragStartRef.current.x;
       const deltaY = moveEvent.clientY - dragStartRef.current.y;
+      const currentScale = stageScaleRef.current || 1.0;
 
-      const newRotY = clampRotation(dragStartRef.current.rotY + deltaX * 0.35, -85, 85);
-      const newRotX = clampRotation(dragStartRef.current.rotX - deltaY * 0.35, -85, 85);
+      if (effectiveMode === 'move') {
+        // Direct 1:1 screen pixel position moving
+        const newPanX = Math.round(dragStartRef.current.panX + deltaX / currentScale);
+        const newPanY = Math.round(dragStartRef.current.panY + deltaY / currentScale);
+        handleCameraChange({
+          ...camera,
+          panX: newPanX,
+          panY: newPanY,
+        });
+      } else {
+        // 3D Orbit / Angle rotation
+        const newRotY = clampRotation(dragStartRef.current.rotY + deltaX * 0.35, -85, 85);
+        const newRotX = clampRotation(dragStartRef.current.rotX - deltaY * 0.35, -85, 85);
+        handleCameraChange({
+          ...camera,
+          rotX: newRotX,
+          rotY: newRotY,
+        });
+      }
 
-      handleCameraChange({
-        ...camera,
-        rotX: newRotX,
-        rotY: newRotY,
-      });
+      // Auto-advance beginner guide if on Step 2 (Move & 3D Orbit)
+      if (isGuideOpen && guideStepIndex === 1) {
+        setGuideStepIndex(2);
+      }
     };
 
     const handleMouseUp = () => {
@@ -640,6 +759,7 @@ export function App() {
       tempVid.preload = 'metadata';
       tempVid.src = url;
     }
+    setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
   };
 
   // Reset Camera Scene
@@ -754,6 +874,9 @@ export function App() {
         });
 
         confetti({ particleCount: 120, spread: 90 });
+        if (isGuideOpen) {
+          setGuidePhase('complete');
+        }
       }
     } catch (e) {
       console.error('Export failed:', e);
@@ -763,6 +886,32 @@ export function App() {
       setExportProgress(0);
     }
   };
+
+  // Contextual Reference Style Guide step advance
+  const handleGuideAdvance = useCallback(() => {
+    if (guidePhase === 'start') {
+      handleSelectClip('P02');
+      setGuidePhase('end');
+    } else if (guidePhase === 'end') {
+      setGuidePhase('compose_operator');
+    } else if (guidePhase === 'compose_operator') {
+      setTopMode('compose');
+      setIsMarkingRegion(true);
+      setGuidePhase('compose_draw');
+    } else if (guidePhase === 'compose_draw') {
+      setGuidePhase('compose_action');
+    } else if (guidePhase === 'compose_action') {
+      handleCompose();
+      setGuidePhase('preview');
+    } else if (guidePhase === 'preview') {
+      handlePlayPause();
+      setGuidePhase('export');
+    } else if (guidePhase === 'export') {
+      handleExport(exportFormat, exportFps);
+      setGuidePhase('complete');
+      confetti({ particleCount: 120, spread: 90, origin: { y: 0.7 } });
+    }
+  }, [guidePhase, handleSelectClip, handlePlayPause, handleCompose, handleExport, exportFormat, exportFps]);
 
   const bgStyle = generateBackgroundCss(background);
   const transform3D = calculate3DTransform(camera, stageScale);
@@ -778,6 +927,7 @@ export function App() {
         <button
           type="button"
           className="top-pill-btn"
+          data-guide="add-media"
           onClick={() => setIsMediaLibraryOpen(true)}
         >
           <Plus size={14} />
@@ -786,27 +936,73 @@ export function App() {
       </div>
 
       {/* 2. TOP CENTER MODE ISLAND (Unified Operator & Compose matching Screenshot 1) */}
-      <TopModeIsland
-        isComposeActive={topMode === 'compose'}
-        onToggleCompose={() => {
-          const nextMode = topMode === 'operator' ? 'compose' : 'operator';
-          setTopMode(nextMode);
-          if (nextMode === 'compose') {
-            setIsMarkingRegion(true);
-          } else {
-            setIsMarkingRegion(false);
-          }
-        }}
-        onCloseCompose={handleCloseCompose}
-        onComposeMacro={handleCompose}
-        isMarkingRegion={isMarkingRegion}
-        onToggleMarkingRegion={() => setIsMarkingRegion(!isMarkingRegion)}
-        onClearRegions={() => setInterestRegions([])}
-        regionsCount={interestRegions.length}
-      />
+      <div data-guide="top-mode-island">
+        <TopModeIsland
+          isComposeActive={topMode === 'compose'}
+          onToggleCompose={() => {
+            const nextMode = topMode === 'operator' ? 'compose' : 'operator';
+            setTopMode(nextMode);
+            if (nextMode === 'compose') {
+              setIsMarkingRegion(true);
+              setGuideStepIndex((prev) => (prev === 3 ? 4 : prev));
+              if (isGuideOpen) {
+                if (interestRegions.length === 0) {
+                  setGuidePhase('compose_draw');
+                } else {
+                  setGuidePhase('compose_action');
+                }
+              }
+            } else {
+              setIsMarkingRegion(false);
+              if (isGuideOpen && (guidePhase === 'compose_draw' || guidePhase === 'compose_action')) {
+                setGuidePhase('compose_operator');
+              }
+            }
+          }}
+          onCloseCompose={handleCloseCompose}
+          onComposeMacro={() => {
+            handleCompose();
+            if (isGuideOpen) {
+              setGuidePhase('preview');
+            }
+          }}
+          isMarkingRegion={isMarkingRegion}
+          onToggleMarkingRegion={() => setIsMarkingRegion(!isMarkingRegion)}
+          onClearRegions={() => {
+            setInterestRegions([]);
+            if (isGuideOpen && topMode === 'compose') {
+              setGuidePhase('compose_draw');
+            }
+          }}
+          regionsCount={interestRegions.length}
+          isGuideOpen={isGuideOpen}
+          guidePhase={guidePhase}
+          onGuideAdvance={handleGuideAdvance}
+        />
+      </div>
 
       {/* 3. TOP-RIGHT TOOLBAR */}
       <div className="top-right-toolbar">
+        {/* Beginner Guide / Tour Pill (Strict Black & White) */}
+        <button
+          type="button"
+          className={`top-pill-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
+          onClick={() => {
+            if (isGuideOpen) {
+              setIsGuideOpen(false);
+            } else {
+              setIsGuideOpen(true);
+              setGuidePhase('start');
+              handleSelectClip('P01');
+            }
+          }}
+          title="Interactive Beginner Guide & Feature Tour"
+        >
+          <Sparkles size={13} color="#ffffff" />
+          <span>Guide</span>
+          <span className="guide-tour-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
+        </button>
+
         <button
           type="button"
           className="top-pill-btn"
@@ -842,6 +1038,7 @@ export function App() {
           <button
             type="button"
             className="top-pill-btn top-upgrade-btn"
+            data-guide="export-button"
             onClick={() => handleExport(exportFormat, exportFps)}
             disabled={isProcessing}
             title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
@@ -878,6 +1075,7 @@ export function App() {
           setInterestRegions([]);
           setActiveMedia(item);
           setCropRect({ x: 0, y: 0, width: 100, height: 100 });
+          setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
           if (item.type === 'video') setStudioMode('video');
         }}
         onUploadFile={handleUploadFile}
@@ -897,6 +1095,7 @@ export function App() {
       {/* 6. 3D STAGE & COMPOSITION CANVAS */}
       <div 
         className="stage-wrap" 
+        data-guide="stage-canvas"
         onMouseMove={handleStageMouseMove}
       >
         <div
@@ -916,7 +1115,8 @@ export function App() {
 
           {/* 3D Perspective Anchor */}
           <div
-            className={`frame-anchor ${isDraggingScene ? 'is-dragging' : ''}`}
+            ref={frameAnchorRef}
+            className={`frame-anchor mode-${dragMode} ${isDraggingScene ? 'is-dragging' : ''}`}
             onMouseDown={handleSceneMouseDown}
             style={{ perspective: `${(camera.perspective || 1000) * stageScale}px` }}
           >
@@ -1047,6 +1247,9 @@ export function App() {
             regions={interestRegions}
             onRegionsChange={(newRegions) => {
               setInterestRegions(newRegions);
+              if (isGuideOpen && topMode === 'compose' && newRegions.length > 0) {
+                setGuidePhase('compose_action');
+              }
             }}
             selectedRegionId={selectedRegionId}
             onSelectRegion={(id) => {
@@ -1054,15 +1257,29 @@ export function App() {
             }}
             width={STAGE_BASE_DIMS.width}
             height={STAGE_BASE_DIMS.height}
+            isGuideOpen={isGuideOpen}
+            guidePhase={guidePhase}
+            onGuideAdvance={() => {
+              if (guidePhase === 'compose_draw') {
+                setGuidePhase('compose_action');
+              } else {
+                handleGuideAdvance();
+              }
+            }}
           />
         </div>
       </div>
 
       {/* 7. BOTTOM CAMERA CONTROLS ISLAND (Rotary Dials & Ruler Sliders) */}
-      <div className={`bottom-studio-controls-slot ${studioMode === 'video' ? 'has-timeline' : ''}`}>
+      <div 
+        className={`bottom-studio-controls-slot ${studioMode === 'video' ? 'has-timeline' : ''}`}
+        data-guide="camera-island"
+      >
         <CameraControlsIsland
           mode={studioMode}
           onModeChange={setStudioMode}
+          dragMode={dragMode}
+          onDragModeChange={setDragMode}
           camera={camera}
           onCameraChange={handleCameraChange}
           background={background}
@@ -1081,41 +1298,113 @@ export function App() {
           onToggleGrid={() => setShowGrid(!showGrid)}
           onCapture={() => handleExport(exportFormat)}
           isProcessing={isProcessing}
+          isGuideOpen={isGuideOpen}
+          guidePhase={guidePhase}
+          selectedClipId={selectedClipId}
+          onGuideAdvance={handleGuideAdvance}
         />
       </div>
 
       {/* 8. BOTTOM VIDEO TIMELINE TRAY (when in VIDEO mode) */}
       {studioMode === 'video' && (
-        <VideoTimeline
-          clips={clips}
-          onClipsChange={handleClipsChange}
-          selectedClipId={selectedClipId}
-          onSelectClip={handleSelectClip}
-          currentTime={currentTime}
-          totalDuration={totalDuration}
-          isPlaying={isPlaying}
-          onPlayPause={handlePlayPause}
-          onSeek={handleSeek}
-          onResetScene={handleResetScene}
-          onExportVideo={handleExport}
-          isExporting={isProcessing}
-          exportProgress={exportProgress}
-          exportFormat={exportFormat}
-          onExportFormatChange={setExportFormat}
-          exportFps={exportFps}
-          onExportFpsChange={setExportFps}
-          onOpenCrop={() => setIsCropModalOpen(true)}
-          onOpenMediaLibrary={() => setIsMediaLibraryOpen(true)}
-          easingValues={easingValues}
-          onEasingValuesChange={setEasingValues}
-          onCompose={handleCompose}
-          onTotalDurationChange={(newDur) => setTotalDuration(newDur)}
-          onMediaDurationChange={handleMediaDurationChange}
-          mediaThumbnailUrl={activeMedia.type === 'image' ? activeMedia.url : undefined}
-          mediaThumbnails={videoThumbnails}
-          mediaDuration={mediaDuration}
-        />
+        <div data-guide="video-timeline" style={{ width: '100%' }}>
+          <VideoTimeline
+            clips={clips}
+            onClipsChange={handleClipsChange}
+            selectedClipId={selectedClipId}
+            onSelectClip={handleSelectClip}
+            currentTime={currentTime}
+            totalDuration={totalDuration}
+            isPlaying={isPlaying}
+            onPlayPause={handlePlayPause}
+            onSeek={handleSeek}
+            onResetScene={handleResetScene}
+            onExportVideo={handleExport}
+            isExporting={isProcessing}
+            exportProgress={exportProgress}
+            exportFormat={exportFormat}
+            onExportFormatChange={setExportFormat}
+            exportFps={exportFps}
+            onExportFpsChange={setExportFps}
+            onOpenCrop={() => setIsCropModalOpen(true)}
+            onOpenMediaLibrary={() => setIsMediaLibraryOpen(true)}
+            easingValues={easingValues}
+            onEasingValuesChange={setEasingValues}
+            onCompose={handleCompose}
+            onTotalDurationChange={(newDur) => setTotalDuration(newDur)}
+            onMediaDurationChange={handleMediaDurationChange}
+            mediaThumbnailUrl={activeMedia.type === 'image' ? activeMedia.url : undefined}
+            mediaThumbnails={videoThumbnails}
+            mediaDuration={mediaDuration}
+            isGuideOpen={isGuideOpen}
+            guidePhase={guidePhase}
+            onGuideAdvance={handleGuideAdvance}
+          />
+        </div>
       )}
+
+      {/* 9. INTERACTIVE BEGINNER ONBOARDING GUIDE (Pure Black & White, Real-Time Telemetry) */}
+      <BeginnerGuide
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        currentStepIndex={guideStepIndex}
+        onStepChange={setGuideStepIndex}
+        onCompleteTour={handleCompleteTour}
+        activeMediaName={activeMedia.name}
+        isMediaLibraryOpen={isMediaLibraryOpen}
+        onOpenMediaLibrary={() => {
+          setIsMediaLibraryOpen(true);
+          if (guideStepIndex === 0) setGuideStepIndex(1);
+        }}
+        camera={camera}
+        dragMode={dragMode}
+        onSetDragMode={(mode) => {
+          setDragMode(mode);
+          if (guideStepIndex === 1) setGuideStepIndex(2);
+        }}
+        onCenterCamera={() => {
+          handleCameraChange({ ...camera, panX: 0, panY: 0 });
+          if (guideStepIndex === 1) setGuideStepIndex(2);
+        }}
+        aspectRatio={aspectRatio}
+        onSetAspectRatio={(ratio) => {
+          setAspectRatio(ratio);
+          if (guideStepIndex === 2) setGuideStepIndex(3);
+        }}
+        blurAmount={blurAmount}
+        onSetBlur={(val) => {
+          handleBlurChange(val);
+          if (guideStepIndex === 2) setGuideStepIndex(3);
+        }}
+        borderRadius={borderRadius}
+        topMode={topMode}
+        onSetTopMode={(mode) => {
+          setTopMode(mode);
+          if (mode === 'compose') {
+            setIsMarkingRegion(true);
+            if (guideStepIndex === 3) setGuideStepIndex(4);
+          } else {
+            setIsMarkingRegion(false);
+          }
+        }}
+        interestRegionsCount={interestRegions.length}
+        currentTime={currentTime}
+        totalDuration={totalDuration}
+        isPlaying={isPlaying}
+        onTogglePlay={() => {
+          handlePlayPause();
+          if (guideStepIndex === 4) setGuideStepIndex(5);
+        }}
+        onSeek={handleSeek}
+        exportFps={exportFps}
+        exportFormat={exportFormat}
+        isProcessing={isProcessing}
+        exportProgress={exportProgress}
+        onExport={() => {
+          handleExport(exportFormat, exportFps);
+          if (guideStepIndex === 5) handleCompleteTour();
+        }}
+      />
     </div>
   );
 }

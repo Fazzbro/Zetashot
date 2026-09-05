@@ -31,11 +31,13 @@ export function getKeyframeSpans(clips: TimelinePositionClip[]): KeyframeSpan[] 
     }];
   }
 
-  // 2-keyframe isolated pair (e.g. default P01 / P02 covering full 3.0s sequence block)
+  // 2-keyframe isolated pair (e.g. default P01 / P02 covering full sequence block)
   if (sorted.length === 2 && !sorted[0].blockId && !sorted[1].blockId) {
     const c1 = sorted[0];
     const c2 = sorted[1];
-    const seqDuration = (c1.duration || 1.5) + (c2.duration || 1.5);
+    const d1 = typeof c1.duration === 'number' && c1.duration > 0 ? c1.duration : 1.5;
+    const d2 = typeof c2.duration === 'number' && c2.duration > 0 ? c2.duration : 1.5;
+    const seqDuration = d1 + d2;
     return [{
       startTime: c1.startTime,
       endTime: c1.startTime + seqDuration,
@@ -110,6 +112,9 @@ export function interpolateCameraSpline(
         const p2 = span.endCamera;
         const lerp = (a: number, b: number) => a + (b - a) * t;
 
+        const persp1 = typeof p1.perspective === 'number' && p1.perspective > 0 ? p1.perspective : 1000;
+        const persp2 = typeof p2.perspective === 'number' && p2.perspective > 0 ? p2.perspective : 1000;
+
         return {
           rotX: lerp(p1.rotX, p2.rotX),
           rotY: lerp(p1.rotY, p2.rotY),
@@ -117,13 +122,18 @@ export function interpolateCameraSpline(
           zoom: lerp(p1.zoom, p2.zoom),
           panX: lerp(p1.panX, p2.panX),
           panY: lerp(p1.panY, p2.panY),
-          perspective: 1000,
+          perspective: Math.round(lerp(persp1, persp2)),
         };
       }
 
       // Multi-span continuous trajectory: Cubic Hermite Spline with C1 continuity
       const p1 = span.startCamera;
       const p2 = span.endCamera;
+
+      const persp1 = typeof p1.perspective === 'number' && p1.perspective > 0 ? p1.perspective : 1000;
+      const persp2 = typeof p2.perspective === 'number' && p2.perspective > 0 ? p2.perspective : 1000;
+      const prevPersp = spans[i - 1]?.startCamera?.perspective ?? persp1;
+      const nextPersp = spans[i + 1]?.endCamera?.perspective ?? persp2;
 
       // Start tangent M0 for this segment:
       // At sequence start (i === 0), start smoothly from rest (M0 = 0)
@@ -135,6 +145,7 @@ export function interpolateCameraSpline(
         zoom: 0,
         panX: 0,
         panY: 0,
+        perspective: 0,
       } : {
         rotX: (p2.rotX - spans[i - 1].startCamera.rotX) * 0.5,
         rotY: (p2.rotY - spans[i - 1].startCamera.rotY) * 0.5,
@@ -142,6 +153,7 @@ export function interpolateCameraSpline(
         zoom: (p2.zoom - spans[i - 1].startCamera.zoom) * 0.5,
         panX: (p2.panX - spans[i - 1].startCamera.panX) * 0.5,
         panY: (p2.panY - spans[i - 1].startCamera.panY) * 0.5,
+        perspective: (persp2 - prevPersp) * 0.5,
       };
 
       // End tangent M1 for this segment:
@@ -154,6 +166,7 @@ export function interpolateCameraSpline(
         zoom: 0,
         panX: 0,
         panY: 0,
+        perspective: 0,
       } : {
         rotX: (spans[i + 1].endCamera.rotX - p1.rotX) * 0.5,
         rotY: (spans[i + 1].endCamera.rotY - p1.rotY) * 0.5,
@@ -161,6 +174,7 @@ export function interpolateCameraSpline(
         zoom: (spans[i + 1].endCamera.zoom - p1.zoom) * 0.5,
         panX: (spans[i + 1].endCamera.panX - p1.panX) * 0.5,
         panY: (spans[i + 1].endCamera.panY - p1.panY) * 0.5,
+        perspective: (nextPersp - persp1) * 0.5,
       };
 
       const u2 = u * u;
@@ -183,7 +197,7 @@ export function interpolateCameraSpline(
         zoom: Math.max(0.4, hermite(p1.zoom, p2.zoom, m0.zoom, m1.zoom)),
         panX: hermite(p1.panX, p2.panX, m0.panX, m1.panX),
         panY: hermite(p1.panY, p2.panY, m0.panY, m1.panY),
-        perspective: 1000,
+        perspective: Math.round(Math.max(200, Math.min(3000, hermite(persp1, persp2, m0.perspective, m1.perspective)))),
       };
     }
 

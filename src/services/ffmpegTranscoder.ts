@@ -86,7 +86,7 @@ export async function encodeFrameSequenceToMP4(
     '-f', 'lavfi',
     '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
     '-t', `${duration}`,
-    '-vf', `fps=${fps}`,
+    '-vf', `setpts=N/(${fps}*TB)`,
     '-r', `${fps}`,
     '-c:v', 'libx264',
     '-preset', 'veryfast',

@@ -114,4 +114,33 @@ describe('splineInterpolation utilities', () => {
       prevCam = currCam;
     }
   });
+
+  it('correctly interpolates custom perspective values across keyframes', () => {
+    const customPerspClips: TimelinePositionClip[] = [
+      {
+        id: 'p01',
+        name: 'P01',
+        startTime: 0,
+        duration: 1.5,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.0, panX: 0, panY: 0, perspective: 500 },
+      },
+      {
+        id: 'p02',
+        name: 'P02',
+        startTime: 1.5,
+        duration: 1.5,
+        camera: { rotX: 20, rotY: 30, rotZ: 5, zoom: 1.2, panX: 0, panY: 0, perspective: 1500 },
+      },
+    ];
+
+    const at0 = interpolateCameraSpline(customPerspClips, 0);
+    expect(at0.perspective).toBe(500);
+
+    const atMid = interpolateCameraSpline(customPerspClips, 1.5);
+    expect(atMid.perspective).toBeGreaterThanOrEqual(950);
+    expect(atMid.perspective).toBeLessThanOrEqual(1050);
+
+    const atEnd = interpolateCameraSpline(customPerspClips, 3.0);
+    expect(atEnd.perspective).toBe(1500);
+  });
 });

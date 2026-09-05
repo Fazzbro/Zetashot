@@ -2120,28 +2120,83 @@
 
 /* Vertical Pill Drag Handles on Left & Right */
 .sequence-drag-handle {
-  width: 5px;
-  height: 22px;
-  border-radius: 3px;
+  width: 8px;
+  height: 24px;
+  border-radius: 4px;
   cursor: ew-resize;
   flex-shrink: 0;
-  z-index: 10;
-  transition: transform 0.1s ease, opacity 0.15s ease;
+  z-index: 30;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, opacity 0.15s ease, background 0.15s ease;
+}
+
+/* Generous invisible hit-box so it is effortless to grab */
+.sequence-drag-handle::before {
+  content: '';
+  position: absolute;
+  inset: -8px -10px;
+  z-index: 35;
+  cursor: ew-resize;
 }
 
 .sequence-capsule-container.is-yellow .sequence-drag-handle {
   background: #713f12;
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 .sequence-capsule-container.is-blue .sequence-drag-handle {
   background: #93c5fd;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-.sequence-drag-handle:hover {
+.sequence-drag-handle:hover,
+.sequence-drag-handle:active {
   opacity: 1 !important;
-  transform: scaleY(1.15);
+  transform: scale(1.2);
+}
+
+/* Intra-Sequence Divider Drag Handle between Sub-blocks */
+.sequence-divider-drag-handle {
+  width: 6px;
+  height: 24px;
+  margin: 0 -3px;
+  border-radius: 3px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  z-index: 25;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  background: rgba(0, 0, 0, 0.2);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.sequence-divider-drag-handle::before {
+  content: '';
+  position: absolute;
+  inset: -6px -8px;
+  z-index: 28;
+  cursor: col-resize;
+}
+
+.sequence-divider-drag-handle:hover,
+.sequence-divider-drag-handle:active {
+  background: rgba(0, 0, 0, 0.6);
+  transform: scaleX(1.4);
+}
+
+.sequence-capsule-container.is-blue .sequence-divider-drag-handle {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.sequence-capsule-container.is-blue .sequence-divider-drag-handle:hover,
+.sequence-capsule-container.is-blue .sequence-divider-drag-handle:active {
+  background: rgba(255, 255, 255, 0.7);
 }
 
 /* Sub-blocks inside Capsule (P01, P02) */
@@ -2449,6 +2504,868 @@
 .top-operator-icon {
   color: inherit;
 }
+
+/* Drag Mode Cursors */
+.frame-anchor.mode-move {
+  cursor: grab;
+}
+.frame-anchor.mode-move.is-dragging {
+  cursor: grabbing;
+}
+.frame-anchor.mode-orbit {
+  cursor: crosshair;
+}
+.frame-anchor.mode-orbit.is-dragging {
+  cursor: crosshair;
+}
+
+/* Canvas Tool Floating Island */
+.canvas-tool-pill-island {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.canvas-tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.canvas-tool-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.canvas-tool-btn.is-active {
+  background: #facc15;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(250, 204, 21, 0.3);
+}
+
+.canvas-tool-kbd {
+  display: inline-block;
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  line-height: 1;
+}
+
+.canvas-tool-btn.is-active .canvas-tool-kbd {
+  background: rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+.canvas-tool-btn.reset-pan-btn {
+  color: #38bdf8;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 8px;
+  border-radius: 0 9999px 9999px 0;
+}
+
+.canvas-tool-btn.reset-pan-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+}
+
+/* Drag tool toggle in Camera Controls Island */
+.drag-tool-toggle {
+  background: #111522;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.drag-tool-toggle button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.drag-tool-toggle button:hover {
+  color: #f8fafc;
+}
+
+.drag-tool-toggle button.is-active {
+  background: #facc15;
+  color: #0f172a;
+  box-shadow: 0 1px 6px rgba(250, 204, 21, 0.25);
+}
+
+/* Spotlight Highlight Ring for Guided Steps (Monochrome high-contrast crisp highlight) */
+.guide-spotlight-active {
+  position: relative;
+  z-index: 1000 !important;
+  outline: 2px solid #ffffff !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35), 0 0 24px rgba(255, 255, 255, 0.45), 0 8px 32px rgba(0, 0, 0, 0.95) !important;
+  animation: guideSpotlightBreathBW 2.4s ease-in-out infinite !important;
+}
+
+@keyframes guideSpotlightBreathBW {
+  0%, 100% {
+    outline-color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3), 0 0 16px rgba(255, 255, 255, 0.35), 0 8px 24px rgba(0, 0, 0, 0.95);
+  }
+  50% {
+    outline-color: #ffffff;
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.55), 0 0 28px rgba(255, 255, 255, 0.65), 0 12px 40px rgba(0, 0, 0, 1);
+  }
+}
+
+/* ==========================================================================
+   ui.camera Authentic Reference Style Contextual Guide Pills & Highlight Rings
+   ========================================================================== */
+.reference-guide-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.42);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: guidePillPop 0.25s cubic-bezier(0.16, 1, 0.3, 1), guidePillPulse 2.4s ease-in-out infinite;
+  user-select: none;
+  z-index: 120;
+}
+
+.reference-guide-pill strong {
+  font-weight: 800;
+  margin: 0 4px;
+  letter-spacing: -0.01em;
+}
+
+.reference-guide-pill:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.6);
+}
+
+@keyframes guidePillPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes guidePillPulse {
+  0%, 100% {
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.42);
+  }
+  50% {
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.72);
+  }
+}
+
+/* Image 2 Style: Encircled blue ring around rotation compass dials */
+.guide-dials-highlight-ring {
+  border: 2px solid #2563eb !important;
+  border-radius: 9999px !important;
+  padding: 2px 5px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25) !important;
+  transition: all 0.2s ease !important;
+}
+
+.dials-guide-pill {
+  margin-left: 8px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+/* Image 1 Style: Encircled blue ring around P02 keyframe subblock */
+.guide-subblock-highlight-ring {
+  border: 2px solid #2563eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3) !important;
+  position: relative !important;
+  z-index: 5 !important;
+}
+
+.timeline-guide-pill {
+  margin-left: 12px;
+  height: 30px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.play-guide-pill {
+  margin-left: 10px;
+  height: 30px;
+  white-space: nowrap;
+}
+
+.export-guide-pill {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  height: 30px;
+  white-space: nowrap;
+  z-index: 100;
+}
+
+.guide-play-highlight-ring {
+  border: 2px solid #2563eb !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
+  padding: 2px 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.guide-export-highlight-ring {
+  border: 2px solid #2563eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Image / Operator Mode Guide Ring */
+.guide-operator-highlight-ring {
+  border: 2px solid #2563eb !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35) !important;
+  transition: all 0.2s ease !important;
+}
+
+.operator-guide-pill {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 1200;
+}
+
+/* Primary Compose Action Button Highlight Ring */
+.guide-compose-highlight-ring {
+  border: 2px solid #60a5fa !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.45) !important;
+  animation: guidePillPulse 2s ease-in-out infinite;
+  transition: all 0.2s ease !important;
+}
+
+.compose-action-guide-pill {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  white-space: nowrap;
+  z-index: 1200;
+}
+
+/* Canvas Rectangle Draw Guide Pill */
+.stage-rect-guide-pill {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.5);
+  cursor: pointer;
+}
+
+.stage-rect-guide-box-cue {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320px;
+  height: 200px;
+  border: 2px dashed rgba(59, 130, 246, 0.7);
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.08);
+  pointer-events: none;
+  z-index: 999;
+  animation: guidePillPulse 2.5s infinite ease-in-out;
+}
+
+.floating-guide-pill {
+  position: absolute;
+  z-index: 1200;
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   Studio Guide Command HUD (Strict Black & White, Real-Time Interactive Telemetry)
+   ========================================================================== */
+.studio-guide-hud {
+  position: fixed;
+  top: 64px;
+  right: 24px;
+  left: auto;
+  transform: none;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  background: #000000;
+  border: 1px solid #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.9), 0 0 0 1px #000000;
+  z-index: 1100;
+  color: #ffffff;
+  overflow: hidden;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: guideHudSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes guideHudSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.studio-guide-hud.is-collapsed {
+  width: 390px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.9);
+}
+
+/* Top Progress Rail (Pure Black & White) */
+.guide-hud-progress-rail {
+  width: 100%;
+  height: 2px;
+  background: #000000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.guide-hud-progress-fill {
+  height: 100%;
+  background: #ffffff;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Main Bar Row */
+.guide-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  gap: 12px;
+  background: #000000;
+}
+
+/* Meta: Step badge + Title */
+.guide-hud-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.guide-hud-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #000000;
+  border: 1px solid #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.guide-hud-step-num {
+  color: #ffffff;
+}
+
+.guide-hud-step-total {
+  color: #ffffff;
+  font-size: 10px;
+}
+
+.studio-root.dark-theme .guide-hud-step-total {
+  color: #ffffff;
+}
+
+.guide-hud-title-wrap {
+  min-width: 0;
+}
+
+.guide-hud-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.guide-hud-icon {
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.guide-hud-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guide-hud-subtitle-compact {
+  margin: 1px 0 0 0;
+  font-size: 11px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Controls */
+.guide-hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Step Dots */
+.guide-hud-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.guide-hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid #ffffff;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.guide-hud-dot:hover {
+  background: #ffffff;
+}
+
+.guide-hud-dot.is-active {
+  background: #ffffff;
+  border-color: #ffffff;
+  width: 14px;
+}
+
+.guide-hud-dot.is-complete {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+/* Button Group */
+.guide-hud-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.guide-hud-nav-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #000000;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.guide-hud-nav-btn:hover {
+  background: #ffffff;
+  color: #000000;
+}
+
+.guide-hud-nav-btn:hover svg {
+  color: #000000;
+  stroke: #000000;
+}
+
+.guide-hud-next-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  color: #000000;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+}
+
+.guide-hud-next-btn:hover {
+  background: #000000;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+.guide-hud-next-btn:hover .guide-next-icon {
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.guide-hud-next-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.guide-next-icon {
+  color: inherit;
+}
+
+/* Icon Buttons */
+.guide-hud-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: #000000;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.guide-hud-icon-btn:hover {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.guide-hud-icon-btn:hover svg {
+  color: #000000;
+  stroke: #000000;
+}
+
+.guide-hud-close-btn:hover {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+/* Expanded Instruction Drawer */
+.guide-hud-drawer {
+  padding: 0 14px 12px 14px;
+  background: #000000;
+  animation: guideDrawerExpand 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes guideDrawerExpand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.guide-hud-instruction-card {
+  background: #000000;
+  border: 1px solid #ffffff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Real-time Live Status Strip */
+.guide-hud-live-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.guide-hud-live-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.guide-hud-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: guideDotPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes guideDotPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0);
+  }
+}
+
+.guide-hud-live-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.08em;
+}
+
+.guide-hud-flash-badge {
+  background: #ffffff;
+  color: #000000;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  animation: guideFlashPulse 0.3s ease-out;
+}
+
+@keyframes guideFlashPulse {
+  0% {
+    transform: scale(0.92);
+    background: #ffffff;
+  }
+  50% {
+    transform: scale(1.05);
+    background: #ffffff;
+  }
+  100% {
+    transform: scale(1);
+    background: #ffffff;
+  }
+}
+
+.guide-hud-telemetry-pill {
+  background: #000000;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 290px;
+}
+
+.guide-hud-task-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.guide-hud-action-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.guide-hud-instruction-text {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+/* Interactive Direct Action Buttons */
+.guide-hud-interactive-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+}
+
+.guide-hud-action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.guide-hud-action-btn {
+  background: #000000;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.guide-hud-action-btn:hover {
+  background: #ffffff;
+  color: #000000;
+}
+
+.guide-hud-action-btn:hover svg {
+  color: #000000;
+  stroke: #000000;
+}
+
+.guide-hud-action-btn.is-active-bw {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.guide-hud-action-btn.is-active-bw svg {
+  color: #000000;
+  stroke: #000000;
+}
+
+.guide-hud-action-btn.is-primary-bw {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.guide-hud-action-btn.is-primary-bw:hover {
+  background: #000000;
+  color: #ffffff;
+}
+
+.guide-hud-action-btn.is-primary-bw:hover svg {
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+.guide-hud-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.guide-hud-detail-text {
+  font-size: 11px;
+  color: #ffffff;
+  line-height: 1.35;
+}
+
+.guide-hud-kbd-tag kbd {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #000000;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+/* Guide Button in Top Navigation (Strict Black & White) */
+.top-pill-btn.is-active-guide,
+.top-pill-btn.is-active-gold {
+  border-color: #ffffff !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 1px #ffffff !important;
+}
+
+.guide-tour-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #000000;
+}
+
 
 
 

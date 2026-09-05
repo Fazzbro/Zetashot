@@ -49,5 +49,24 @@ describe('camera3D utilities', () => {
     expect(mid.rotZ).toBeCloseTo(5);
     expect(mid.zoom).toBeCloseTo(1.25);
     expect(mid.panX).toBeCloseTo(50);
+    expect(mid.panY).toBeCloseTo(25);
+  });
+
+  it('correctly calculates 3D transform with panX, panY and scale multiplier', () => {
+    const camera: Camera3DState = {
+      rotX: 10,
+      rotY: 20,
+      rotZ: 0,
+      zoom: 1.0,
+      panX: 120,
+      panY: -80,
+      perspective: 1000,
+    };
+    const transform = calculate3DTransform(camera, 1.5);
+    expect(transform).toContain('translate3d(180px, -120px, 0)');
+    expect(transform).toContain('scale(1)');
+    expect(transform).toContain('rotateX(10deg)');
+    expect(transform).toContain('rotateY(20deg)');
   });
 });
+

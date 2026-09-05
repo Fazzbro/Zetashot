@@ -10,6 +10,9 @@ interface TopModeIslandProps {
   onToggleMarkingRegion: () => void;
   onClearRegions?: () => void;
   regionsCount: number;
+  isGuideOpen?: boolean;
+  guidePhase?: 'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete';
+  onGuideAdvance?: () => void;
 }
 
 export const TopModeIsland: React.FC<TopModeIslandProps> = ({
@@ -21,20 +24,46 @@ export const TopModeIsland: React.FC<TopModeIslandProps> = ({
   onToggleMarkingRegion,
   onClearRegions,
   regionsCount,
+  isGuideOpen = false,
+  guidePhase = 'start',
+  onGuideAdvance,
 }) => {
+  const isOperatorGuideActive = isGuideOpen && guidePhase === 'compose_operator';
+  const isComposeGuideActive = isGuideOpen && (guidePhase === 'compose_action' || (isComposeActive && regionsCount > 0));
+
   if (!isComposeActive) {
     return (
-      <div className="top-center-mode-island">
+      <div className="top-center-mode-island" style={{ position: 'relative' }}>
         <button
           type="button"
-          className="top-operator-pill-btn"
-          onClick={onToggleCompose}
+          className={`top-operator-pill-btn ${isOperatorGuideActive ? 'guide-operator-highlight-ring' : ''}`}
+          onClick={() => {
+            onToggleCompose();
+            if (isOperatorGuideActive && onGuideAdvance) {
+              onGuideAdvance();
+            }
+          }}
           title="Open Compose & Choreography Mode"
           aria-label="Open Compose Mode"
         >
           <Sliders size={14} className="top-operator-icon" />
           <span>Operator</span>
         </button>
+
+        {isOperatorGuideActive && (
+          <button
+            type="button"
+            className="reference-guide-pill operator-guide-pill"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCompose();
+              if (onGuideAdvance) onGuideAdvance();
+            }}
+            title="Click Operator to open Compose Mode"
+          >
+            Click <strong>Operator</strong> to open Compose
+          </button>
+        )}
       </div>
     );
   }
@@ -42,13 +71,18 @@ export const TopModeIsland: React.FC<TopModeIslandProps> = ({
   // Unified Compose Pill matching user screenshot 1:
   // [ 🔀 Compose (Blue) ]  [ ⛶ ⁵ (Focus) ]  [ 🗑️ (Trash) ]  |  [ ✕ (Close) ]
   return (
-    <div className="top-center-mode-island">
+    <div className="top-center-mode-island" style={{ position: 'relative' }}>
       <div className="unified-compose-island-pill" role="group" aria-label="Compose Mode Controls">
         {/* 1. Primary Vibrant Blue Compose Button */}
         <button
           type="button"
-          className="compose-primary-action-btn"
-          onClick={onComposeMacro}
+          className={`compose-primary-action-btn ${isComposeGuideActive ? 'guide-compose-highlight-ring' : ''}`}
+          onClick={() => {
+            onComposeMacro();
+            if (isGuideOpen && onGuideAdvance) {
+              onGuideAdvance();
+            }
+          }}
           title={
             regionsCount > 0
               ? `Choreograph motion through ${regionsCount} interest region${regionsCount > 1 ? 's' : ''}`
@@ -58,6 +92,21 @@ export const TopModeIsland: React.FC<TopModeIslandProps> = ({
           <Shuffle size={16} className="compose-shuffle-icon" />
           <span className="compose-text-label">Compose</span>
         </button>
+
+        {isComposeGuideActive && (
+          <button
+            type="button"
+            className="reference-guide-pill compose-action-guide-pill"
+            onClick={(e) => {
+              e.stopPropagation();
+              onComposeMacro();
+              if (onGuideAdvance) onGuideAdvance();
+            }}
+            title="Click to choreograph camera motion"
+          >
+            Click <strong>Compose</strong> to animate
+          </button>
+        )}
 
         {/* 2. Target / Interest Region Focus Tool Button (Viewfinder icon with badge) */}
         <button

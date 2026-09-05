@@ -132,8 +132,10 @@ function drawBackground(
  * Direct frame sequence rendering into FFmpeg for 100% fluid, glitch-free cinematic motion.
  */
 export async function exportMockupVideo(options: VideoExportOptions): Promise<VideoExportResult> {
-  // Default to 60 FPS for ultra-fluid cinematic playback matching preview
-  const fps = Math.max(30, options.fps || 60);
+  // Support selectable 24, 30, and 60 FPS
+  const fps = options.fps && [24, 30, 60].includes(options.fps)
+    ? options.fps
+    : (options.fps ? Math.max(24, Math.round(options.fps)) : 30);
   const stageDims = getStageDimensions(options.aspectRatio || '16:9', 1920, 1080);
   const width = options.width && options.width !== 1920 ? options.width : stageDims.width;
   const height = options.height && options.height !== 1080 ? options.height : stageDims.height;
@@ -311,7 +313,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       const focusPoint = (options.cropRect || options.crop)
         ? { x: ((options.cropRect || options.crop)!.x / 100) + ((options.cropRect || options.crop)!.width / 200), y: ((options.cropRect || options.crop)!.y / 100) + ((options.cropRect || options.crop)!.height / 200) }
         : { x: 0.5, y: 0.5 };
-      webglRenderer.render(frameCanvas, frameW, frameH, camera, baseScale, 1.0, options.blurAmount || 0, focusPoint);
+      webglRenderer.render(frameCanvas, frameW, frameH, camera, baseScale, 1.0, options.blurAmount || 0, focusPoint, cornerRadius);
 
       // --- C. Composite onto Main Export Canvas ---
       drawBackground(ctx, options.background || { type: 'solid', color: '#ffffff' }, width, height, bgImgElem);

@@ -9,11 +9,15 @@ import {
   Box,
   CornerDownRight,
   Layers,
+  Move,
+  RotateCw,
 } from 'lucide-react';
 
 interface CameraControlsIslandProps {
   mode: 'photo' | 'video';
   onModeChange: (mode: 'photo' | 'video') => void;
+  dragMode?: 'move' | 'orbit';
+  onDragModeChange?: (mode: 'move' | 'orbit') => void;
   camera: Camera3DState;
   onCameraChange: (camera: Camera3DState) => void;
   background: BackgroundConfig;
@@ -32,11 +36,17 @@ interface CameraControlsIslandProps {
   onToggleGrid: () => void;
   onCapture: () => void;
   isProcessing: boolean;
+  isGuideOpen?: boolean;
+  guidePhase?: 'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete';
+  selectedClipId?: string;
+  onGuideAdvance?: () => void;
 }
 
 export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   mode,
   onModeChange,
+  dragMode = 'move',
+  onDragModeChange,
   camera,
   onCameraChange,
   background,
@@ -55,6 +65,10 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   onToggleGrid,
   onCapture,
   isProcessing,
+  isGuideOpen = false,
+  guidePhase = 'start',
+  selectedClipId = 'P01',
+  onGuideAdvance,
 }) => {
   // activeSlider: null | 'blur' | 'perspective' | 'zoom'
   const [activeSlider, setActiveSlider] = useState<'blur' | 'perspective' | 'zoom' | null>(null);
@@ -110,8 +124,37 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
           </button>
         </div>
 
+        {/* Drag Tool Mode: Move vs Orbit */}
+        {onDragModeChange && (
+          <div className="studio-mode-toggle drag-tool-toggle" role="group" aria-label="Drag tool mode">
+            <button
+              type="button"
+              className={dragMode === 'move' ? 'is-active' : ''}
+              onClick={() => onDragModeChange('move')}
+              title="Move / Pan Media (Drag preview to reposition, press V or hold Space)"
+              aria-label="Move Media Tool"
+            >
+              <Move size={12} style={{ marginRight: '4px' }} />
+              <span className="studio-mode-label">MOVE</span>
+            </button>
+            <button
+              type="button"
+              className={dragMode === 'orbit' ? 'is-active' : ''}
+              onClick={() => onDragModeChange('orbit')}
+              title="3D Orbit / Rotate Camera (Drag preview to rotate angles, or press R)"
+              aria-label="3D Orbit Tool"
+            >
+              <RotateCw size={12} style={{ marginRight: '4px' }} />
+              <span className="studio-mode-label">ORBIT</span>
+            </button>
+          </div>
+        )}
+
         {/* 2. X, Y, Z Rotation Compass Dials */}
-        <div className="bottom-axis-controls" aria-label="Rotation controls">
+        <div
+          className={`bottom-axis-controls ${isGuideOpen && (guidePhase === 'start' || guidePhase === 'end') ? 'guide-dials-highlight-ring' : ''}`}
+          aria-label="Rotation controls"
+        >
           <CompassDial
             axis="x"
             value={camera.rotX}
@@ -131,6 +174,29 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
             onReset={() => onCameraChange({ ...camera, rotZ: 0 })}
           />
         </div>
+
+        {/* Reference Style Guide Pill: Set START / END position (matching Image 2) */}
+        {isGuideOpen && guidePhase === 'start' && (
+          <button
+            type="button"
+            className="reference-guide-pill dials-guide-pill"
+            onClick={onGuideAdvance}
+            title="Adjust camera angles to set START position, then click to proceed"
+          >
+            Set <strong>START</strong> position
+          </button>
+        )}
+
+        {isGuideOpen && guidePhase === 'end' && (
+          <button
+            type="button"
+            className="reference-guide-pill dials-guide-pill"
+            onClick={onGuideAdvance}
+            title="Click to confirm END position and preview animation"
+          >
+            Set <strong>END</strong> position
+          </button>
+        )}
 
         {/* 3. Horizontal Control Strip or Ruler Slider */}
         <div style={{ position: 'relative' }}>

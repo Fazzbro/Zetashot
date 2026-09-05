@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   Crop,
   Spline,
@@ -62,6 +62,9 @@ interface VideoTimelineProps {
   mediaThumbnailUrl?: string;
   mediaThumbnails?: string[];
   mediaDuration?: number;
+  isGuideOpen?: boolean;
+  guidePhase?: 'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete';
+  onGuideAdvance?: () => void;
 }
 
 export const VideoTimeline: React.FC<VideoTimelineProps> = ({
@@ -92,6 +95,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   mediaThumbnailUrl,
   mediaThumbnails,
   mediaDuration = 3.0,
+  isGuideOpen = false,
+  guidePhase = 'start',
+  onGuideAdvance,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [showFormatMenu, setShowFormatMenu] = useState(false);
@@ -106,110 +112,210 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     clipId: string;
   } | null>(null);
 
-  // Resizing state
-  const [isResizing, setIsResizing] = useState<{
-    clipIndex: number;
-    subCount: number;
-    initialBlockStart: number;
-    initialBlockDuration: number;
-    initialTotalDuration: number;
-    startX: number;
-    handle: 'left' | 'right';
-  } | null>(null);
-  
-  const dragNewTotalRef = useRef<number | null>(null);
-
-  // Handle Drag Resizing of Sequence / Keyframe Block
+  // High-performance snapshot refs to eliminate drag jitter and listener churn
+  const clipsRef = useRef(clips);
   useEffect(() => {
-    if (!isResizing) return;
+    clipsRef.current = clips;
+  }, [clips]);
 
-    const handleMouseMove = (e: MouseEvent) => {
+  const rulerDurationRef = useRef(rulerDuration);
+  useEffect(() => {
+    rulerDurationRef.current = rulerDuration;
+  }, [rulerDuration]);
+
+  // Window-level Pointer Drag Resizing for Sequence / Keyframe Blocks
+  const startSequenceResize = useCallback((
+    e: React.PointerEvent,
+    groupStartIndex: number,
+    subCount: number,
+    initialStart: number,
+    initialDuration: number,
+    handle: 'left' | 'right'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetElem = e.currentTarget as HTMLElement;
+    try {
+      targetElem.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const capturedClips = clipsRef.current.map((c) => ({ ...c }));
+    const startX = e.clientX;
+    const initialRulerDuration = rulerDurationRef.current;
+
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    const onPointerMove = (ev: PointerEvent) => {
       if (!trackRef.current) return;
       const trackRect = trackRef.current.getBoundingClientRect();
       if (trackRect.width <= 0) return;
-      const deltaX = e.clientX - isResizing.startX;
-      const deltaSec = (deltaX / trackRect.width) * isResizing.initialTotalDuration;
 
-      const updated = [...clips];
-      const idx = isResizing.clipIndex;
-      const subCount = isResizing.subCount;
+      const deltaX = ev.clientX - startX;
+      const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
 
-      if (isResizing.handle === 'right') {
-        const newTotal = Math.max(0.6, Math.min(60, Number((isResizing.initialBlockDuration + deltaSec).toFixed(2))));
-        const numSteps = Math.max(1, subCount - 1);
-        const step = Number((newTotal / numSteps).toFixed(2));
-        const baseStart = isResizing.initialBlockStart;
+      const updated = capturedClips.map((c) => ({ ...c }));
 
+      if (handle === 'right') {
+        const minDuration = Math.max(0.4, subCount * 0.25);
+        const newDuration = Math.max(minDuration, Math.min(60, Number((initialDuration + deltaSec).toFixed(2))));
+        const durationDelta = Number((newDuration - initialDuration).toFixed(2));
+
+        let accStart = initialStart;
         for (let s = 0; s < subCount; s++) {
-          if (updated[idx + s]) {
+          const clipIdx = groupStartIndex + s;
+          if (!updated[clipIdx]) continue;
+
+          if (subCount === 1) {
+            updated[clipIdx].duration = newDuration;
+          } else {
+            const origDur = capturedClips[clipIdx]?.duration || (initialDuration / subCount);
+            const ratio = initialDuration > 0 ? origDur / initialDuration : 1 / subCount;
             const isLastSub = s === subCount - 1;
-            updated[idx + s] = {
-              ...updated[idx + s],
-              startTime: Number((baseStart + s * step).toFixed(2)),
-              duration: (isLastSub && subCount > 1) ? 0 : step,
-            };
+            const sDur = isLastSub
+              ? Math.max(0.2, Number((initialStart + newDuration - accStart).toFixed(2)))
+              : Math.max(0.2, Number((newDuration * ratio).toFixed(2)));
+
+            updated[clipIdx].startTime = Number(accStart.toFixed(2));
+            updated[clipIdx].duration = sDur;
+            accStart += sDur;
           }
         }
+
+        // Shift downstream clips forward/backward by durationDelta
+        for (let k = groupStartIndex + subCount; k < updated.length; k++) {
+          updated[k].startTime = Math.max(0, Number((capturedClips[k].startTime + durationDelta).toFixed(2)));
+        }
+
         onClipsChange(updated);
 
-        // Synchronously stretch media below in real time with keyframes block
-        let maxClipsEnd = Number((baseStart + newTotal).toFixed(2));
-        for (let k = 0; k < updated.length; k++) {
-          const c = updated[k];
+        // Synchronously stretch media track below with keyframes
+        let maxClipsEnd = 0;
+        for (const c of updated) {
           const end = (c.startTime || 0) + (c.duration || 0);
           if (end > maxClipsEnd) maxClipsEnd = end;
         }
-        if (onMediaDurationChange) {
+        if (onMediaDurationChange && maxClipsEnd > 0) {
           onMediaDurationChange(Number(maxClipsEnd.toFixed(2)));
         }
+        if (onTotalDurationChange && maxClipsEnd > initialRulerDuration) {
+          onTotalDurationChange(Number((maxClipsEnd + 1.0).toFixed(2)));
+        }
+      } else if (handle === 'left') {
+        const minDuration = Math.max(0.4, subCount * 0.25);
+        const maxDelta = initialDuration - minDuration;
+        const clampedDelta = Math.min(maxDelta, Math.max(-initialStart, deltaSec));
+        const newStart = Math.max(0, Number((initialStart + clampedDelta).toFixed(2)));
+        const newDuration = Math.max(minDuration, Number((initialDuration - clampedDelta).toFixed(2)));
 
-        dragNewTotalRef.current = newTotal;
-      } else {
-        // Left handle: resize starting from left
-        const newTotal = Math.max(0.6, Math.min(60, Number((isResizing.initialBlockDuration - deltaSec).toFixed(2))));
-        const numSteps = Math.max(1, subCount - 1);
-        const step = Number((newTotal / numSteps).toFixed(2));
-        const newStart = Math.max(0, Number((isResizing.initialBlockStart + deltaSec).toFixed(2)));
-
+        let accStart = newStart;
         for (let s = 0; s < subCount; s++) {
-          if (updated[idx + s]) {
+          const clipIdx = groupStartIndex + s;
+          if (!updated[clipIdx]) continue;
+
+          if (subCount === 1) {
+            updated[clipIdx].startTime = newStart;
+            updated[clipIdx].duration = newDuration;
+          } else {
+            const origDur = capturedClips[clipIdx]?.duration || (initialDuration / subCount);
+            const ratio = initialDuration > 0 ? origDur / initialDuration : 1 / subCount;
             const isLastSub = s === subCount - 1;
-            updated[idx + s] = {
-              ...updated[idx + s],
-              startTime: Number((newStart + s * step).toFixed(2)),
-              duration: (isLastSub && subCount > 1) ? 0 : step,
-            };
+            const sDur = isLastSub
+              ? Math.max(0.2, Number((newStart + newDuration - accStart).toFixed(2)))
+              : Math.max(0.2, Number((newDuration * ratio).toFixed(2)));
+
+            updated[clipIdx].startTime = Number(accStart.toFixed(2));
+            updated[clipIdx].duration = sDur;
+            accStart += sDur;
           }
         }
+
         onClipsChange(updated);
-
-        // Synchronously stretch media below in real time with keyframes block
-        let maxClipsEnd = Number((newStart + newTotal).toFixed(2));
-        for (let k = 0; k < updated.length; k++) {
-          const c = updated[k];
-          const end = (c.startTime || 0) + (c.duration || 0);
-          if (end > maxClipsEnd) maxClipsEnd = end;
-        }
-        if (onMediaDurationChange) {
-          onMediaDurationChange(Number(maxClipsEnd.toFixed(2)));
-        }
-
-        dragNewTotalRef.current = newTotal;
       }
     };
 
-    const handleMouseUp = () => {
-      dragNewTotalRef.current = null;
-      setIsResizing(null);
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        targetElem.releasePointerCapture(ev.pointerId);
+      } catch {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, [onClipsChange, onMediaDurationChange, onTotalDurationChange]);
+
+  // Intra-Sequence Divider Drag Handler between Adjacent Keyframe Sub-blocks
+  const startDividerResize = useCallback((
+    e: React.PointerEvent,
+    groupStartIndex: number,
+    subIdx: number,
+    _subClips: TimelinePositionClip[]
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetElem = e.currentTarget as HTMLElement;
+    try {
+      targetElem.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const capturedClips = clipsRef.current.map((c) => ({ ...c }));
+    const leftIdx = groupStartIndex + subIdx;
+    const rightIdx = leftIdx + 1;
+    if (!capturedClips[leftIdx] || !capturedClips[rightIdx]) return;
+
+    const leftInitialStart = capturedClips[leftIdx].startTime;
+    const leftInitialDur = capturedClips[leftIdx].duration || 1.5;
+    const rightInitialDur = capturedClips[rightIdx].duration || 1.5;
+    const combinedDur = leftInitialDur + rightInitialDur;
+    const startX = e.clientX;
+    const initialRulerDuration = rulerDurationRef.current;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!trackRef.current) return;
+      const trackRect = trackRef.current.getBoundingClientRect();
+      if (trackRect.width <= 0) return;
+
+      const deltaX = ev.clientX - startX;
+      const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
+
+      const minDur = 0.3;
+      const newLeftDur = Math.max(minDur, Math.min(combinedDur - minDur, Number((leftInitialDur + deltaSec).toFixed(2))));
+      const newRightDur = Math.max(minDur, Number((combinedDur - newLeftDur).toFixed(2)));
+
+      const updated = capturedClips.map((c) => ({ ...c }));
+      updated[leftIdx].duration = newLeftDur;
+      updated[rightIdx].startTime = Number((leftInitialStart + newLeftDur).toFixed(2));
+      updated[rightIdx].duration = newRightDur;
+
+      onClipsChange(updated);
     };
-  }, [isResizing, clips, totalDuration, onClipsChange, onTotalDurationChange, onMediaDurationChange]);
+
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        targetElem.releasePointerCapture(ev.pointerId);
+      } catch {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, [onClipsChange]);
 
   const [isScrubbing, setIsScrubbing] = useState(false);
 
@@ -236,7 +342,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   }, [isScrubbing, rulerDuration, onSeek]);
 
   const handleTrackMouseDown = (e: React.MouseEvent) => {
-    if (isResizing || !trackRef.current) return;
+    if (!trackRef.current) return;
     if ((e.target as HTMLElement).closest('.sequence-drag-handle')) return;
     if ((e.target as HTMLElement).closest('.clip-triangle-btn')) return;
     if ((e.target as HTMLElement).closest('.transition-popover-card')) return;
@@ -422,23 +528,71 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         </div>
 
         {/* Center Playback Controls */}
-        <div className="timeline-center-controls">
+        <div
+          className={`timeline-center-controls ${isGuideOpen && guidePhase === 'preview' ? 'guide-play-highlight-ring' : ''}`}
+          style={{ position: 'relative' }}
+        >
           <button type="button" className="timeline-playback-btn" onClick={() => onSeek(0)} title="Skip to Start">
             <SkipBack size={15} />
           </button>
-          <button type="button" className="timeline-playback-btn is-play-main" onClick={onPlayPause} title={isPlaying ? 'Pause' : 'Play'}>
+          <button
+            type="button"
+            className="timeline-playback-btn is-play-main"
+            onClick={() => {
+              onPlayPause();
+              if (isGuideOpen && guidePhase === 'preview' && onGuideAdvance) {
+                onGuideAdvance();
+              }
+            }}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
             {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
           </button>
+          {isGuideOpen && guidePhase === 'preview' && (
+            <button
+              type="button"
+              className="reference-guide-pill play-guide-pill"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPlayPause();
+                if (onGuideAdvance) onGuideAdvance();
+              }}
+              title="Press Spacebar or Click Play to preview motion"
+            >
+              Press <strong>Space</strong> to preview
+            </button>
+          )}
         </div>
 
         {/* Right Actions: Export & Star on GitHub */}
         <div className="timeline-right-actions" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          {/* Reference Style Guide Pill: Click to Export 60 FPS video */}
+          {isGuideOpen && guidePhase === 'export' && (
+            <button
+              type="button"
+              className="reference-guide-pill export-guide-pill"
+              onClick={(e) => {
+                e.stopPropagation();
+                onExportVideo(exportFormat, exportFps);
+                if (onGuideAdvance) onGuideAdvance();
+              }}
+              title="Click to render and download video"
+            >
+              Click to <strong>Export</strong> 60 FPS video
+            </button>
+          )}
+
           {/* Export Button */}
-          <div className="export-split-btn-group">
+          <div className={`export-split-btn-group ${isGuideOpen && guidePhase === 'export' ? 'guide-export-highlight-ring' : ''}`}>
             <button
               type="button"
               className="timeline-export-btn"
-              onClick={() => onExportVideo(exportFormat, exportFps)}
+              onClick={() => {
+                onExportVideo(exportFormat, exportFps);
+                if (isGuideOpen && guidePhase === 'export' && onGuideAdvance) {
+                  onGuideAdvance();
+                }
+              }}
               disabled={isExporting}
               title={`Export as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
             >
@@ -546,10 +700,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                 const subClips = group.clips;
                 const firstClip = subClips[0];
                 const lastClip = subClips[subClips.length - 1];
-                const isPair = subClips.length === 2 && !firstClip.blockId;
-                const seqDuration = isPair
-                  ? (firstClip.duration ?? 1.5) + (lastClip.duration ?? 1.5)
-                  : Math.max(0.1, lastClip.startTime + (lastClip.duration ?? 0) - firstClip.startTime);
+                const seqDuration = Math.max(0.1, lastClip.startTime + (lastClip.duration ?? 0) - firstClip.startTime);
                 const seqStart = firstClip.startTime;
                 const seqLeftPct = (seqStart / rulerDuration) * 100;
                 const seqWidthPct = Math.min(100 - seqLeftPct, (seqDuration / rulerDuration) * 100);
@@ -561,7 +712,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     className={`sequence-capsule-container ${isBlue ? 'is-blue' : 'is-yellow'}`}
                     style={{
                       width: `${seqWidthPct}%`,
-                      minWidth: `${Math.max(140, subClips.length * 60)}px`,
+                      marginLeft: gIdx === 0 ? `${seqLeftPct}%` : '0%',
+                      minWidth: `${Math.max(48, Math.min(300, subClips.length * 28))}px`,
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -569,19 +721,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     <div
                       className="sequence-drag-handle handle-left"
                       title="Drag to resize sequence duration"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setIsResizing({
-                          clipIndex: group.startIndex,
-                          subCount: subClips.length,
-                          initialBlockStart: seqStart,
-                          initialBlockDuration: seqDuration,
-                          initialTotalDuration: rulerDuration,
-                          startX: e.clientX,
-                          handle: 'left',
-                        });
-                      }}
+                      onPointerDown={(e) =>
+                        startSequenceResize(e, group.startIndex, subClips.length, seqStart, seqDuration, 'left')
+                      }
                     />
 
                     {/* All Sub-blocks (P01, P02, P03, P04...) */}
@@ -589,18 +731,22 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                       const isFirst = subIdx === 0;
                       const isLast = subIdx === subClips.length - 1;
                       const isSelected = subClip.id === selectedClipId;
-                      const seekTime = isPair && isLast
-                        ? firstClip.startTime + seqDuration
+                      const isPairLast = subClips.length === 2 && isLast;
+                      const isGuideP02Highlight = isGuideOpen && guidePhase === 'start' && isPairLast;
+                      const seekTime = isPairLast
+                        ? Number((firstClip.startTime + seqDuration).toFixed(2))
                         : subClip.startTime;
 
                       return (
-                        <div
-                          key={subClip.id}
-                          className={`sequence-keyframe-subblock ${isSelected ? 'is-active-subblock' : ''}`}
-                          style={{
-                            flex: 1,
-                            borderRight: !isLast ? '1px solid rgba(255, 255, 255, 0.12)' : 'none',
-                          }}
+                        <React.Fragment key={subClip.id}>
+                          <div
+                            className={`sequence-keyframe-subblock ${isSelected ? 'is-active-subblock' : ''} ${isGuideP02Highlight ? 'guide-subblock-highlight-ring' : ''}`}
+                            style={{
+                              flex: `${Math.max(0.2, subClip.duration || (seqDuration / subClips.length))} 1 0%`,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              borderRight: !isLast ? '1px solid rgba(255, 255, 255, 0.12)' : 'none',
+                            }}
                           onClick={(e) => {
                             e.stopPropagation();
                             onSelectClip(subClip.id);
@@ -720,7 +866,19 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                               )}
                             </>
                           )}
-                        </div>
+                          </div>
+
+                          {/* Intra-Sequence Divider Drag Handle between sub-blocks */}
+                          {!isLast && (
+                            <div
+                              className="sequence-divider-drag-handle"
+                              title="Drag to adjust keyframe timing"
+                              onPointerDown={(e) =>
+                                startDividerResize(e, group.startIndex, subIdx, subClips)
+                              }
+                            />
+                          )}
+                        </React.Fragment>
                       );
                     })}
 
@@ -728,20 +886,35 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     <div
                       className="sequence-drag-handle handle-right"
                       title="Drag to resize sequence duration"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setIsResizing({
-                          clipIndex: group.startIndex,
-                          subCount: subClips.length,
-                          initialBlockStart: seqStart,
-                          initialBlockDuration: seqDuration,
-                          initialTotalDuration: rulerDuration,
-                          startX: e.clientX,
-                          handle: 'right',
-                        });
-                      }}
+                      onPointerDown={(e) =>
+                        startSequenceResize(e, group.startIndex, subClips.length, seqStart, seqDuration, 'right')
+                      }
                     />
+
+                    {/* Reference Style Guide Pill: Click to set END position (matching Image 1) */}
+                    {isGuideOpen && guidePhase === 'start' && subClips.length === 2 && (
+                      <button
+                        type="button"
+                        className="reference-guide-pill timeline-guide-pill floating-guide-pill"
+                        style={{
+                          left: 'calc(100% + 10px)',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const p02 = subClips[1];
+                          if (p02) {
+                            onSelectClip(p02.id);
+                            onSeek(Number((firstClip.startTime + seqDuration).toFixed(2)));
+                            if (onGuideAdvance) onGuideAdvance();
+                          }
+                        }}
+                        title="Click to select P02 and configure END camera angle"
+                      >
+                        Click to set <strong>END</strong> position
+                      </button>
+                    )}
                   </div>
                 );
               } else if (group.type === 'single') {
@@ -757,6 +930,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     className={`sequence-capsule-container ${isBlue ? 'is-blue' : 'is-yellow'} is-single`}
                     style={{
                       width: `${widthPct}%`,
+                      marginLeft: gIdx === 0 ? `${leftPct}%` : '0%',
                       minWidth: '80px',
                     }}
                     onClick={(e) => {
@@ -769,19 +943,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     <div
                       className="sequence-drag-handle handle-left"
                       title="Drag to resize duration"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setIsResizing({
-                          clipIndex: group.index,
-                          subCount: 1,
-                          initialBlockStart: c.startTime,
-                          initialBlockDuration: dur,
-                          initialTotalDuration: rulerDuration,
-                          startX: e.clientX,
-                          handle: 'left',
-                        });
-                      }}
+                      onPointerDown={(e) =>
+                        startSequenceResize(e, group.index, 1, c.startTime, dur, 'left')
+                      }
                     />
 
                     {/* Only Sub-block */}
@@ -844,19 +1008,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     <div
                       className="sequence-drag-handle handle-right"
                       title="Drag to resize duration"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setIsResizing({
-                          clipIndex: group.index,
-                          subCount: 1,
-                          initialBlockStart: c.startTime,
-                          initialBlockDuration: dur,
-                          initialTotalDuration: rulerDuration,
-                          startX: e.clientX,
-                          handle: 'right',
-                        });
-                      }}
+                      onPointerDown={(e) =>
+                        startSequenceResize(e, group.index, 1, c.startTime, dur, 'right')
+                      }
                     />
                   </div>
                 );
