@@ -4,6 +4,8 @@ import { Camera3DState } from '../utils/camera3D';
 import { AspectRatioType, getMockupDimensions, getStageDimensions, calculateObjectFitCover } from '../utils/aspectRatioHelper';
 import { WebGL3DRenderer } from './webgl3DRenderer';
 import { isCropActive, calculateCroppedDimensions } from '../utils/cropMath';
+import { TextLayerOverlay } from '../types/textLayer';
+import { drawTextLayersOnCanvas } from '../utils/textLayer';
 
 export interface CaptureResult {
   blob: Blob;
@@ -32,6 +34,8 @@ export interface PhotoMockupOptions {
   cropRect?: { x: number; y: number; width: number; height: number };
   projectName?: string;
   stageElement?: HTMLElement | null;
+  textLayers?: TextLayerOverlay[];
+  currentTime?: number;
 }
 
 function drawBackground(
@@ -212,6 +216,11 @@ export class CaptureEngine {
 
     // Main 3D frame pass: single crisp render with zero corner-radius ghosting
     ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+
+    // Text Overlays Pass
+    if (options.textLayers && options.textLayers.length > 0) {
+      drawTextLayersOnCanvas(ctx, options.textLayers, options.currentTime ?? 0, width, height);
+    }
 
     // 8. Convert to Blob
     const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';

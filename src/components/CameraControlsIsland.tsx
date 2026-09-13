@@ -400,7 +400,7 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
             step="2"
             value={borderRadius}
             onChange={(e) => onBorderRadiusChange(Number(e.target.value))}
-            style={{ width: '100%', accentColor: '#facc15' }}
+            style={{ width: '100%', accentColor: '#ffffff' }}
             aria-label="Frame Radius Slider"
           />
         </div>

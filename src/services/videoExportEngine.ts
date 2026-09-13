@@ -15,12 +15,21 @@ import {
   validateExportParameters,
   validateExportedBlob,
 } from '../utils/timelineDurationEngine';
+import { TextLayerOverlay } from '../types/textLayer';
+import { drawTextLayersOnCanvas } from '../utils/textLayer';
+import { MediaTimelineClip, getActiveMediaClipAtTime } from '../types/mediaTimeline';
+import { AudioTrackItem } from '../types/audioTrack';
+import { mixAudioTracksToWavBlob } from '../utils/audioTrackHelper';
 
 export interface VideoExportOptions {
   mediaName?: string;
   projectName?: string;
   mediaType: 'image' | 'video' | 'demo';
   mediaElement?: HTMLVideoElement | HTMLImageElement | null;
+  mediaClips?: MediaTimelineClip[];
+  audioTracks?: AudioTrackItem[];
+  audioBlob?: Blob | null;
+  audioVolume?: number;
   format?: 'webm' | 'mp4' | string;
   fps?: number;
   width?: number;
@@ -35,6 +44,7 @@ export interface VideoExportOptions {
   blurAmount: number;
   crop?: { x: number; y: number; width: number; height: number };
   cropRect?: { x: number; y: number; width: number; height: number };
+  textLayers?: TextLayerOverlay[];
   onProgress?: (progress: number) => void;
 }
 
@@ -207,8 +217,37 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   const frameCtx = frameCanvas.getContext('2d');
   if (!frameCtx) throw new Error('Offscreen 2D context not supported');
 
-  // 6. Resolve source DOM element (video or image)
+  // 6. Resolve source DOM element (video or image) and preload multi-clip elements if provided
   const imageElem = (options.mediaElement as HTMLImageElement) || (document.getElementById('mockup-image-player') as HTMLImageElement | null);
+  const mediaClipElements = new Map<string, HTMLImageElement | HTMLVideoElement>();
+
+  if (options.mediaClips && options.mediaClips.length > 0) {
+    for (const c of options.mediaClips) {
+      if (c.type === 'video') {
+        const v = document.createElement('video');
+        v.crossOrigin = 'anonymous';
+        v.src = c.url;
+        v.muted = true;
+        v.preload = 'auto';
+        await new Promise<void>((resolve) => {
+          v.onloadeddata = () => resolve();
+          v.onerror = () => resolve();
+          setTimeout(resolve, 800);
+        });
+        mediaClipElements.set(c.id, v);
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = c.url;
+        await new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, 800);
+        });
+        mediaClipElements.set(c.id, img);
+      }
+    }
+  }
 
   const frameBlobs: Blob[] = [];
 
@@ -219,18 +258,43 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     for (let f = 0; f < totalFrames; f++) {
       const time = Math.min(totalDuration, f * frameDelta);
 
-      // Sync video media frame with time-warp across mediaDuration
-      if (videoElem && options.mediaType === 'video') {
-        const naturalVidDuration = (videoElem.duration && isFinite(videoElem.duration) && videoElem.duration > 0)
-          ? videoElem.duration
-          : (options.mediaDuration || totalDuration);
-        const medDuration = (options.mediaDuration && options.mediaDuration > 0) ? options.mediaDuration : totalDuration;
-        const progressRatio = medDuration > 0 ? Math.min(1.0, time / medDuration) : 0;
-        const targetVidTime = Math.min(
-          naturalVidDuration > 0.05 ? naturalVidDuration - 0.03 : naturalVidDuration,
-          progressRatio * naturalVidDuration
-        );
-        await seekVideoAccurate(videoElem, targetVidTime);
+      // Determine active media element and type (multi-clip vs single media)
+      let activeElement: HTMLImageElement | HTMLVideoElement | null = null;
+      let activeType: 'video' | 'image' | 'demo' = options.mediaType;
+
+      if (options.mediaClips && options.mediaClips.length > 0) {
+        const currentClip = getActiveMediaClipAtTime(options.mediaClips, time);
+        if (currentClip) {
+          activeType = currentClip.type;
+          activeElement = mediaClipElements.get(currentClip.id) || null;
+          if (activeElement && activeType === 'video') {
+            const vid = activeElement as HTMLVideoElement;
+            const localTime = Math.max(0, (time - currentClip.startTime) + (currentClip.sourceStartTime || 0));
+            const safeVidTime = (vid.duration && isFinite(vid.duration) && vid.duration > 0)
+              ? Math.min(vid.duration - 0.03, localTime)
+              : localTime;
+            await seekVideoAccurate(vid, safeVidTime);
+          }
+        }
+      } else {
+        activeType = options.mediaType;
+        if (activeType === 'video') {
+          activeElement = videoElem;
+          if (videoElem) {
+            const naturalVidDuration = (videoElem.duration && isFinite(videoElem.duration) && videoElem.duration > 0)
+              ? videoElem.duration
+              : (options.mediaDuration || totalDuration);
+            const medDuration = (options.mediaDuration && options.mediaDuration > 0) ? options.mediaDuration : totalDuration;
+            const progressRatio = medDuration > 0 ? Math.min(1.0, time / medDuration) : 0;
+            const targetVidTime = Math.min(
+              naturalVidDuration > 0.05 ? naturalVidDuration - 0.03 : naturalVidDuration,
+              progressRatio * naturalVidDuration
+            );
+            await seekVideoAccurate(videoElem, targetVidTime);
+          }
+        } else {
+          activeElement = imageElem;
+        }
       }
 
       // Canonical camera evaluation matching preview 1:1 with Catmull-Rom continuous trajectory
@@ -250,9 +314,10 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       frameCtx.fillRect(0, 0, frameW, frameH);
 
       // Media rendering with object-fit: cover & cropping
-      if (videoElem && options.mediaType === 'video') {
-        const vidW = videoElem.videoWidth || baseFrameW;
-        const vidH = videoElem.videoHeight || baseFrameH;
+      if (activeElement && activeType === 'video') {
+        const vid = activeElement as HTMLVideoElement;
+        const vidW = vid.videoWidth || baseFrameW;
+        const vidH = vid.videoHeight || baseFrameH;
         const coords = calculateObjectFitCover(vidW, vidH, baseFrameW, baseFrameH);
 
         if (isCropped) {
@@ -260,10 +325,10 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           const cropY = (crop.y / 100) * coords.sh + coords.sy;
           const cropW = (crop.width / 100) * coords.sw;
           const cropH = (crop.height / 100) * coords.sh;
-          frameCtx.drawImage(videoElem, cropX, cropY, cropW, cropH, 0, 0, frameW, frameH);
+          frameCtx.drawImage(vid, cropX, cropY, cropW, cropH, 0, 0, frameW, frameH);
         } else {
           frameCtx.drawImage(
-            videoElem,
+            vid,
             coords.sx,
             coords.sy,
             coords.sw,
@@ -274,9 +339,10 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
             frameH
           );
         }
-      } else if (imageElem && options.mediaType === 'image') {
-        const imgW = imageElem.naturalWidth || baseFrameW;
-        const imgH = imageElem.naturalHeight || baseFrameH;
+      } else if (activeElement && activeType === 'image') {
+        const img = activeElement as HTMLImageElement;
+        const imgW = img.naturalWidth || baseFrameW;
+        const imgH = img.naturalHeight || baseFrameH;
         const coords = calculateObjectFitCover(imgW, imgH, baseFrameW, baseFrameH);
 
         if (isCropped) {
@@ -284,10 +350,10 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           const cropY = (crop.y / 100) * coords.sh + coords.sy;
           const cropW = (crop.width / 100) * coords.sw;
           const cropH = (crop.height / 100) * coords.sh;
-          frameCtx.drawImage(imageElem, cropX, cropY, cropW, cropH, 0, 0, frameW, frameH);
+          frameCtx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, frameW, frameH);
         } else {
           frameCtx.drawImage(
-            imageElem,
+            img,
             coords.sx,
             coords.sy,
             coords.sw,
@@ -337,6 +403,11 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       // Main 3D frame pass: single crisp render with zero corner-radius ghosting
       ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
 
+      // Text Overlays Pass (rendered with in/out animations at current frame sample time)
+      if (options.textLayers && options.textLayers.length > 0) {
+        drawTextLayersOnCanvas(ctx, options.textLayers, time, width, height);
+      }
+
       // Capture frame Blob with ultra-high fidelity to prevent edge crawling
       const frameBlob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.98);
@@ -352,24 +423,50 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     webglRenderer.destroy();
   }
 
-  // 8. Direct Frame Sequence Encoding via FFmpeg (Zero Jitter, Zero Dropped Frames)
+  // 8. Direct Frame Sequence Encoding via FFmpeg (Zero Jitter, Zero Dropped Frames) with Audio Muxing
   let finalBlob: Blob;
   let filename: string;
   const timestamp = Date.now();
   const sanitizedName = rawMediaName.trim().replace(/[/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_').replace(/\.[^/.]+$/, '');
 
+  // Prepare Audio Track Blob if audio is present
+  let exportAudioBlob: Blob | null = options.audioBlob || null;
+  const exportAudioVolume = options.audioVolume ?? 1.0;
+
+  if (!exportAudioBlob && options.audioTracks && options.audioTracks.length > 0) {
+    try {
+      exportAudioBlob = await mixAudioTracksToWavBlob(options.audioTracks, totalDuration);
+    } catch (err) {
+      console.warn('[Export Engine] Audio mixing failed, proceeding with silent audio:', err);
+    }
+  }
+
   if (targetFormat === 'mp4') {
     if (options.onProgress) options.onProgress(68);
-    finalBlob = await encodeFrameSequenceToMP4(frameBlobs, fps, totalDuration, (p: number) => {
-      if (options.onProgress) options.onProgress(65 + Math.round(p * 0.33));
-    });
+    finalBlob = await encodeFrameSequenceToMP4(
+      frameBlobs,
+      fps,
+      totalDuration,
+      (p: number) => {
+        if (options.onProgress) options.onProgress(65 + Math.round(p * 0.33));
+      },
+      exportAudioBlob,
+      exportAudioVolume
+    );
     filename = `openshot-${sanitizedName}-${timestamp}.mp4`;
   } else {
     // WebM fallback path
     if (options.onProgress) options.onProgress(68);
-    const tempMp4 = await encodeFrameSequenceToMP4(frameBlobs, fps, totalDuration, (p: number) => {
-      if (options.onProgress) options.onProgress(65 + Math.round(p * 0.25));
-    });
+    const tempMp4 = await encodeFrameSequenceToMP4(
+      frameBlobs,
+      fps,
+      totalDuration,
+      (p: number) => {
+        if (options.onProgress) options.onProgress(65 + Math.round(p * 0.25));
+      },
+      exportAudioBlob,
+      exportAudioVolume
+    );
     finalBlob = await transcodeToSeekableWebM(tempMp4, totalDuration, (p: number) => {
       if (options.onProgress) options.onProgress(90 + Math.round(p * 0.1));
     });

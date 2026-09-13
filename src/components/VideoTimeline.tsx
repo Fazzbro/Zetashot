@@ -16,12 +16,22 @@ import {
   X,
   Heart,
   Check,
+  Type,
+  Music,
+  Volume2,
+  VolumeX,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
 import { CubicBezierValues } from '../utils/bezierSolver';
 import { TransitionType } from '../utils/transitionMath';
 import { getKeyframeTimesForGroup } from '../utils/splineInterpolation';
+import { TextLayerOverlay } from '../types/textLayer';
+import { createDefaultTextLayer } from '../utils/textLayer';
+import { MediaTimelineClip, sequenceClipsContiguously } from '../types/mediaTimeline';
+import { AudioTrackItem } from '../types/audioTrack';
+import { AudioManagerModal } from './AudioManagerModal';
 
 export interface TimelinePositionClip {
   id: string;
@@ -66,6 +76,18 @@ interface VideoTimelineProps {
   isGuideOpen?: boolean;
   guidePhase?: 'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete';
   onGuideAdvance?: () => void;
+  textLayers?: TextLayerOverlay[];
+  onTextLayersChange?: (layers: TextLayerOverlay[]) => void;
+  selectedTextLayerId?: string | null;
+  onSelectTextLayer?: (id: string | null) => void;
+  mediaClips?: MediaTimelineClip[];
+  onMediaClipsChange?: (clips: MediaTimelineClip[]) => void;
+  selectedMediaClipId?: string | null;
+  onSelectMediaClip?: (clipId: string | null) => void;
+  audioTracks?: AudioTrackItem[];
+  onAudioTracksChange?: (tracks: AudioTrackItem[]) => void;
+  selectedAudioTrackId?: string | null;
+  onSelectAudioTrack?: (trackId: string | null) => void;
 }
 
 export const VideoTimeline: React.FC<VideoTimelineProps> = ({
@@ -99,10 +121,23 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   isGuideOpen = false,
   guidePhase = 'start',
   onGuideAdvance,
+  textLayers,
+  onTextLayersChange,
+  selectedTextLayerId,
+  onSelectTextLayer,
+  mediaClips,
+  onMediaClipsChange,
+  selectedMediaClipId,
+  onSelectMediaClip,
+  audioTracks,
+  onAudioTracksChange,
+  selectedAudioTrackId,
+  onSelectAudioTrack,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showEasingModal, setShowEasingModal] = useState(false);
+  const [isAudioManagerOpen, setIsAudioManagerOpen] = useState(false);
 
   // Visible Timeline Ruler Duration: at least 12.0s by default for expansive workspace view
   const rulerDuration = Math.max(12.0, totalDuration || 12.0);
@@ -123,6 +158,359 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   useEffect(() => {
     rulerDurationRef.current = rulerDuration;
   }, [rulerDuration]);
+
+  const textLayersRef = useRef(textLayers || []);
+  useEffect(() => {
+    textLayersRef.current = textLayers || [];
+  }, [textLayers]);
+
+  const handleAddTextLayer = useCallback(() => {
+    const newLayer = createDefaultTextLayer(currentTime);
+    const updated = [...(textLayersRef.current || []), newLayer];
+    onTextLayersChange?.(updated);
+    onSelectTextLayer?.(newLayer.id);
+  }, [currentTime, onSelectTextLayer, onTextLayersChange]);
+
+  const startTextLayerResize = useCallback(
+    (e: React.PointerEvent, layerId: string, handle: 'left' | 'right') => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const targetElem = e.currentTarget as HTMLElement;
+      try {
+        targetElem.setPointerCapture(e.pointerId);
+      } catch {}
+
+      const currentLayers = textLayersRef.current.map((l) => ({ ...l }));
+      const targetLayer = currentLayers.find((l) => l.id === layerId);
+      if (!targetLayer) return;
+
+      const initialStart = targetLayer.startTime;
+      const initialDuration = targetLayer.duration;
+      const initialEnd = initialStart + initialDuration;
+      const startX = e.clientX;
+      const initialRulerDuration = rulerDurationRef.current;
+
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (!trackRef.current) return;
+        const trackRect = trackRef.current.getBoundingClientRect();
+        if (trackRect.width <= 0) return;
+
+        const deltaX = ev.clientX - startX;
+        const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
+
+        const updated = currentLayers.map((l) => {
+          if (l.id !== layerId) return l;
+          if (handle === 'right') {
+            const newDuration = Math.max(0.3, Math.min(initialRulerDuration - initialStart, Number((initialDuration + deltaSec).toFixed(2))));
+            return { ...l, duration: newDuration };
+          } else {
+            const newStart = Math.max(0, Math.min(initialEnd - 0.3, Number((initialStart + deltaSec).toFixed(2))));
+            const newDuration = Math.max(0.3, Number((initialEnd - newStart).toFixed(2)));
+            return { ...l, startTime: newStart, duration: newDuration };
+          }
+        });
+
+        onTextLayersChange?.(updated);
+      };
+
+      const onPointerUp = (ev: PointerEvent) => {
+        try {
+          targetElem.releasePointerCapture(ev.pointerId);
+        } catch {}
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    },
+    [onTextLayersChange]
+  );
+
+  const startTextLayerDrag = useCallback(
+    (e: React.PointerEvent, layerId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      onSelectTextLayer?.(layerId);
+
+      const targetElem = e.currentTarget as HTMLElement;
+      try {
+        targetElem.setPointerCapture(e.pointerId);
+      } catch {}
+
+      const currentLayers = textLayersRef.current.map((l) => ({ ...l }));
+      const targetLayer = currentLayers.find((l) => l.id === layerId);
+      if (!targetLayer) return;
+
+      const initialStart = targetLayer.startTime;
+      const dur = targetLayer.duration;
+      const startX = e.clientX;
+      const initialRulerDuration = rulerDurationRef.current;
+
+      document.body.style.cursor = 'grab';
+      document.body.style.userSelect = 'none';
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (!trackRef.current) return;
+        const trackRect = trackRef.current.getBoundingClientRect();
+        if (trackRect.width <= 0) return;
+
+        const deltaX = ev.clientX - startX;
+        const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
+        const newStart = Math.max(0, Math.min(initialRulerDuration - dur, Number((initialStart + deltaSec).toFixed(2))));
+
+        const updated = currentLayers.map((l) => (l.id === layerId ? { ...l, startTime: newStart } : l));
+        onTextLayersChange?.(updated);
+      };
+
+      const onPointerUp = (ev: PointerEvent) => {
+        try {
+          targetElem.releasePointerCapture(ev.pointerId);
+        } catch {}
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    },
+    [onSelectTextLayer, onTextLayersChange]
+  );
+
+  const mediaClipsRef = useRef(mediaClips || []);
+  useEffect(() => {
+    mediaClipsRef.current = mediaClips || [];
+  }, [mediaClips]);
+
+  const audioTracksRef = useRef(audioTracks || []);
+  useEffect(() => {
+    audioTracksRef.current = audioTracks || [];
+  }, [audioTracks]);
+
+  // Media Clip Resize Handler
+  const startMediaClipResize = useCallback((
+    e: React.PointerEvent,
+    clipId: string,
+    handle: 'left' | 'right'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetElem = e.currentTarget as HTMLElement;
+    try {
+      targetElem.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const currentClips = mediaClipsRef.current.map((c) => ({ ...c }));
+    const clipIdx = currentClips.findIndex((c) => c.id === clipId);
+    if (clipIdx === -1) return;
+
+    const targetClip = currentClips[clipIdx];
+    const initialStart = targetClip.startTime;
+    const initialDuration = targetClip.duration;
+    const startX = e.clientX;
+    const initialRulerDuration = rulerDurationRef.current;
+
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!trackRef.current) return;
+      const trackRect = trackRef.current.getBoundingClientRect();
+      if (trackRect.width <= 0) return;
+
+      const deltaX = ev.clientX - startX;
+      const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
+
+      if (handle === 'right') {
+        const newDur = Math.max(0.5, Number((initialDuration + deltaSec).toFixed(2)));
+        currentClips[clipIdx].duration = newDur;
+        const resequenced = sequenceClipsContiguously(currentClips);
+        onMediaClipsChange?.(resequenced);
+      } else {
+        const minDur = 0.5;
+        const clampedDelta = Math.min(initialDuration - minDur, deltaSec);
+        const newDur = Math.max(minDur, Number((initialDuration - clampedDelta).toFixed(2)));
+        currentClips[clipIdx].duration = newDur;
+        currentClips[clipIdx].sourceStartTime = Math.max(0, Number(((targetClip.sourceStartTime || 0) + clampedDelta).toFixed(2)));
+        const resequenced = sequenceClipsContiguously(currentClips);
+        onMediaClipsChange?.(resequenced);
+      }
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        targetElem.releasePointerCapture(ev.pointerId);
+      } catch {}
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, [onMediaClipsChange]);
+
+  const handleDeleteMediaClip = useCallback((clipId: string) => {
+    const currentClips = mediaClipsRef.current.filter((c) => c.id !== clipId);
+    const resequenced = sequenceClipsContiguously(currentClips);
+    onMediaClipsChange?.(resequenced);
+    if (selectedMediaClipId === clipId && resequenced.length > 0) {
+      onSelectMediaClip?.(resequenced[0].id);
+    }
+  }, [onMediaClipsChange, onSelectMediaClip, selectedMediaClipId]);
+
+  // Audio Track Resize Handler
+  const startAudioTrackResize = useCallback((
+    e: React.PointerEvent,
+    trackId: string,
+    handle: 'left' | 'right'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetElem = e.currentTarget as HTMLElement;
+    try {
+      targetElem.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const currentTracks = audioTracksRef.current.map((t) => ({ ...t }));
+    const targetTrack = currentTracks.find((t) => t.id === trackId);
+    if (!targetTrack) return;
+
+    const initialStart = targetTrack.startTime;
+    const initialDuration = targetTrack.duration;
+    const initialEnd = initialStart + initialDuration;
+    const startX = e.clientX;
+    const initialRulerDuration = rulerDurationRef.current;
+
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!trackRef.current) return;
+      const trackRect = trackRef.current.getBoundingClientRect();
+      if (trackRect.width <= 0) return;
+
+      const deltaX = ev.clientX - startX;
+      const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
+
+      const updated = currentTracks.map((t) => {
+        if (t.id !== trackId) return t;
+        if (handle === 'right') {
+          const newDuration = Math.max(0.2, Math.min(initialRulerDuration - initialStart, Number((initialDuration + deltaSec).toFixed(2))));
+          return { ...t, duration: newDuration };
+        } else {
+          const newStart = Math.max(0, Math.min(initialEnd - 0.2, Number((initialStart + deltaSec).toFixed(2))));
+          const newDuration = Math.max(0.2, Number((initialEnd - newStart).toFixed(2)));
+          return { ...t, startTime: newStart, duration: newDuration };
+        }
+      });
+
+      onAudioTracksChange?.(updated);
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        targetElem.releasePointerCapture(ev.pointerId);
+      } catch {}
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, [onAudioTracksChange]);
+
+  const startAudioTrackDrag = useCallback((
+    e: React.PointerEvent,
+    trackId: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    onSelectAudioTrack?.(trackId);
+
+    const targetElem = e.currentTarget as HTMLElement;
+    try {
+      targetElem.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const currentTracks = audioTracksRef.current.map((t) => ({ ...t }));
+    const targetTrack = currentTracks.find((t) => t.id === trackId);
+    if (!targetTrack) return;
+
+    const initialStart = targetTrack.startTime;
+    const dur = targetTrack.duration;
+    const startX = e.clientX;
+    const initialRulerDuration = rulerDurationRef.current;
+
+    document.body.style.cursor = 'grab';
+    document.body.style.userSelect = 'none';
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!trackRef.current) return;
+      const trackRect = trackRef.current.getBoundingClientRect();
+      if (trackRect.width <= 0) return;
+
+      const deltaX = ev.clientX - startX;
+      const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
+      const newStart = Math.max(0, Math.min(initialRulerDuration - dur, Number((initialStart + deltaSec).toFixed(2))));
+
+      const updated = currentTracks.map((t) => (t.id === trackId ? { ...t, startTime: newStart } : t));
+      onAudioTracksChange?.(updated);
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        targetElem.releasePointerCapture(ev.pointerId);
+      } catch {}
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, [onAudioTracksChange, onSelectAudioTrack]);
+
+  const handleDeleteAudioTrack = useCallback((trackId: string) => {
+    const updated = (audioTracksRef.current || []).filter((t) => t.id !== trackId);
+    onAudioTracksChange?.(updated);
+    if (selectedAudioTrackId === trackId) {
+      onSelectAudioTrack?.(null);
+    }
+  }, [onAudioTracksChange, onSelectAudioTrack, selectedAudioTrackId]);
+
+  const handleToggleMuteAudioTrack = useCallback((trackId: string) => {
+    const updated = (audioTracksRef.current || []).map((t) =>
+      t.id === trackId ? { ...t, isMuted: !t.isMuted } : t
+    );
+    onAudioTracksChange?.(updated);
+  }, [onAudioTracksChange]);
 
   // Window-level Pointer Drag Resizing for Sequence / Keyframe Blocks
   const startSequenceResize = useCallback((
@@ -163,24 +551,49 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         const newDuration = Math.max(minDuration, Math.min(60, Number((initialDuration + deltaSec).toFixed(2))));
         const durationDelta = Number((newDuration - initialDuration).toFixed(2));
 
-        let accStart = initialStart;
-        for (let s = 0; s < subCount; s++) {
-          const clipIdx = groupStartIndex + s;
-          if (!updated[clipIdx]) continue;
+        if (subCount === 1) {
+          const idx = groupStartIndex;
+          if (updated[idx]) {
+            updated[idx].duration = newDuration;
+          }
+        } else {
+          const subClips = capturedClips.slice(groupStartIndex, groupStartIndex + subCount);
+          const origDurs = subClips.map((c) => (typeof c.duration === 'number' ? c.duration : 1.5));
+          const sumOrigDur = origDurs.reduce((a, b) => a + b, 0);
 
-          if (subCount === 1) {
-            updated[clipIdx].duration = newDuration;
-          } else {
-            const origDur = capturedClips[clipIdx]?.duration || (initialDuration / subCount);
-            const ratio = initialDuration > 0 ? origDur / initialDuration : 1 / subCount;
-            const isLastSub = s === subCount - 1;
-            const sDur = isLastSub
-              ? Math.max(0.2, Number((initialStart + newDuration - accStart).toFixed(2)))
-              : Math.max(0.2, Number((newDuration * ratio).toFixed(2)));
+          // Calculate strictly proportional raw scaled durations
+          const rawDurs = origDurs.map((d) => {
+            if (d === 0) return 0;
+            const ratio = sumOrigDur > 0 ? d / sumOrigDur : 1 / subCount;
+            return newDuration * ratio;
+          });
 
+          // Round with minimum 0.1s for active clips
+          const newDurs = rawDurs.map((d) => (d === 0 ? 0 : Math.max(0.1, Number(d.toFixed(2)))));
+
+          // Eliminate rounding drift so sum(newDurs) matches newDuration exactly
+          const currentSum = Number(newDurs.reduce((a, b) => a + b, 0).toFixed(2));
+          const drift = Number((newDuration - currentSum).toFixed(2));
+
+          if (drift !== 0) {
+            let maxIdx = 0;
+            let maxVal = -1;
+            for (let i = 0; i < newDurs.length; i++) {
+              if (newDurs[i] > maxVal) {
+                maxVal = newDurs[i];
+                maxIdx = i;
+              }
+            }
+            newDurs[maxIdx] = Math.max(0.1, Number((newDurs[maxIdx] + drift).toFixed(2)));
+          }
+
+          let accStart = initialStart;
+          for (let s = 0; s < subCount; s++) {
+            const clipIdx = groupStartIndex + s;
+            if (!updated[clipIdx]) continue;
             updated[clipIdx].startTime = Number(accStart.toFixed(2));
-            updated[clipIdx].duration = sDur;
-            accStart += sDur;
+            updated[clipIdx].duration = newDurs[s];
+            accStart += newDurs[s];
           }
         }
 
@@ -210,25 +623,46 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         const newStart = Math.max(0, Number((initialStart + clampedDelta).toFixed(2)));
         const newDuration = Math.max(minDuration, Number((initialDuration - clampedDelta).toFixed(2)));
 
-        let accStart = newStart;
-        for (let s = 0; s < subCount; s++) {
-          const clipIdx = groupStartIndex + s;
-          if (!updated[clipIdx]) continue;
+        if (subCount === 1) {
+          const idx = groupStartIndex;
+          if (updated[idx]) {
+            updated[idx].startTime = newStart;
+            updated[idx].duration = newDuration;
+          }
+        } else {
+          const subClips = capturedClips.slice(groupStartIndex, groupStartIndex + subCount);
+          const origDurs = subClips.map((c) => (typeof c.duration === 'number' ? c.duration : 1.5));
+          const sumOrigDur = origDurs.reduce((a, b) => a + b, 0);
 
-          if (subCount === 1) {
-            updated[clipIdx].startTime = newStart;
-            updated[clipIdx].duration = newDuration;
-          } else {
-            const origDur = capturedClips[clipIdx]?.duration || (initialDuration / subCount);
-            const ratio = initialDuration > 0 ? origDur / initialDuration : 1 / subCount;
-            const isLastSub = s === subCount - 1;
-            const sDur = isLastSub
-              ? Math.max(0.2, Number((newStart + newDuration - accStart).toFixed(2)))
-              : Math.max(0.2, Number((newDuration * ratio).toFixed(2)));
+          const rawDurs = origDurs.map((d) => {
+            if (d === 0) return 0;
+            const ratio = sumOrigDur > 0 ? d / sumOrigDur : 1 / subCount;
+            return newDuration * ratio;
+          });
 
+          const newDurs = rawDurs.map((d) => (d === 0 ? 0 : Math.max(0.1, Number(d.toFixed(2)))));
+          const currentSum = Number(newDurs.reduce((a, b) => a + b, 0).toFixed(2));
+          const drift = Number((newDuration - currentSum).toFixed(2));
+
+          if (drift !== 0) {
+            let maxIdx = 0;
+            let maxVal = -1;
+            for (let i = 0; i < newDurs.length; i++) {
+              if (newDurs[i] > maxVal) {
+                maxVal = newDurs[i];
+                maxIdx = i;
+              }
+            }
+            newDurs[maxIdx] = Math.max(0.1, Number((newDurs[maxIdx] + drift).toFixed(2)));
+          }
+
+          let accStart = newStart;
+          for (let s = 0; s < subCount; s++) {
+            const clipIdx = groupStartIndex + s;
+            if (!updated[clipIdx]) continue;
             updated[clipIdx].startTime = Number(accStart.toFixed(2));
-            updated[clipIdx].duration = sDur;
-            accStart += sDur;
+            updated[clipIdx].duration = newDurs[s];
+            accStart += newDurs[s];
           }
         }
 
@@ -273,8 +707,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     if (!capturedClips[leftIdx] || !capturedClips[rightIdx]) return;
 
     const leftInitialStart = capturedClips[leftIdx].startTime;
-    const leftInitialDur = capturedClips[leftIdx].duration || 1.5;
-    const rightInitialDur = capturedClips[rightIdx].duration || 1.5;
+    const leftInitialDur = typeof capturedClips[leftIdx].duration === 'number' ? capturedClips[leftIdx].duration : 1.5;
+    const rightInitialDur = typeof capturedClips[rightIdx].duration === 'number' ? capturedClips[rightIdx].duration : 1.5;
     const combinedDur = leftInitialDur + rightInitialDur;
     const startX = e.clientX;
     const initialRulerDuration = rulerDurationRef.current;
@@ -290,7 +724,17 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       const deltaX = ev.clientX - startX;
       const deltaSec = (deltaX / trackRect.width) * initialRulerDuration;
 
-      const minDur = 0.3;
+      const minDur = 0.2;
+      // If right clip is a 0-duration end keyframe (e.g. compose mode), keep its duration 0
+      if (rightInitialDur === 0) {
+        const newLeftDur = Math.max(minDur, Number((leftInitialDur + deltaSec).toFixed(2)));
+        const updated = capturedClips.map((c) => ({ ...c }));
+        updated[leftIdx].duration = newLeftDur;
+        updated[rightIdx].startTime = Number((leftInitialStart + newLeftDur).toFixed(2));
+        onClipsChange(updated);
+        return;
+      }
+
       const newLeftDur = Math.max(minDur, Math.min(combinedDur - minDur, Number((leftInitialDur + deltaSec).toFixed(2))));
       const newRightDur = Math.max(minDur, Number((combinedDur - newLeftDur).toFixed(2)));
 
@@ -518,6 +962,30 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           </button>
           <button
             type="button"
+            className={`timeline-tool-btn ${selectedTextLayerId ? 'is-active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddTextLayer();
+            }}
+            title="Add text overlay layer (T)"
+            data-testid="add-text-layer-btn"
+          >
+            <Type size={14} />
+          </button>
+          <button
+            type="button"
+            className={`timeline-tool-btn ${isAudioManagerOpen ? 'is-active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsAudioManagerOpen(true);
+            }}
+            title="Add background music or SFX track"
+            data-testid="add-audio-track-btn"
+          >
+            <Music size={14} />
+          </button>
+          <button
+            type="button"
             className="timeline-tool-btn"
             onClick={() => handleDeleteClip()}
             disabled={clips.length === 0}
@@ -538,16 +1006,18 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           </button>
           <button
             type="button"
-            className="timeline-playback-btn is-play-main"
+            className={`timeline-playback-btn is-play-main ${isPlaying ? 'is-playing' : ''}`}
             onClick={() => {
               onPlayPause();
               if (isGuideOpen && guidePhase === 'preview' && onGuideAdvance) {
                 onGuideAdvance();
               }
             }}
-            title={isPlaying ? 'Pause' : 'Play'}
+            title={isPlaying ? 'Pause Preview (Space)' : 'Play / Preview Animation (Space)'}
+            data-testid="timeline-preview-btn"
           >
-            {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+            {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+            <span className="timeline-preview-label">{isPlaying ? 'PAUSE' : 'PREVIEW'}</span>
           </button>
           {isGuideOpen && guidePhase === 'preview' && (
             <button
@@ -622,7 +1092,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             className="timeline-support-creator-link"
             title="Support Creator on PayPal (@zetabyteIN)"
           >
-            <Heart size={11} fill="#ec4899" color="#ec4899" />
+            <Heart size={11} stroke="currentColor" fill="none" />
             <span>Support Creator</span>
           </a>
 
@@ -684,6 +1154,17 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         onClose={() => setShowEasingModal(false)}
         values={easingValues}
         onChange={onEasingValuesChange}
+      />
+
+      <AudioManagerModal
+        isOpen={isAudioManagerOpen}
+        onClose={() => setIsAudioManagerOpen(false)}
+        onAddTrack={(newTrack) => {
+          const updated = [...(audioTracksRef.current || []), newTrack];
+          onAudioTracksChange?.(updated);
+          onSelectAudioTrack?.(newTrack.id);
+        }}
+        currentTimelineDuration={totalDuration}
       />
 
       {/* 2. Main Timeline Track */}
@@ -1035,26 +1516,254 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             </button>
           </div>
 
-          {/* BOTTOM ROW: Media Shots Strip (Width proportional to media duration e.g. 3s of 12s = 25%) */}
-          <div
-            className="timeline-camera-shots-strip"
-            style={{
-              width: `${Math.max(3, Math.min(100, (mediaDuration / rulerDuration) * 100))}%`,
-            }}
-          >
-            {Array.from({ length: Math.max(1, Math.round((mediaDuration / rulerDuration) * 13)) }).map((_, i) => {
-              const thumb = mediaThumbnails && mediaThumbnails[i] ? mediaThumbnails[i] : mediaThumbnailUrl;
-              return (
-                <div
-                  key={i}
-                  className="media-shot-card"
-                  style={thumb ? { backgroundImage: `url(${thumb})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-                >
-                  {!thumb && <Video size={11} color="#64748b" />}
-                </div>
-              );
-            })}
-          </div>
+          {/* MIDDLE ROW: Layer-Based Text Overlays Track */}
+          {textLayers && textLayers.length > 0 && (
+            <div className="timeline-text-layers-track" data-testid="timeline-text-track">
+              {textLayers.map((tLayer) => {
+                const isSelected = tLayer.id === selectedTextLayerId;
+                const leftPct = (tLayer.startTime / rulerDuration) * 100;
+                const widthPct = Math.min(100 - leftPct, (tLayer.duration / rulerDuration) * 100);
+
+                return (
+                  <div
+                    key={tLayer.id}
+                    className={`text-layer-capsule ${isSelected ? 'is-selected' : ''}`}
+                    style={{
+                      left: `${leftPct}%`,
+                      width: `${widthPct}%`,
+                      minWidth: '55px',
+                    }}
+                    onPointerDown={(e) => startTextLayerDrag(e, tLayer.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectTextLayer?.(tLayer.id);
+                      onSeek(tLayer.startTime);
+                    }}
+                    title={`Text: "${tLayer.text}" (${tLayer.duration.toFixed(1)}s) - Drag edges to stretch`}
+                  >
+                    {/* Left Stretch Handle */}
+                    <div
+                      className="sequence-drag-handle handle-left"
+                      title="Drag to stretch / shift start time"
+                      onPointerDown={(e) => startTextLayerResize(e, tLayer.id, 'left')}
+                    />
+
+                    <div className="text-layer-capsule-content">
+                      <Type size={11} className="text-capsule-icon" />
+                      <span className="text-capsule-label">{tLayer.text || 'Text Layer'}</span>
+                      {(tLayer.inAnimation !== 'none' || tLayer.outAnimation !== 'none') && (
+                        <span className="text-capsule-anim-tag">
+                          {tLayer.inAnimation !== 'none' ? tLayer.inAnimation : ''}
+                          {tLayer.inAnimation !== 'none' && tLayer.outAnimation !== 'none' ? ' · ' : ''}
+                          {tLayer.outAnimation !== 'none' ? tLayer.outAnimation : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Right Stretch Handle */}
+                    <div
+                      className="sequence-drag-handle handle-right"
+                      title="Drag to stretch / adjust duration"
+                      onPointerDown={(e) => startTextLayerResize(e, tLayer.id, 'right')}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* AUDIO TRACK (Background music / SFX) */}
+          {audioTracks && audioTracks.length > 0 && (
+            <div className="timeline-audio-track" data-testid="timeline-audio-track">
+              {audioTracks.map((aTrack) => {
+                const isSelected = aTrack.id === selectedAudioTrackId;
+                const leftPct = (aTrack.startTime / rulerDuration) * 100;
+                const widthPct = Math.min(100 - leftPct, (aTrack.duration / rulerDuration) * 100);
+
+                return (
+                  <div
+                    key={aTrack.id}
+                    className={`audio-track-capsule ${aTrack.type === 'sfx' ? 'is-sfx' : ''} ${aTrack.isMuted ? 'is-muted' : ''} ${isSelected ? 'is-selected' : ''}`}
+                    style={{
+                      left: `${leftPct}%`,
+                      width: `${widthPct}%`,
+                      minWidth: '60px',
+                    }}
+                    onPointerDown={(e) => startAudioTrackDrag(e, aTrack.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectAudioTrack?.(aTrack.id);
+                      onSeek(aTrack.startTime);
+                    }}
+                    title={`Audio: "${aTrack.name}" (${aTrack.duration.toFixed(1)}s) - Drag edges to stretch`}
+                  >
+                    {/* Left Stretch Handle */}
+                    <div
+                      className="sequence-drag-handle handle-left"
+                      title="Drag to adjust start time"
+                      onPointerDown={(e) => startAudioTrackResize(e, aTrack.id, 'left')}
+                    />
+
+                    <div className="audio-capsule-content">
+                      <Music size={11} className="audio-capsule-icon" />
+                      <span className="audio-capsule-label">{aTrack.name}</span>
+                      <span className="audio-capsule-dur">{aTrack.duration.toFixed(1)}s</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="audio-delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleMuteAudioTrack(aTrack.id);
+                      }}
+                      title={aTrack.isMuted ? 'Unmute Audio' : 'Mute Audio'}
+                    >
+                      {aTrack.isMuted ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="audio-delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteAudioTrack(aTrack.id);
+                      }}
+                      title="Delete audio track"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+
+                    {/* Right Stretch Handle */}
+                    <div
+                      className="sequence-drag-handle handle-right"
+                      title="Drag to adjust duration"
+                      onPointerDown={(e) => startAudioTrackResize(e, aTrack.id, 'right')}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* BOTTOM ROW: Multi-Clip Media Track or Single Media Shot Strip */}
+          {mediaClips && mediaClips.length > 0 ? (
+            <div className="timeline-multiclip-track" data-testid="timeline-multiclip-track">
+              {mediaClips.map((mClip) => {
+                const isSelected = mClip.id === selectedMediaClipId;
+                const leftPct = (mClip.startTime / rulerDuration) * 100;
+                const widthPct = Math.min(100 - leftPct, (mClip.duration / rulerDuration) * 100);
+
+                return (
+                  <div
+                    key={mClip.id}
+                    className={`multiclip-card ${isSelected ? 'is-active-clip' : ''}`}
+                    style={{
+                      left: `${leftPct}%`,
+                      width: `${widthPct}%`,
+                      minWidth: '70px',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectMediaClip?.(mClip.id);
+                      onSeek(mClip.startTime);
+                    }}
+                    title={`Clip: ${mClip.name} (${mClip.duration.toFixed(1)}s) - Drag edges to trim`}
+                  >
+                    {/* Left Trim Handle */}
+                    <div
+                      className="sequence-drag-handle handle-left"
+                      title="Trim clip start"
+                      onPointerDown={(e) => startMediaClipResize(e, mClip.id, 'left')}
+                    />
+
+                    <div className="multiclip-card-content">
+                      <div
+                        className="multiclip-thumb-preview"
+                        style={
+                          mClip.thumbnails?.[0] || (mClip.type === 'image' ? mClip.url : undefined)
+                            ? { backgroundImage: `url(${mClip.thumbnails?.[0] || mClip.url})` }
+                            : {}
+                        }
+                      >
+                        {mClip.type === 'video' ? (
+                          <Video size={10} color="#94a3b8" />
+                        ) : (
+                          <ImageIcon size={10} color="#94a3b8" />
+                        )}
+                      </div>
+                      <span className="multiclip-card-name">{mClip.name}</span>
+                      <span className="multiclip-card-dur">{mClip.duration.toFixed(1)}s</span>
+                    </div>
+
+                    {mediaClips.length > 1 && (
+                      <button
+                        type="button"
+                        className="multiclip-delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteMediaClip(mClip.id);
+                        }}
+                        title="Remove clip from sequence"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+
+                    {/* Right Trim Handle */}
+                    <div
+                      className="sequence-drag-handle handle-right"
+                      title="Trim clip duration"
+                      onPointerDown={(e) => startMediaClipResize(e, mClip.id, 'right')}
+                    />
+                  </div>
+                );
+              })}
+
+              {/* + Add Clip Button at the end of clips */}
+              {(() => {
+                const lastClip = mediaClips[mediaClips.length - 1];
+                const nextStart = lastClip ? lastClip.startTime + lastClip.duration : 0;
+                const nextLeftPct = Math.min(94, (nextStart / rulerDuration) * 100);
+
+                return (
+                  <button
+                    type="button"
+                    className="multiclip-add-btn"
+                    style={{ left: `${nextLeftPct}%` }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenMediaLibrary();
+                    }}
+                    title="Add another video or image clip to sequence"
+                  >
+                    <Plus size={12} />
+                    <span>Clip</span>
+                  </button>
+                );
+              })()}
+            </div>
+          ) : (
+            <div
+              className="timeline-camera-shots-strip"
+              style={{
+                width: `${Math.max(3, Math.min(100, (mediaDuration / rulerDuration) * 100))}%`,
+              }}
+            >
+              {Array.from({ length: Math.max(1, Math.round((mediaDuration / rulerDuration) * 13)) }).map((_, i) => {
+                const thumb = mediaThumbnails && mediaThumbnails[i] ? mediaThumbnails[i] : mediaThumbnailUrl;
+                return (
+                  <div
+                    key={i}
+                    className="media-shot-card"
+                    style={thumb ? { backgroundImage: `url(${thumb})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+                  >
+                    {!thumb && <Video size={11} color="#64748b" />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Red Playhead Line & Time Bubble */}
           <div className="timeline-red-playhead" style={{ left: `${progressPercent}%` }}>

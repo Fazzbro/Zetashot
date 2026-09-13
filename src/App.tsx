@@ -8,11 +8,18 @@ import { MediaLibraryModal, BUILTIN_MEDIA_ITEMS, MediaItem } from './components/
 import { CropModal, CropRect } from './components/CropModal';
 import { InteractiveDemoUI } from './components/InteractiveDemoUI';
 import { BeginnerGuide } from './components/BeginnerGuide';
+import { TextLayerOverlay } from './types/textLayer';
+import { createDefaultTextLayer } from './utils/textLayer';
+import { TextOverlayStage } from './components/TextOverlayStage';
+import { TextLayerInspector } from './components/TextLayerInspector';
 import { Camera3DState, calculate3DTransform, clampRotation } from './utils/camera3D';
 import { BackgroundConfig, generateBackgroundCss } from './utils/gradientUtils';
 import { CaptureEngine } from './services/captureEngine';
 import { exportMockupVideo, getCameraAtTime } from './services/videoExportEngine';
 import { storageService } from './services/storageService';
+import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration } from './types/mediaTimeline';
+import { AudioTrackItem } from './types/audioTrack';
+import { getActiveAudioItemsAtTime } from './utils/audioTrackHelper';
 import { CubicBezierValues } from './utils/bezierSolver';
 import { interpolateCameraSpline, getKeyframeTargetTime, getActiveClipAtTime } from './utils/splineInterpolation';
 import { playGearSound, setSoundEnabled as setGlobalSoundEnabled } from './utils/soundEffects';
@@ -97,6 +104,34 @@ export function App() {
   const [activeMedia, setActiveMedia] = useState<MediaItem>(
     BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA
   );
+
+  // 1b. Multi-Clip Media Timeline Sequence State
+  const [mediaClips, setMediaClips] = useState<MediaTimelineClip[]>([
+    {
+      id: 'clip_init',
+      mediaId: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).id,
+      name: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).name,
+      type: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).type,
+      url: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).url,
+      startTime: 0,
+      duration: 3.0,
+    },
+  ]);
+  const [selectedMediaClipId, setSelectedMediaClipId] = useState<string | null>('clip_init');
+  const mediaClipsRef = useRef<MediaTimelineClip[]>(mediaClips);
+  useEffect(() => {
+    mediaClipsRef.current = mediaClips;
+  }, [mediaClips]);
+
+  // 1c. Background Music & Sound Effects (SFX) Track State
+  const [audioTracks, setAudioTracks] = useState<AudioTrackItem[]>([]);
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
+  const audioTracksRef = useRef<AudioTrackItem[]>(audioTracks);
+  useEffect(() => {
+    audioTracksRef.current = audioTracks;
+  }, [audioTracks]);
+  const audioPreviewElementRef = useRef<HTMLAudioElement | null>(null);
+
   const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
   const [isComposed, setIsComposed] = useState<boolean>(false);
   const isComposedRef = useRef<boolean>(false);
@@ -177,6 +212,14 @@ export function App() {
   const [blurAmount, setBlurAmount] = useState<number>(0);
   const [showLaserFocusIndicator, setShowLaserFocusIndicator] = useState<boolean>(false);
   const blurTimerRef = useRef<number | null>(null);
+
+  // 6b. Layer-Based Text Overlays
+  const [textLayers, setTextLayers] = useState<TextLayerOverlay[]>([]);
+  const [selectedTextLayerId, setSelectedTextLayerId] = useState<string | null>(null);
+  const textLayersRef = useRef<TextLayerOverlay[]>([]);
+  useEffect(() => {
+    textLayersRef.current = textLayers;
+  }, [textLayers]);
 
   const handleBlurChange = (val: number) => {
     setBlurAmount(val);
@@ -510,6 +553,9 @@ export function App() {
       if (videoRef.current) {
         videoRef.current.pause();
       }
+      if (audioPreviewElementRef.current) {
+        audioPreviewElementRef.current.pause();
+      }
       document.querySelectorAll('video').forEach((v) => v.pause());
     } else {
       isPlayingRef.current = true;
@@ -538,6 +584,18 @@ export function App() {
           playPromise.catch(() => {});
         }
       }
+
+      // Sync background audio / SFX playback
+      const activeAudios = getActiveAudioItemsAtTime(audioTracksRef.current, currentTimeRef.current);
+      if (activeAudios.length > 0) {
+        const topAudio = activeAudios[0];
+        if (!audioPreviewElementRef.current || audioPreviewElementRef.current.src !== topAudio.url) {
+          audioPreviewElementRef.current = new Audio(topAudio.url);
+        }
+        audioPreviewElementRef.current.volume = topAudio.volume ?? 1.0;
+        audioPreviewElementRef.current.currentTime = Math.max(0, (currentTimeRef.current - topAudio.startTime) + (topAudio.sourceStartTime || 0));
+        audioPreviewElementRef.current.play().catch(() => {});
+      }
     }
   }, []);
 
@@ -545,6 +603,22 @@ export function App() {
   const handleSeek = useCallback((time: number) => {
     currentTimeRef.current = time;
     setCurrentTime(time);
+
+    // Sync multi-clip active media on stage
+    if (mediaClipsRef.current.length > 0) {
+      const clipAtTime = getActiveMediaClipAtTime(mediaClipsRef.current, time);
+      if (clipAtTime && clipAtTime.url !== activeMediaRef.current.url) {
+        setActiveMedia({
+          id: clipAtTime.mediaId,
+          name: clipAtTime.name,
+          type: clipAtTime.type,
+          url: clipAtTime.url,
+          dimensions: '1920 × 1080',
+          format: clipAtTime.type === 'video' ? 'MP4' : 'PNG',
+        });
+      }
+    }
+
     if (videoRef.current && activeMediaRef.current.type === 'video') {
       const naturalDur = (videoRef.current.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
         ? videoRef.current.duration
@@ -566,6 +640,25 @@ export function App() {
         videoRef.current.pause();
       }
     }
+
+    // Audio preview seek sync
+    const activeAudios = getActiveAudioItemsAtTime(audioTracksRef.current, time);
+    if (activeAudios.length > 0) {
+      const topAudio = activeAudios[0];
+      if (!audioPreviewElementRef.current || audioPreviewElementRef.current.src !== topAudio.url) {
+        audioPreviewElementRef.current = new Audio(topAudio.url);
+      }
+      audioPreviewElementRef.current.volume = topAudio.volume ?? 1.0;
+      audioPreviewElementRef.current.currentTime = Math.max(0, (time - topAudio.startTime) + (topAudio.sourceStartTime || 0));
+      if (isPlayingRef.current) {
+        audioPreviewElementRef.current.play().catch(() => {});
+      } else {
+        audioPreviewElementRef.current.pause();
+      }
+    } else {
+      if (audioPreviewElementRef.current) audioPreviewElementRef.current.pause();
+    }
+
     const currentClips = clipsRef.current;
     if (currentClips.length > 0) {
       const targetClip = getActiveClipAtTime(currentClips, time);
@@ -608,6 +701,10 @@ export function App() {
           video.pause();
           video.currentTime = 0;
         }
+        if (audioPreviewElementRef.current) {
+          audioPreviewElementRef.current.pause();
+          audioPreviewElementRef.current.currentTime = 0;
+        }
         currentTimeRef.current = 0;
         setCurrentTime(0);
         return;
@@ -615,6 +712,39 @@ export function App() {
 
       currentTimeRef.current = nextTime;
       setCurrentTime(nextTime);
+
+      // Multi-Clip active switch on stage
+      if (mediaClipsRef.current.length > 0) {
+        const clipAtTime = getActiveMediaClipAtTime(mediaClipsRef.current, nextTime);
+        if (clipAtTime && clipAtTime.url !== activeMediaRef.current.url) {
+          setActiveMedia({
+            id: clipAtTime.mediaId,
+            name: clipAtTime.name,
+            type: clipAtTime.type,
+            url: clipAtTime.url,
+            dimensions: '1920 × 1080',
+            format: clipAtTime.type === 'video' ? 'MP4' : 'PNG',
+          });
+        }
+      }
+
+      // Audio preview active track sync
+      const activeAudios = getActiveAudioItemsAtTime(audioTracksRef.current, nextTime);
+      if (activeAudios.length > 0) {
+        const topAudio = activeAudios[0];
+        if (!audioPreviewElementRef.current || audioPreviewElementRef.current.src !== topAudio.url) {
+          if (audioPreviewElementRef.current) audioPreviewElementRef.current.pause();
+          const a = new Audio(topAudio.url);
+          a.volume = topAudio.volume ?? 1.0;
+          a.currentTime = Math.max(0, (nextTime - topAudio.startTime) + (topAudio.sourceStartTime || 0));
+          audioPreviewElementRef.current = a;
+          if (isPlayingRef.current) a.play().catch(() => {});
+        }
+      } else {
+        if (audioPreviewElementRef.current && !audioPreviewElementRef.current.paused) {
+          audioPreviewElementRef.current.pause();
+        }
+      }
 
       // Canonical camera evaluation matching export 1:1 with Catmull-Rom spline
       const currentClips = clipsRef.current;
@@ -697,6 +827,11 @@ export function App() {
         setDragMode('move');
       } else if (e.key === 'r' || e.key === 'R') {
         setDragMode('orbit');
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        const newLayer = createDefaultTextLayer(currentTimeRef.current);
+        setTextLayers((prev) => [...prev, newLayer]);
+        setSelectedTextLayerId(newLayer.id);
       }
     };
 
@@ -782,6 +917,38 @@ export function App() {
     setMediaList((prev) => [newItem, ...prev.filter((item) => item.id !== 'blank-media')]);
     setActiveMedia(newItem);
     setCropRect({ x: 0, y: 0, width: 100, height: 100 });
+
+    setMediaClips((prev) => {
+      const dur = isVideo ? 4.0 : 3.0;
+      if (prev.length <= 1) {
+        return [
+          {
+            id: `clip_${Date.now()}`,
+            mediaId: newItem.id,
+            name: newItem.name,
+            type: newItem.type,
+            url: newItem.url,
+            startTime: 0,
+            duration: dur,
+          },
+        ];
+      } else {
+        const nextStart = calculateMediaSequenceDuration(prev);
+        return [
+          ...prev,
+          {
+            id: `clip_${Date.now()}`,
+            mediaId: newItem.id,
+            name: newItem.name,
+            type: newItem.type,
+            url: newItem.url,
+            startTime: nextStart,
+            duration: dur,
+          },
+        ];
+      }
+    });
+
     if (isVideo) {
       setStudioMode('video');
       const tempVid = document.createElement('video');
@@ -833,6 +1000,8 @@ export function App() {
           mediaElement: activeMedia.type === 'video' ? videoRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
           mediaType: activeMedia.type,
           cropRect,
+          textLayers,
+          currentTime,
           projectName: activeMedia.name,
           format: 'png',
           quality: 1.0,
@@ -876,7 +1045,10 @@ export function App() {
           background,
           mediaElement: videoRef.current,
           mediaType: activeMedia.type,
+          mediaClips,
+          audioTracks,
           cropRect,
+          textLayers,
           aspectRatio,
           borderRadius,
           blurAmount,
@@ -1086,7 +1258,7 @@ export function App() {
             className="support-creator-pill-link"
             title="Support Creator on PayPal (@zetabyteIN)"
           >
-            <Heart size={11} fill="#ec4899" color="#ec4899" />
+            <Heart size={11} stroke="currentColor" fill="none" />
             <span>Support Creator</span>
           </a>
         </div>
@@ -1106,6 +1278,37 @@ export function App() {
           setCropRect({ x: 0, y: 0, width: 100, height: 100 });
           setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
           if (item.type === 'video') setStudioMode('video');
+
+          setMediaClips((prev) => {
+            const dur = item.type === 'video' ? 4.0 : 3.0;
+            if (prev.length <= 1) {
+              return [
+                {
+                  id: prev[0]?.id || `clip_${Date.now()}`,
+                  mediaId: item.id,
+                  name: item.name,
+                  type: item.type,
+                  url: item.url,
+                  startTime: 0,
+                  duration: dur,
+                },
+              ];
+            } else {
+              const nextStart = calculateMediaSequenceDuration(prev);
+              return [
+                ...prev,
+                {
+                  id: `clip_${Date.now()}`,
+                  mediaId: item.id,
+                  name: item.name,
+                  type: item.type,
+                  url: item.url,
+                  startTime: nextStart,
+                  duration: dur,
+                },
+              ];
+            }
+          });
         }}
         onUploadFile={handleUploadFile}
       />
@@ -1297,6 +1500,19 @@ export function App() {
               }
             }}
           />
+
+          {/* Layer-Based Text Overlays on Stage */}
+          <TextOverlayStage
+            layers={textLayers}
+            currentTime={currentTime}
+            selectedLayerId={selectedTextLayerId}
+            onSelectLayer={(id) => setSelectedTextLayerId(id)}
+            onChangeLayer={(updated) =>
+              setTextLayers((layers) => layers.map((l) => (l.id === updated.id ? updated : l)))
+            }
+            stageScale={stageScale}
+            isPlaying={isPlaying}
+          />
         </div>
       </div>
 
@@ -1369,9 +1585,69 @@ export function App() {
             isGuideOpen={isGuideOpen}
             guidePhase={guidePhase}
             onGuideAdvance={handleGuideAdvance}
+            textLayers={textLayers}
+            onTextLayersChange={setTextLayers}
+            selectedTextLayerId={selectedTextLayerId}
+            onSelectTextLayer={setSelectedTextLayerId}
+            mediaClips={mediaClips}
+            onMediaClipsChange={(newClips) => {
+              setMediaClips(newClips);
+              const totalMediaDur = calculateMediaSequenceDuration(newClips);
+              if (totalMediaDur > 0) {
+                setMediaDuration(totalMediaDur);
+                mediaDurationRef.current = totalMediaDur;
+              }
+            }}
+            selectedMediaClipId={selectedMediaClipId}
+            onSelectMediaClip={(id) => {
+              setSelectedMediaClipId(id);
+              const target = mediaClips.find((c) => c.id === id);
+              if (target) {
+                setActiveMedia({
+                  id: target.mediaId,
+                  name: target.name,
+                  type: target.type,
+                  url: target.url,
+                  dimensions: '1920 × 1080',
+                  format: target.type === 'video' ? 'MP4' : 'PNG',
+                });
+              }
+            }}
+            audioTracks={audioTracks}
+            onAudioTracksChange={setAudioTracks}
+            selectedAudioTrackId={selectedAudioTrackId}
+            onSelectAudioTrack={setSelectedAudioTrackId}
           />
         </div>
       )}
+
+      {/* 8b. FLOATING TEXT LAYER INSPECTOR */}
+      {selectedTextLayerId && (() => {
+        const activeLayer = textLayers.find((l) => l.id === selectedTextLayerId);
+        if (!activeLayer) return null;
+        return (
+          <TextLayerInspector
+            layer={activeLayer}
+            onChange={(updated) =>
+              setTextLayers((layers) => layers.map((l) => (l.id === updated.id ? updated : l)))
+            }
+            onDelete={(id) => {
+              setTextLayers((layers) => layers.filter((l) => l.id !== id));
+              setSelectedTextLayerId(null);
+            }}
+            onDuplicate={(layer) => {
+              const dup = {
+                ...layer,
+                id: `text_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                startTime: Number((layer.startTime + 0.4).toFixed(2)),
+              };
+              setTextLayers((layers) => [...layers, dup]);
+              setSelectedTextLayerId(dup.id);
+            }}
+            onClose={() => setSelectedTextLayerId(null)}
+          />
+        );
+      })()}
 
       {/* 9. INTERACTIVE BEGINNER ONBOARDING GUIDE (Pure Black & White, Real-Time Telemetry) */}
       <BeginnerGuide

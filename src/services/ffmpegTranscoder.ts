@@ -55,7 +55,9 @@ export async function encodeFrameSequenceToMP4(
   frames: Blob[],
   fps: number = 60,
   duration: number,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  audioBlob?: Blob | null,
+  audioVolume: number = 1.0
 ): Promise<Blob> {
   if (!frames || frames.length === 0) {
     throw new Error('Cannot encode 0 frames to MP4');
@@ -65,6 +67,7 @@ export async function encodeFrameSequenceToMP4(
   const totalFrames = frames.length;
   const prefix = `seq_${Date.now()}`;
   const outputName = `output_${Date.now()}.mp4`;
+  const audioInputName = audioBlob ? `audio_${Date.now()}.wav` : null;
 
   console.log(`[FFmpeg Engine] Writing ${totalFrames} frames to MEMFS for ${fps}fps sequence encode...`);
 
@@ -78,29 +81,68 @@ export async function encodeFrameSequenceToMP4(
     }
   }
 
+  // If audio track is provided, write it to MEMFS
+  if (audioBlob && audioInputName) {
+    try {
+      const audioData = await fetchFile(audioBlob);
+      await instance.writeFile(audioInputName, audioData);
+      console.log(`[FFmpeg Engine] Muxing audio track (${audioBlob.size} bytes, volume: ${audioVolume})...`);
+    } catch (err) {
+      console.warn('[FFmpeg Engine] Failed to write audio track to MEMFS, falling back to silent audio:', err);
+    }
+  }
+
   console.log(`[FFmpeg Engine] Executing H.264 encode at ${fps} FPS...`);
 
-  const exitCode = await instance.exec([
+  const execArgs: string[] = [
     '-framerate', `${fps}`,
     '-i', `${prefix}_%05d.jpg`,
-    '-f', 'lavfi',
-    '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-    '-t', `${duration}`,
-    '-vf', `setpts=N/(${fps}*TB)`,
-    '-r', `${fps}`,
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '17',
-    '-pix_fmt', 'yuv420p',
-    '-profile:v', 'high',
-    '-level', '4.2',
-    '-g', `${fps}`,
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-shortest',
-    '-movflags', '+faststart',
-    outputName,
-  ]);
+  ];
+
+  if (audioInputName) {
+    const safeVol = Math.max(0, Math.min(2.0, audioVolume));
+    execArgs.push(
+      '-i', audioInputName,
+      '-t', `${duration}`,
+      '-vf', `setpts=N/(${fps}*TB)`,
+      '-r', `${fps}`,
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '17',
+      '-pix_fmt', 'yuv420p',
+      '-profile:v', 'high',
+      '-level', '4.2',
+      '-g', `${fps}`,
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-af', `volume=${safeVol}`,
+      '-shortest',
+      '-movflags', '+faststart',
+      outputName
+    );
+  } else {
+    execArgs.push(
+      '-f', 'lavfi',
+      '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+      '-t', `${duration}`,
+      '-vf', `setpts=N/(${fps}*TB)`,
+      '-r', `${fps}`,
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '17',
+      '-pix_fmt', 'yuv420p',
+      '-profile:v', 'high',
+      '-level', '4.2',
+      '-g', `${fps}`,
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-shortest',
+      '-movflags', '+faststart',
+      outputName
+    );
+  }
+
+  const exitCode = await instance.exec(execArgs);
 
   if (exitCode !== 0) {
     const errorSummary = logHistory.slice(-10).join('\n');
@@ -117,6 +159,9 @@ export async function encodeFrameSequenceToMP4(
     for (let i = 0; i < totalFrames; i++) {
       const pad = String(i).padStart(5, '0');
       await instance.deleteFile(`${prefix}_${pad}.jpg`).catch(() => {});
+    }
+    if (audioInputName) {
+      await instance.deleteFile(audioInputName).catch(() => {});
     }
     await instance.deleteFile(outputName).catch(() => {});
   })().catch(() => {});

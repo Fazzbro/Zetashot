@@ -219,4 +219,66 @@ describe('splineInterpolation utilities', () => {
     const atEnd = interpolateCameraSpline(customPerspClips, 3.0);
     expect(atEnd.perspective).toBe(1500);
   });
+
+  it('scales all motion segments strictly proportionally when sequence duration is resized', () => {
+    // 5 clips with durations [2.2, 1.2, 1.1, 1.5, 1.5], total = 7.5s
+    const group: TimelinePositionClip[] = [
+      { id: 'p01', name: 'P01', startTime: 0, duration: 2.2, camera: pairClips[0].camera },
+      { id: 'p02', name: 'P02', startTime: 2.2, duration: 1.2, camera: pairClips[1].camera },
+      { id: 'p03', name: 'P03', startTime: 3.4, duration: 1.1, camera: pairClips[0].camera },
+      { id: 'p04', name: 'P04', startTime: 4.5, duration: 1.5, camera: pairClips[1].camera },
+      { id: 'p05', name: 'P05', startTime: 6.0, duration: 1.5, camera: pairClips[0].camera },
+    ];
+
+    const t0 = getKeyframeTimesForGroup(group);
+    const segs0 = t0.slice(1).map((t, i) => Number((t - t0[i]).toFixed(2)));
+
+    // Scale sequence up by 1.5x (7.5s -> 11.25s)
+    const scaleUp = 1.5;
+    const scaledUpGroup = group.map((c) => ({
+      ...c,
+      startTime: Number((c.startTime * scaleUp).toFixed(2)),
+      duration: Number((c.duration * scaleUp).toFixed(2)),
+    }));
+
+    const tUp = getKeyframeTimesForGroup(scaledUpGroup);
+    const segsUp = tUp.slice(1).map((t, i) => Number((t - tUp[i]).toFixed(2)));
+
+    // Every single segment must strictly increase when sequence duration expands
+    for (let i = 0; i < segs0.length; i++) {
+      expect(segsUp[i]).toBeGreaterThan(segs0[i]);
+      expect(segsUp[i]).toBeCloseTo(Number((segs0[i] * scaleUp).toFixed(2)), 1);
+    }
+
+    // Scale sequence down by 0.6x (7.5s -> 4.5s)
+    const scaleDown = 0.6;
+    const scaledDownGroup = group.map((c) => ({
+      ...c,
+      startTime: Number((c.startTime * scaleDown).toFixed(2)),
+      duration: Number((c.duration * scaleDown).toFixed(2)),
+    }));
+
+    const tDown = getKeyframeTimesForGroup(scaledDownGroup);
+    const segsDown = tDown.slice(1).map((t, i) => Number((t - tDown[i]).toFixed(2)));
+
+    // Every single segment must strictly decrease when sequence duration shrinks
+    for (let i = 0; i < segs0.length; i++) {
+      expect(segsDown[i]).toBeLessThan(segs0[i]);
+      expect(segsDown[i]).toBeCloseTo(Number((segs0[i] * scaleDown).toFixed(2)), 1);
+    }
+  });
+
+  it('keeps compose mode explicit keyframe timestamps intact when last clip has 0 duration', () => {
+    const composeClips: TimelinePositionClip[] = [
+      { id: 'c01', name: 'P01', startTime: 0, duration: 2.0, camera: pairClips[0].camera },
+      { id: 'c02', name: 'P02', startTime: 2.0, duration: 2.0, camera: pairClips[1].camera },
+      { id: 'c03', name: 'P03', startTime: 4.0, duration: 2.0, camera: pairClips[0].camera },
+      { id: 'c04', name: 'P04', startTime: 6.0, duration: 0, camera: pairClips[1].camera },
+    ];
+
+    const times = getKeyframeTimesForGroup(composeClips);
+    expect(times).toEqual([0, 2.0, 4.0, 6.0]);
+    expect(getKeyframeTargetTime(composeClips, 'c04')).toBe(6.0);
+  });
 });
+

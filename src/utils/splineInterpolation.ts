@@ -70,24 +70,21 @@ export function getKeyframeTimesForGroup(group: TimelinePositionClip[]): number[
     return [seqStart, seqEnd];
   }
 
-  // For N >= 3, apportion the N - 1 transition segments across the entire sequence duration
-  const durations = group.map((c) => Math.max(0.1, c.duration ?? 1.5));
-  const sumDurations = durations.reduce((acc, d) => acc + d, 0);
-
-  // Cumulative boundaries: B[0] = 0, B[N] = sumDurations
-  const B: number[] = [0];
-  for (let i = 0; i < N; i++) {
-    B.push(B[i] + durations[i]);
+  // For N >= 3, apportion the N - 1 transition segments across the entire sequence duration.
+  // Each transition segment k (0 <= k < N - 1) has weight w_k = max(0.1, group[k].duration ?? 1.5).
+  // This guarantees that resizing the sequence scales all motion segments strictly proportionally
+  // without any segment unexpectedly shrinking when total duration expands, or growing when it shrinks.
+  const weights: number[] = [];
+  for (let k = 0; k < N - 1; k++) {
+    weights.push(Math.max(0.1, group[k].duration ?? 1.5));
   }
+  const sumWeights = weights.reduce((acc, w) => acc + w, 0);
 
   const times: number[] = [seqStart];
-  for (let k = 1; k < N - 1; k++) {
-    const u = k / (N - 1);
-    const p = u * N;
-    const idx = Math.min(N - 1, Math.floor(p));
-    const alpha = p - idx;
-    const durFraction = (B[idx] + alpha * (B[idx + 1] - B[idx])) / sumDurations;
-    const time = seqStart + durFraction * seqDuration;
+  let cumWeight = 0;
+  for (let k = 0; k < N - 2; k++) {
+    cumWeight += weights[k];
+    const time = seqStart + (cumWeight / sumWeights) * seqDuration;
     times.push(Number(time.toFixed(2)));
   }
   times.push(seqEnd);
@@ -229,28 +226,51 @@ export function getKeyframeSpans(clips: TimelinePositionClip[]): KeyframeSpan[] 
  * Uses Cubic Hermite Spline with boundary-clamped zero-acceleration entrance/exit
  * and continuous C1 velocity through all intermediate waypoints.
  */
+const DEFAULT_SPLINE_CAMERA: Camera3DState = {
+  rotX: 0,
+  rotY: 0,
+  rotZ: 0,
+  zoom: 1.0,
+  panX: 0,
+  panY: 0,
+  perspective: 1000,
+};
+
+function safeCamera(cam?: Partial<Camera3DState> | null): Camera3DState {
+  if (!cam) return { ...DEFAULT_SPLINE_CAMERA };
+  return {
+    rotX: typeof cam.rotX === 'number' ? cam.rotX : DEFAULT_SPLINE_CAMERA.rotX,
+    rotY: typeof cam.rotY === 'number' ? cam.rotY : DEFAULT_SPLINE_CAMERA.rotY,
+    rotZ: typeof cam.rotZ === 'number' ? cam.rotZ : DEFAULT_SPLINE_CAMERA.rotZ,
+    zoom: typeof cam.zoom === 'number' ? cam.zoom : DEFAULT_SPLINE_CAMERA.zoom,
+    panX: typeof cam.panX === 'number' ? cam.panX : DEFAULT_SPLINE_CAMERA.panX,
+    panY: typeof cam.panY === 'number' ? cam.panY : DEFAULT_SPLINE_CAMERA.panY,
+    perspective: typeof cam.perspective === 'number' && cam.perspective > 0 ? cam.perspective : DEFAULT_SPLINE_CAMERA.perspective,
+  };
+}
+
 export function interpolateCameraSpline(
   clips: TimelinePositionClip[],
   time: number
 ): Camera3DState {
   if (!clips || clips.length === 0) {
-    return { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.0, panX: 0, panY: 0, perspective: 1000 };
+    return { ...DEFAULT_SPLINE_CAMERA };
   }
 
   const spans = getKeyframeSpans(clips);
   if (spans.length === 0) {
-    return clips[0].camera;
+    return safeCamera(clips[0]?.camera);
   }
 
   // 1. If before first span
   if (time <= spans[0].startTime) {
-    return spans[0].startCamera;
+    return safeCamera(spans[0].startCamera);
   }
 
   // 2. If after last span
   const lastSpan = spans[spans.length - 1];
   if (time >= lastSpan.endTime) {
-    return lastSpan.endCamera;
+    return safeCamera(lastSpan.endCamera);
   }
 
   // 3. Find active span
@@ -261,15 +281,13 @@ export function interpolateCameraSpline(
       const spanDur = Math.max(0.0001, span.endTime - span.startTime);
       const u = Math.max(0, Math.min(1, (time - span.startTime) / spanDur));
 
+      const p1 = safeCamera(span.startCamera);
+      const p2 = safeCamera(span.endCamera);
+
       // If single isolated span (e.g. 2 keyframes), use Perlin's quintic smootherstep
       if (spans.length === 1) {
         const t = u * u * u * (u * (u * 6 - 15) + 10);
-        const p1 = span.startCamera;
-        const p2 = span.endCamera;
         const lerp = (a: number, b: number) => a + (b - a) * t;
-
-        const persp1 = typeof p1.perspective === 'number' && p1.perspective > 0 ? p1.perspective : 1000;
-        const persp2 = typeof p2.perspective === 'number' && p2.perspective > 0 ? p2.perspective : 1000;
 
         return {
           rotX: lerp(p1.rotX, p2.rotX),
@@ -278,18 +296,13 @@ export function interpolateCameraSpline(
           zoom: lerp(p1.zoom, p2.zoom),
           panX: lerp(p1.panX, p2.panX),
           panY: lerp(p1.panY, p2.panY),
-          perspective: Math.round(lerp(persp1, persp2)),
+          perspective: Math.round(lerp(p1.perspective, p2.perspective)),
         };
       }
 
       // Multi-span continuous trajectory: Cubic Hermite Spline with C1 continuity
-      const p1 = span.startCamera;
-      const p2 = span.endCamera;
-
-      const persp1 = typeof p1.perspective === 'number' && p1.perspective > 0 ? p1.perspective : 1000;
-      const persp2 = typeof p2.perspective === 'number' && p2.perspective > 0 ? p2.perspective : 1000;
-      const prevPersp = spans[i - 1]?.startCamera?.perspective ?? persp1;
-      const nextPersp = spans[i + 1]?.endCamera?.perspective ?? persp2;
+      const prevCam = spans[i - 1]?.startCamera ? safeCamera(spans[i - 1].startCamera) : p1;
+      const nextCam = spans[i + 1]?.endCamera ? safeCamera(spans[i + 1].endCamera) : p2;
 
       // Start tangent M0 for this segment:
       // At sequence start (i === 0), start smoothly from rest (M0 = 0)
@@ -303,13 +316,13 @@ export function interpolateCameraSpline(
         panY: 0,
         perspective: 0,
       } : {
-        rotX: (p2.rotX - spans[i - 1].startCamera.rotX) * 0.5,
-        rotY: (p2.rotY - spans[i - 1].startCamera.rotY) * 0.5,
-        rotZ: (p2.rotZ - spans[i - 1].startCamera.rotZ) * 0.5,
-        zoom: (p2.zoom - spans[i - 1].startCamera.zoom) * 0.5,
-        panX: (p2.panX - spans[i - 1].startCamera.panX) * 0.5,
-        panY: (p2.panY - spans[i - 1].startCamera.panY) * 0.5,
-        perspective: (persp2 - prevPersp) * 0.5,
+        rotX: (p2.rotX - prevCam.rotX) * 0.5,
+        rotY: (p2.rotY - prevCam.rotY) * 0.5,
+        rotZ: (p2.rotZ - prevCam.rotZ) * 0.5,
+        zoom: (p2.zoom - prevCam.zoom) * 0.5,
+        panX: (p2.panX - prevCam.panX) * 0.5,
+        panY: (p2.panY - prevCam.panY) * 0.5,
+        perspective: (p2.perspective - prevCam.perspective) * 0.5,
       };
 
       // End tangent M1 for this segment:
@@ -324,13 +337,13 @@ export function interpolateCameraSpline(
         panY: 0,
         perspective: 0,
       } : {
-        rotX: (spans[i + 1].endCamera.rotX - p1.rotX) * 0.5,
-        rotY: (spans[i + 1].endCamera.rotY - p1.rotY) * 0.5,
-        rotZ: (spans[i + 1].endCamera.rotZ - p1.rotZ) * 0.5,
-        zoom: (spans[i + 1].endCamera.zoom - p1.zoom) * 0.5,
-        panX: (spans[i + 1].endCamera.panX - p1.panX) * 0.5,
-        panY: (spans[i + 1].endCamera.panY - p1.panY) * 0.5,
-        perspective: (nextPersp - persp1) * 0.5,
+        rotX: (nextCam.rotX - p1.rotX) * 0.5,
+        rotY: (nextCam.rotY - p1.rotY) * 0.5,
+        rotZ: (nextCam.rotZ - p1.rotZ) * 0.5,
+        zoom: (nextCam.zoom - p1.zoom) * 0.5,
+        panX: (nextCam.panX - p1.panX) * 0.5,
+        panY: (nextCam.panY - p1.panY) * 0.5,
+        perspective: (nextCam.perspective - p1.perspective) * 0.5,
       };
 
       const u2 = u * u;
@@ -353,7 +366,7 @@ export function interpolateCameraSpline(
         zoom: Math.max(0.4, hermite(p1.zoom, p2.zoom, m0.zoom, m1.zoom)),
         panX: hermite(p1.panX, p2.panX, m0.panX, m1.panX),
         panY: hermite(p1.panY, p2.panY, m0.panY, m1.panY),
-        perspective: Math.round(Math.max(200, Math.min(3000, hermite(persp1, persp2, m0.perspective, m1.perspective)))),
+        perspective: Math.round(Math.max(200, Math.min(3000, hermite(p1.perspective, p2.perspective, m0.perspective, m1.perspective)))),
       };
     }
 
@@ -361,10 +374,10 @@ export function interpolateCameraSpline(
     if (i < spans.length - 1) {
       const nextSpan = spans[i + 1];
       if (time > span.endTime && time < nextSpan.startTime) {
-        return span.endCamera;
+        return safeCamera(span.endCamera);
       }
     }
   }
 
-  return lastSpan.endCamera;
+  return safeCamera(lastSpan.endCamera);
 }
