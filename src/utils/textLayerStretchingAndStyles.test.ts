@@ -5,6 +5,9 @@ import {
   getFontFamilyCss,
   getFontFamilyCanvas,
   smoothStep,
+  getScrambledString,
+  getStaggeredProgress,
+  getTokenInterpolation,
 } from './textLayer';
 import { TextLayerOverlay, TextFontFamily } from '../types/textLayer';
 
@@ -117,8 +120,8 @@ describe('Text Layer Stretching, In/Out Animations, Typography & Color', () => {
     }
   });
 
-  it('correctly maps all 3 required fonts without dummy fallbacks', () => {
-    const fonts: TextFontFamily[] = ['SF Pro Display', 'Helvetica', 'Poppins'];
+  it('correctly maps all required fonts without dummy fallbacks', () => {
+    const fonts: TextFontFamily[] = ['Sora', 'SF Pro Display', 'Helvetica', 'Poppins'];
 
     fonts.forEach((f) => {
       const css = getFontFamilyCss(f);
@@ -134,5 +137,61 @@ describe('Text Layer Stretching, In/Out Animations, Typography & Color', () => {
     layer.color = '#38bdf8';
 
     expect(layer.color).toBe('#38bdf8');
+  });
+
+  it('correctly computes all Motion-Primitives presets (fade-in-blur, blur, blur-sm, scale, slide, scramble, shimmer, roll)', () => {
+    const base = createDefaultTextLayer(2.0);
+    base.duration = 4.0;
+    base.inDuration = 0.5;
+
+    // Test fade-in-blur
+    const blurFadeLayer: TextLayerOverlay = { ...base, inAnimation: 'fade-in-blur' };
+    const bfStart = getTextLayerInterpolation(blurFadeLayer, 2.0);
+    expect(bfStart.visible).toBe(true);
+    expect(bfStart.opacity).toBeCloseTo(0, 1);
+    expect(bfStart.blur).toBeGreaterThan(5);
+    expect(bfStart.translateY).toBeGreaterThan(10);
+
+    const bfSteady = getTextLayerInterpolation(blurFadeLayer, 3.0);
+    expect(bfSteady.opacity).toBe(1);
+    expect(bfSteady.blur).toBe(0);
+    expect(bfSteady.translateY).toBe(0);
+
+    // Test scramble
+    const scrambleLayer: TextLayerOverlay = { ...base, inAnimation: 'scramble' };
+    const scStart = getTextLayerInterpolation(scrambleLayer, 2.0);
+    expect(scStart.scrambleProgress).toBe(0);
+    const scMid = getTextLayerInterpolation(scrambleLayer, 2.25);
+    expect(scMid.scrambleProgress).toBeGreaterThan(0);
+    expect(scMid.scrambleProgress).toBeLessThan(1);
+
+    // Test roll (3D)
+    const rollLayer: TextLayerOverlay = { ...base, inAnimation: 'roll' };
+    const rStart = getTextLayerInterpolation(rollLayer, 2.0);
+    expect(rStart.rotateX).toBeCloseTo(90, 0);
+    const rSteady = getTextLayerInterpolation(rollLayer, 3.0);
+    expect(rSteady.rotateX).toBe(0);
+
+    // Test shimmer
+    const shimmerLayer: TextLayerOverlay = { ...base, inAnimation: 'shimmer' };
+    const shSteady = getTextLayerInterpolation(shimmerLayer, 3.0);
+    expect(shSteady.shimmerOffset).toBeDefined();
+  });
+
+  it('deterministically scrambles text and resolves at 100% progress', () => {
+    const original = 'Hello World';
+    const scrambled0 = getScrambledString(original, 0.0);
+    const scrambledHalf = getScrambledString(original, 0.5);
+    const resolved = getScrambledString(original, 1.0);
+
+    expect(resolved).toBe(original);
+    expect(scrambled0.length).toBe(original.length);
+    expect(scrambledHalf.length).toBe(original.length);
+  });
+
+  it('staggers progress across tokens correctly', () => {
+    const t0 = getStaggeredProgress(0.5, 0, 4);
+    const t3 = getStaggeredProgress(0.5, 3, 4);
+    expect(t0).toBeGreaterThan(t3); // first token leads later tokens
   });
 });

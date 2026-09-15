@@ -138,6 +138,20 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showEasingModal, setShowEasingModal] = useState(false);
   const [isAudioManagerOpen, setIsAudioManagerOpen] = useState(false);
+  const [activeVolumePopoverTrackId, setActiveVolumePopoverTrackId] = useState<string | null>(null);
+
+  // Outside click listener to dismiss audio volume popover
+  useEffect(() => {
+    if (!activeVolumePopoverTrackId) return;
+    const handleOutsideClick = (e: MouseEvent | PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('.audio-volume-popover-card') && !target?.closest('.audio-volume-btn')) {
+        setActiveVolumePopoverTrackId(null);
+      }
+    };
+    window.addEventListener('pointerdown', handleOutsideClick);
+    return () => window.removeEventListener('pointerdown', handleOutsideClick);
+  }, [activeVolumePopoverTrackId]);
 
   // Visible Timeline Ruler Duration: at least 12.0s by default for expansive workspace view
   const rulerDuration = Math.max(12.0, totalDuration || 12.0);
@@ -508,6 +522,13 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const handleToggleMuteAudioTrack = useCallback((trackId: string) => {
     const updated = (audioTracksRef.current || []).map((t) =>
       t.id === trackId ? { ...t, isMuted: !t.isMuted } : t
+    );
+    onAudioTracksChange?.(updated);
+  }, [onAudioTracksChange]);
+
+  const handleSetAudioTrackVolume = useCallback((trackId: string, volume: number) => {
+    const updated = (audioTracksRef.current || []).map((t) =>
+      t.id === trackId ? { ...t, volume: Math.max(0, Math.min(1, Number(volume.toFixed(2)))) } : t
     );
     onAudioTracksChange?.(updated);
   }, [onAudioTracksChange]);
@@ -1165,6 +1186,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           onSelectAudioTrack?.(newTrack.id);
         }}
         currentTimelineDuration={totalDuration}
+        currentTime={currentTime}
       />
 
       {/* 2. Main Timeline Track */}
@@ -1580,6 +1602,10 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                 const leftPct = (aTrack.startTime / rulerDuration) * 100;
                 const widthPct = Math.min(100 - leftPct, (aTrack.duration / rulerDuration) * 100);
 
+                const isVolumeOpen = activeVolumePopoverTrackId === aTrack.id;
+                const volumeVal = aTrack.volume ?? 1.0;
+                const volumePct = Math.round(volumeVal * 100);
+
                 return (
                   <div
                     key={aTrack.id}
@@ -1587,15 +1613,24 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     style={{
                       left: `${leftPct}%`,
                       width: `${widthPct}%`,
-                      minWidth: '60px',
+                      minWidth: '70px',
+                      zIndex: isVolumeOpen ? 60 : undefined,
                     }}
                     onPointerDown={(e) => startAudioTrackDrag(e, aTrack.id)}
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectAudioTrack?.(aTrack.id);
                       onSeek(aTrack.startTime);
+                      if (!aTrack.isMuted && aTrack.url) {
+                        try {
+                          const sample = new Audio(aTrack.url);
+                          sample.volume = volumeVal;
+                          sample.play().catch(() => {});
+                          setTimeout(() => { sample.pause(); }, 1200);
+                        } catch {}
+                      }
                     }}
-                    title={`Audio: "${aTrack.name}" (${aTrack.duration.toFixed(1)}s) - Drag edges to stretch`}
+                    title={`Audio: "${aTrack.name}" (${aTrack.duration.toFixed(1)}s, ${volumePct}% vol) - Drag edges to stretch, drag center to move`}
                   >
                     {/* Left Stretch Handle */}
                     <div
@@ -1610,23 +1645,30 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                       <span className="audio-capsule-dur">{aTrack.duration.toFixed(1)}s</span>
                     </div>
 
+                    {/* Volume Adjustment Button */}
                     <button
                       type="button"
-                      className="audio-delete-btn"
+                      className={`audio-action-btn audio-volume-btn ${isVolumeOpen ? 'is-active' : ''} ${aTrack.isMuted ? 'is-muted' : ''}`}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleToggleMuteAudioTrack(aTrack.id);
+                        setActiveVolumePopoverTrackId((prev) => (prev === aTrack.id ? null : aTrack.id));
                       }}
-                      title={aTrack.isMuted ? 'Unmute Audio' : 'Mute Audio'}
+                      title={aTrack.isMuted ? 'Unmute / Adjust Volume' : `Volume: ${volumePct}% (Click to adjust)`}
                     >
-                      {aTrack.isMuted ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                      {aTrack.isMuted || volumeVal === 0 ? <VolumeX size={11} /> : <Volume2 size={11} />}
                     </button>
 
+                    {/* Delete Audio Track Button */}
                     <button
                       type="button"
-                      className="audio-delete-btn"
+                      className="audio-action-btn audio-delete-btn"
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (activeVolumePopoverTrackId === aTrack.id) {
+                          setActiveVolumePopoverTrackId(null);
+                        }
                         handleDeleteAudioTrack(aTrack.id);
                       }}
                       title="Delete audio track"
@@ -1640,6 +1682,81 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                       title="Drag to adjust duration"
                       onPointerDown={(e) => startAudioTrackResize(e, aTrack.id, 'right')}
                     />
+
+                    {/* Volume Popover Card */}
+                    {isVolumeOpen && (
+                      <div
+                        className="audio-volume-popover-card"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="audio-volume-popover-header">
+                          <span className="audio-volume-popover-title">Track Volume</span>
+                          <span className="audio-volume-popover-value">{aTrack.isMuted ? 'Muted' : `${volumePct}%`}</span>
+                          <button
+                            type="button"
+                            className="audio-volume-popover-close"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveVolumePopoverTrackId(null);
+                            }}
+                            title="Close"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+
+                        <div className="audio-volume-slider-row">
+                          <button
+                            type="button"
+                            className={`volume-mute-toggle-btn ${aTrack.isMuted ? 'is-muted' : ''}`}
+                            onClick={() => handleToggleMuteAudioTrack(aTrack.id)}
+                            title={aTrack.isMuted ? 'Unmute' : 'Mute'}
+                          >
+                            {aTrack.isMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                          </button>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={aTrack.isMuted ? 0 : volumeVal}
+                            className="audio-volume-slider"
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (aTrack.isMuted && val > 0) {
+                                handleToggleMuteAudioTrack(aTrack.id);
+                              }
+                              handleSetAudioTrackVolume(aTrack.id, val);
+                            }}
+                          />
+                        </div>
+
+                        <div className="audio-volume-presets-row">
+                          {[
+                            { label: '0%', val: 0 },
+                            { label: '25%', val: 0.25 },
+                            { label: '50%', val: 0.5 },
+                            { label: '75%', val: 0.75 },
+                            { label: '100%', val: 1.0 },
+                          ].map((p) => (
+                            <button
+                              key={p.label}
+                              type="button"
+                              className={`audio-volume-preset-chip ${!aTrack.isMuted && Math.abs(volumeVal - p.val) < 0.03 ? 'is-active' : ''}`}
+                              onClick={() => {
+                                if (aTrack.isMuted && p.val > 0) {
+                                  handleToggleMuteAudioTrack(aTrack.id);
+                                }
+                                handleSetAudioTrackVolume(aTrack.id, p.val);
+                              }}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

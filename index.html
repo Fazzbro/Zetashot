@@ -38,7 +38,7 @@
     <!-- Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&family=Sora:wght@100;200;300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
     <link href="https://fonts.cdnfonts.com/css/helvetica-neue-55" rel="stylesheet">
 
@@ -83,9 +83,25 @@
         <h1>Zetashot — 3D Camera Mockup & Video Animation Studio</h1>
         <p>Zetashot is a free, local-first professional 3D camera mockup studio for turning screen recordings and product designs into 60 FPS cinematic videos and high-res mockups.</p>
         <p>Please enable JavaScript to run the interactive WebGL studio in your browser.</p>
-        <p><a href="https://github.com/Fazzbro/Zetashot" target="_blank" rel="noopener noreferrer">View Source Code on GitHub</a></p>
       </div>
     </noscript>
+    <!-- Early inline defense against F12 and DevTools shortcuts before bundles load -->
+    <script>
+      (function() {
+        document.addEventListener('contextmenu', function(e) {
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+          e.preventDefault();
+        }, true);
+        window.addEventListener('keydown', function(e) {
+          var k = e.key;
+          var c = e.ctrlKey || e.metaKey;
+          if (k === 'F12' || (c && e.shiftKey && (k === 'I' || k === 'i' || k === 'J' || k === 'j' || k === 'C' || k === 'c')) || (c && (k === 'u' || k === 'U' || k === 's' || k === 'S'))) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, true);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

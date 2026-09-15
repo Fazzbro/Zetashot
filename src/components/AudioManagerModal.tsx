@@ -9,6 +9,7 @@ interface AudioManagerModalProps {
   onClose: () => void;
   onAddTrack: (item: AudioTrackItem) => void;
   currentTimelineDuration: number;
+  currentTime?: number;
 }
 
 export const AudioManagerModal: React.FC<AudioManagerModalProps> = ({
@@ -16,6 +17,7 @@ export const AudioManagerModal: React.FC<AudioManagerModalProps> = ({
   onClose,
   onAddTrack,
   currentTimelineDuration,
+  currentTime = 0,
 }) => {
   const [activeTab, setActiveTab] = useState<'music' | 'sfx' | 'upload'>('music');
   const [previewingPresetId, setPreviewingPresetId] = useState<string | null>(null);
@@ -62,18 +64,29 @@ export const AudioManagerModal: React.FC<AudioManagerModalProps> = ({
     try {
       const blob = await generatePresetAudioBlob(preset.id);
       const url = URL.createObjectURL(blob);
+      const start = preset.category === 'sfx'
+        ? Math.max(0, Number(currentTime.toFixed(2)))
+        : 0;
       const newItem: AudioTrackItem = {
         id: `audio_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         name: preset.name,
         url,
         type: preset.category,
-        startTime: 0,
+        startTime: start,
         duration: preset.category === 'music'
           ? Math.max(preset.duration, currentTimelineDuration || 12.0)
           : preset.duration,
         volume: 1.0,
         isMuted: false,
       };
+
+      // Play immediate audible sample so the user hears the SFX or track right as they add it
+      try {
+        const audioFeedback = new Audio(url);
+        audioFeedback.volume = 1.0;
+        audioFeedback.play().catch(() => {});
+      } catch {}
+
       onAddTrack(newItem);
       onClose();
     } catch (err) {
@@ -93,13 +106,14 @@ export const AudioManagerModal: React.FC<AudioManagerModalProps> = ({
       const dur = tempAudio.duration && isFinite(tempAudio.duration) && tempAudio.duration > 0
         ? Number(tempAudio.duration.toFixed(2))
         : 12.0;
+      const isShortSfx = dur < 3.0;
 
       const newItem: AudioTrackItem = {
         id: `audio_upload_${Date.now()}`,
         name: file.name.replace(/\.[^/.]+$/, ''),
         url,
-        type: 'music',
-        startTime: 0,
+        type: isShortSfx ? 'sfx' : 'music',
+        startTime: isShortSfx ? Math.max(0, Number(currentTime.toFixed(2))) : 0,
         duration: dur,
         volume: 1.0,
         isMuted: false,

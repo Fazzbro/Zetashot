@@ -26,3 +26,12 @@ downloads
 scratch_downloads
 temp_*
 *.mp4
+*.zip
+*.ttf
+*.otf
+*.woff
+*.woff2
+Aktiv.Grotesk/
+Sora/
+projects/
+public/user-landscape.png

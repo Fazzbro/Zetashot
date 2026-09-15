@@ -5,6 +5,7 @@ import {
   getTextLayerInterpolation,
   getFontFamilyCss,
   getFontFamilyCanvas,
+  splitTextLayerLines,
 } from './textLayer';
 
 describe('textLayer utilities', () => {
@@ -12,8 +13,8 @@ describe('textLayer utilities', () => {
     const layer = createDefaultTextLayer(1.5);
     expect(layer.startTime).toBe(1.5);
     expect(layer.duration).toBe(3.0);
-    expect(layer.fontFamily).toBe('SF Pro Display');
-    expect(layer.color).toBe('#ffffff');
+    expect(layer.fontFamily).toBe('Sora');
+    expect(layer.color).toBe('#000000');
     expect(layer.inAnimation).toBe('pop');
     expect(layer.outAnimation).toBe('fade');
   });
@@ -76,13 +77,61 @@ describe('textLayer utilities', () => {
     expect(midOut.scale).toBeLessThan(1.0);
   });
 
-  it('returns valid font family CSS and Canvas stacks for SF Pro Display, Helvetica, and Poppins', () => {
+  it('returns valid font family CSS and Canvas stacks for Sora, SF Pro Display, Helvetica, and Poppins', () => {
+    expect(getFontFamilyCss('Sora')).toContain('Sora');
     expect(getFontFamilyCss('SF Pro Display')).toContain('SF Pro Display');
     expect(getFontFamilyCss('Helvetica')).toContain('Helvetica');
     expect(getFontFamilyCss('Poppins')).toContain('Poppins');
 
+    expect(getFontFamilyCanvas('Sora')).toContain('Sora');
     expect(getFontFamilyCanvas('SF Pro Display')).toContain('SF Pro Display');
     expect(getFontFamilyCanvas('Helvetica')).toContain('Helvetica');
     expect(getFontFamilyCanvas('Poppins')).toContain('Poppins');
   });
+
+  it('supports custom lineHeight and letterSpacing', () => {
+    const layer = createDefaultTextLayer(0);
+    expect(layer.lineHeight).toBe(0.95);
+    expect(layer.letterSpacing).toBe(0);
+
+    layer.lineHeight = 1.45;
+    layer.letterSpacing = 2.5;
+    expect(layer.lineHeight).toBe(1.45);
+    expect(layer.letterSpacing).toBe(2.5);
+  });
+
+  it('splitTextLayerLines separates multi-line text into independent layers without hierarchy constraints', () => {
+    const baseLayer = createDefaultTextLayer(1.0);
+    baseLayer.text = 'Bringing\ntechnology to life';
+    baseLayer.y = 50; // center
+    baseLayer.fontSize = 48;
+    baseLayer.lineHeight = 1.2;
+
+    const split = splitTextLayerLines(baseLayer, 1080);
+    expect(split.length).toBe(2);
+
+    // First line
+    expect(split[0].text).toBe('Bringing');
+    expect(split[0].fontFamily).toBe(baseLayer.fontFamily);
+    expect(split[0].color).toBe(baseLayer.color);
+    expect(split[0].y).toBeLessThan(50); // Shifted upward
+
+    // Second line
+    expect(split[1].text).toBe('technology to life');
+    expect(split[1].y).toBeGreaterThan(50); // Shifted downward
+
+    // Vertical spacing matches line height calculation
+    const diff = split[1].y - split[0].y;
+    const expectedDiff = ((48 * 1.2) / 1080) * 100;
+    expect(diff).toBeCloseTo(expectedDiff, 0);
+  });
+
+  it('splitTextLayerLines returns the same layer if there is only 1 line', () => {
+    const layer = createDefaultTextLayer(0);
+    layer.text = 'Single Line Heading';
+    const split = splitTextLayerLines(layer);
+    expect(split.length).toBe(1);
+    expect(split[0]).toBe(layer);
+  });
 });
+

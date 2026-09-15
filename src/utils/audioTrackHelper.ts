@@ -186,24 +186,24 @@ export async function generatePresetAudioBlob(presetId: string): Promise<Blob> {
       osc.stop(duration);
     });
   } else if (presetId === 'preset_sfx_whoosh') {
-    // Aerodynamic whoosh
+    // Aerodynamic whoosh: rich and punchy
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
 
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(180, 0);
-    osc.frequency.exponentialRampToValueAtTime(650, 0.25);
+    osc.frequency.exponentialRampToValueAtTime(750, 0.25);
     osc.frequency.exponentialRampToValueAtTime(120, 0.55);
 
     filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(300, 0);
-    filter.frequency.linearRampToValueAtTime(1200, 0.25);
-    filter.frequency.linearRampToValueAtTime(200, 0.55);
-    filter.Q.setValueAtTime(3, 0);
+    filter.frequency.setValueAtTime(400, 0);
+    filter.frequency.linearRampToValueAtTime(1600, 0.25);
+    filter.frequency.linearRampToValueAtTime(250, 0.55);
+    filter.Q.setValueAtTime(2.5, 0);
 
     gain.gain.setValueAtTime(0.001, 0);
-    gain.gain.linearRampToValueAtTime(0.3, 0.25);
+    gain.gain.linearRampToValueAtTime(0.7, 0.25);
     gain.gain.exponentialRampToValueAtTime(0.001, 0.58);
 
     osc.connect(filter);
@@ -217,10 +217,10 @@ export async function generatePresetAudioBlob(presetId: string): Promise<Blob> {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'square';
-      osc.frequency.setValueAtTime(800, clickTime);
+      osc.frequency.setValueAtTime(900, clickTime);
       osc.frequency.exponentialRampToValueAtTime(120, clickTime + 0.04);
 
-      gain.gain.setValueAtTime(0.28, clickTime);
+      gain.gain.setValueAtTime(0.65, clickTime);
       gain.gain.exponentialRampToValueAtTime(0.001, clickTime + 0.05);
 
       osc.connect(gain);
@@ -238,7 +238,7 @@ export async function generatePresetAudioBlob(presetId: string): Promise<Blob> {
       osc.frequency.setValueAtTime(tone, idx * 0.07);
 
       gain.gain.setValueAtTime(0, idx * 0.07);
-      gain.gain.linearRampToValueAtTime(0.18, idx * 0.07 + 0.02);
+      gain.gain.linearRampToValueAtTime(0.45, idx * 0.07 + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, 0.85);
 
       osc.connect(gain);
@@ -251,10 +251,10 @@ export async function generatePresetAudioBlob(presetId: string): Promise<Blob> {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(700, 0);
-    osc.frequency.exponentialRampToValueAtTime(150, 0.15);
+    osc.frequency.setValueAtTime(750, 0);
+    osc.frequency.exponentialRampToValueAtTime(180, 0.15);
 
-    gain.gain.setValueAtTime(0.25, 0);
+    gain.gain.setValueAtTime(0.6, 0);
     gain.gain.exponentialRampToValueAtTime(0.001, 0.2);
 
     osc.connect(gain);

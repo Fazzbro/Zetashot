@@ -9,7 +9,7 @@ import { CropModal, CropRect } from './components/CropModal';
 import { InteractiveDemoUI } from './components/InteractiveDemoUI';
 import { BeginnerGuide } from './components/BeginnerGuide';
 import { TextLayerOverlay } from './types/textLayer';
-import { createDefaultTextLayer } from './utils/textLayer';
+import { createDefaultTextLayer, splitTextLayerLines } from './utils/textLayer';
 import { TextOverlayStage } from './components/TextOverlayStage';
 import { TextLayerInspector } from './components/TextLayerInspector';
 import { Camera3DState, calculate3DTransform, clampRotation } from './utils/camera3D';
@@ -130,7 +130,24 @@ export function App() {
   useEffect(() => {
     audioTracksRef.current = audioTracks;
   }, [audioTracks]);
-  const audioPreviewElementRef = useRef<HTMLAudioElement | null>(null);
+  const audioPlayersMapRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+  // Real-time sync of track volume & mute adjustments to active audio elements
+  useEffect(() => {
+    audioTracks.forEach((track) => {
+      const player = audioPlayersMapRef.current.get(track.id);
+      if (player) {
+        player.volume = track.isMuted ? 0 : Math.max(0, Math.min(1, track.volume ?? 1.0));
+      }
+    });
+    const currentTrackIds = new Set(audioTracks.map((t) => t.id));
+    audioPlayersMapRef.current.forEach((player, id) => {
+      if (!currentTrackIds.has(id)) {
+        player.pause();
+        audioPlayersMapRef.current.delete(id);
+      }
+    });
+  }, [audioTracks]);
 
   const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
   const [isComposed, setIsComposed] = useState<boolean>(false);
@@ -553,9 +570,7 @@ export function App() {
       if (videoRef.current) {
         videoRef.current.pause();
       }
-      if (audioPreviewElementRef.current) {
-        audioPreviewElementRef.current.pause();
-      }
+      audioPlayersMapRef.current.forEach((player) => player.pause());
       document.querySelectorAll('video').forEach((v) => v.pause());
     } else {
       isPlayingRef.current = true;
@@ -585,17 +600,26 @@ export function App() {
         }
       }
 
-      // Sync background audio / SFX playback
+      // Sync background audio & SFX playback (concurrent multi-track)
       const activeAudios = getActiveAudioItemsAtTime(audioTracksRef.current, currentTimeRef.current);
-      if (activeAudios.length > 0) {
-        const topAudio = activeAudios[0];
-        if (!audioPreviewElementRef.current || audioPreviewElementRef.current.src !== topAudio.url) {
-          audioPreviewElementRef.current = new Audio(topAudio.url);
+      const activeIds = new Set(activeAudios.map((a) => a.id));
+      audioPlayersMapRef.current.forEach((player, id) => {
+        if (!activeIds.has(id)) {
+          player.pause();
         }
-        audioPreviewElementRef.current.volume = topAudio.volume ?? 1.0;
-        audioPreviewElementRef.current.currentTime = Math.max(0, (currentTimeRef.current - topAudio.startTime) + (topAudio.sourceStartTime || 0));
-        audioPreviewElementRef.current.play().catch(() => {});
-      }
+      });
+      activeAudios.forEach((track) => {
+        let player = audioPlayersMapRef.current.get(track.id);
+        if (!player || player.src !== track.url) {
+          if (player) player.pause();
+          player = new Audio(track.url);
+          audioPlayersMapRef.current.set(track.id, player);
+        }
+        player.volume = track.isMuted ? 0 : Math.max(0, Math.min(1, track.volume ?? 1.0));
+        const trackTime = Math.max(0, (currentTimeRef.current - track.startTime) + (track.sourceStartTime || 0));
+        player.currentTime = trackTime;
+        player.play().catch(() => {});
+      });
     }
   }, []);
 
@@ -641,23 +665,30 @@ export function App() {
       }
     }
 
-    // Audio preview seek sync
+    // Audio preview seek sync (concurrent multi-track)
     const activeAudios = getActiveAudioItemsAtTime(audioTracksRef.current, time);
-    if (activeAudios.length > 0) {
-      const topAudio = activeAudios[0];
-      if (!audioPreviewElementRef.current || audioPreviewElementRef.current.src !== topAudio.url) {
-        audioPreviewElementRef.current = new Audio(topAudio.url);
+    const activeIds = new Set(activeAudios.map((a) => a.id));
+    audioPlayersMapRef.current.forEach((player, id) => {
+      if (!activeIds.has(id)) {
+        player.pause();
       }
-      audioPreviewElementRef.current.volume = topAudio.volume ?? 1.0;
-      audioPreviewElementRef.current.currentTime = Math.max(0, (time - topAudio.startTime) + (topAudio.sourceStartTime || 0));
+    });
+    activeAudios.forEach((track) => {
+      let player = audioPlayersMapRef.current.get(track.id);
+      if (!player || player.src !== track.url) {
+        if (player) player.pause();
+        player = new Audio(track.url);
+        audioPlayersMapRef.current.set(track.id, player);
+      }
+      player.volume = track.isMuted ? 0 : Math.max(0, Math.min(1, track.volume ?? 1.0));
+      const trackTime = Math.max(0, (time - track.startTime) + (track.sourceStartTime || 0));
+      player.currentTime = trackTime;
       if (isPlayingRef.current) {
-        audioPreviewElementRef.current.play().catch(() => {});
+        player.play().catch(() => {});
       } else {
-        audioPreviewElementRef.current.pause();
+        player.pause();
       }
-    } else {
-      if (audioPreviewElementRef.current) audioPreviewElementRef.current.pause();
-    }
+    });
 
     const currentClips = clipsRef.current;
     if (currentClips.length > 0) {
@@ -701,10 +732,10 @@ export function App() {
           video.pause();
           video.currentTime = 0;
         }
-        if (audioPreviewElementRef.current) {
-          audioPreviewElementRef.current.pause();
-          audioPreviewElementRef.current.currentTime = 0;
-        }
+        audioPlayersMapRef.current.forEach((player) => {
+          player.pause();
+          player.currentTime = 0;
+        });
         currentTimeRef.current = 0;
         setCurrentTime(0);
         return;
@@ -728,23 +759,36 @@ export function App() {
         }
       }
 
-      // Audio preview active track sync
+      // Audio preview multi-track sync
       const activeAudios = getActiveAudioItemsAtTime(audioTracksRef.current, nextTime);
-      if (activeAudios.length > 0) {
-        const topAudio = activeAudios[0];
-        if (!audioPreviewElementRef.current || audioPreviewElementRef.current.src !== topAudio.url) {
-          if (audioPreviewElementRef.current) audioPreviewElementRef.current.pause();
-          const a = new Audio(topAudio.url);
-          a.volume = topAudio.volume ?? 1.0;
-          a.currentTime = Math.max(0, (nextTime - topAudio.startTime) + (topAudio.sourceStartTime || 0));
-          audioPreviewElementRef.current = a;
-          if (isPlayingRef.current) a.play().catch(() => {});
+      const activeIds = new Set(activeAudios.map((a) => a.id));
+      audioPlayersMapRef.current.forEach((player, id) => {
+        if (!activeIds.has(id) && !player.paused) {
+          player.pause();
         }
-      } else {
-        if (audioPreviewElementRef.current && !audioPreviewElementRef.current.paused) {
-          audioPreviewElementRef.current.pause();
+      });
+      activeAudios.forEach((track) => {
+        let player = audioPlayersMapRef.current.get(track.id);
+        const targetAudioTime = Math.max(0, (nextTime - track.startTime) + (track.sourceStartTime || 0));
+        if (!player || player.src !== track.url) {
+          if (player) player.pause();
+          player = new Audio(track.url);
+          audioPlayersMapRef.current.set(track.id, player);
+          player.volume = track.isMuted ? 0 : Math.max(0, Math.min(1, track.volume ?? 1.0));
+          player.currentTime = targetAudioTime;
+          if (isPlayingRef.current) {
+            player.play().catch(() => {});
+          }
+        } else {
+          player.volume = track.isMuted ? 0 : Math.max(0, Math.min(1, track.volume ?? 1.0));
+          if (player.paused && isPlayingRef.current) {
+            player.currentTime = targetAudioTime;
+            player.play().catch(() => {});
+          } else if (Math.abs(player.currentTime - targetAudioTime) > 0.3) {
+            player.currentTime = targetAudioTime;
+          }
         }
-      }
+      });
 
       // Canonical camera evaluation matching export 1:1 with Catmull-Rom spline
       const currentClips = clipsRef.current;
@@ -1643,6 +1687,15 @@ export function App() {
               };
               setTextLayers((layers) => [...layers, dup]);
               setSelectedTextLayerId(dup.id);
+            }}
+            onSplitLines={(layer) => {
+              const split = splitTextLayerLines(layer);
+              if (split.length <= 1) return;
+              setTextLayers((layers) => {
+                const remaining = layers.filter((l) => l.id !== layer.id);
+                return [...remaining, ...split];
+              });
+              setSelectedTextLayerId(split[0].id);
             }}
             onClose={() => setSelectedTextLayerId(null)}
           />

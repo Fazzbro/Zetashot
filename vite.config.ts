@@ -23,6 +23,11 @@ export default defineConfig({
       ],
     },
   },
+  build: {
+    sourcemap: false,
+    cssMinify: true,
+    reportCompressedSize: false,
+  },
   test: {
     globals: true,
     environment: 'jsdom',
