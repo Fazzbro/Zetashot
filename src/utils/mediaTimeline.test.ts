@@ -4,6 +4,7 @@ import {
   getActiveMediaClipAtTime,
   calculateMediaSequenceDuration,
   sequenceClipsContiguously,
+  splitMediaClipAtTime,
 } from '../types/mediaTimeline';
 
 describe('mediaTimeline utilities', () => {
@@ -74,5 +75,42 @@ describe('mediaTimeline utilities', () => {
     expect(sequenced[1].duration).toBe(4);
     expect(sequenced[2].startTime).toBe(6);
     expect(sequenced[2].duration).toBe(3);
+  });
+
+  it('splits a media clip cleanly at a designated playhead time', () => {
+    const { updatedClips, splitClipId } = splitMediaClipAtTime(sampleClips, 5.0);
+    expect(splitClipId).not.toBeNull();
+    expect(updatedClips.length).toBe(4);
+
+    // clip_1 unaffected
+    expect(updatedClips[0].id).toBe('clip_1');
+    expect(updatedClips[0].duration).toBe(3.0);
+
+    // clip_2 split into 2 parts: 3.0 to 5.0 (2.0s) and 5.0 to 7.5 (2.5s)
+    expect(updatedClips[1].id).toBe('clip_2');
+    expect(updatedClips[1].startTime).toBe(3.0);
+    expect(updatedClips[1].duration).toBe(2.0);
+
+    // Second part
+    expect(updatedClips[2].id).toBe(splitClipId);
+    expect(updatedClips[2].startTime).toBe(5.0);
+    expect(updatedClips[2].duration).toBe(2.5);
+    expect(updatedClips[2].sourceStartTime).toBe(2.0);
+
+    // clip_3 preserved at 7.5s
+    expect(updatedClips[3].id).toBe('clip_3');
+    expect(updatedClips[3].startTime).toBe(7.5);
+    expect(updatedClips[3].duration).toBe(2.5);
+  });
+
+  it('ignores split requests too close to clip edges', () => {
+    // 3.05s is too close to clip_2 start (3.0s, delta 0.05 < 0.15s)
+    const resNearStart = splitMediaClipAtTime(sampleClips, 3.05);
+    expect(resNearStart.splitClipId).toBeNull();
+    expect(resNearStart.updatedClips.length).toBe(3);
+
+    // 100s is outside all clips
+    const resOutOfRange = splitMediaClipAtTime(sampleClips, 100);
+    expect(resOutOfRange.splitClipId).toBeNull();
   });
 });

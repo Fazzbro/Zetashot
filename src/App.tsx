@@ -17,7 +17,8 @@ import { BackgroundConfig, generateBackgroundCss } from './utils/gradientUtils';
 import { CaptureEngine } from './services/captureEngine';
 import { exportMockupVideo, getCameraAtTime } from './services/videoExportEngine';
 import { storageService } from './services/storageService';
-import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration } from './types/mediaTimeline';
+import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration, splitMediaClipAtTime } from './types/mediaTimeline';
+import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration } from './utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from './types/audioTrack';
 import { getActiveAudioItemsAtTime } from './utils/audioTrackHelper';
 import { CubicBezierValues } from './utils/bezierSolver';
@@ -484,9 +485,15 @@ export function App() {
         const naturalDur = (videoRef.current.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
           ? videoRef.current.duration
           : clamped;
-        if (isComposedRef.current) {
-          videoRef.current.playbackRate = Math.max(0.1, Math.min(4.0, naturalDur / clamped));
-        }
+        const computedRate = calculatePlaybackRate(naturalDur, clamped);
+        videoRef.current.playbackRate = computedRate;
+      }
+      // Also ensure mediaClips duration is synchronized
+      if (mediaClipsRef.current.length > 0) {
+        const naturalDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+          ? videoRef.current.duration
+          : clamped;
+        setMediaClips((prev) => syncMediaClipsToKeyframeDuration(prev, clamped, naturalDur));
       }
     }
   }, []);
@@ -507,6 +514,12 @@ export function App() {
       setMediaDuration(composedDuration);
       mediaDurationRef.current = composedDuration;
 
+      // Sync media clips sequence to composedDuration
+      const natDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+        ? videoRef.current.duration
+        : composedDuration;
+      setMediaClips((prev) => syncMediaClipsToKeyframeDuration(prev, composedDuration, natDur));
+
       const generated = generateClipsFromInterestRegions(
         interestRegions,
         composedDuration,
@@ -522,10 +535,8 @@ export function App() {
         setCamera(generated[0].camera);
         if (videoRef.current) {
           videoRef.current.currentTime = 0;
-          const natDur = (videoRef.current.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
-            ? videoRef.current.duration
-            : composedDuration;
-          videoRef.current.playbackRate = Math.max(0.1, Math.min(4.0, natDur / composedDuration));
+          const computedRate = calculatePlaybackRate(natDur, composedDuration);
+          videoRef.current.playbackRate = computedRate;
         }
       }
     }
@@ -544,6 +555,12 @@ export function App() {
       const composedDuration = Number((interestRegions.length * 1.0).toFixed(2));
       setMediaDuration(composedDuration);
       mediaDurationRef.current = composedDuration;
+
+      const natDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+        ? videoRef.current.duration
+        : composedDuration;
+      setMediaClips((prev) => syncMediaClipsToKeyframeDuration(prev, composedDuration, natDur));
+
       const generated = generateClipsFromInterestRegions(
         interestRegions,
         composedDuration,
@@ -580,9 +597,18 @@ export function App() {
           ? videoRef.current.duration
           : mediaDurationRef.current;
 
-        if (isComposedRef.current) {
+        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, currentTimeRef.current) : null;
+        if (activeClip && activeClip.type === 'video') {
+          const clipSpeed = activeClip.speed || (isComposedRef.current ? calculatePlaybackRate(naturalDur, mediaDurationRef.current || 3.0) : 1.0);
+          videoRef.current.playbackRate = clipSpeed;
+          const targetVidTime = Math.min(
+            naturalDur - 0.03,
+            Math.max(0, (currentTimeRef.current - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0))
+          );
+          videoRef.current.currentTime = targetVidTime;
+        } else if (isComposedRef.current) {
           const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
-          videoRef.current.playbackRate = Math.max(0.1, Math.min(4.0, naturalDur / medDur));
+          videoRef.current.playbackRate = calculatePlaybackRate(naturalDur, medDur);
           const targetVidTime = Math.min(
             naturalDur,
             (currentTimeRef.current / medDur) * naturalDur
@@ -648,7 +674,15 @@ export function App() {
         ? videoRef.current.duration
         : mediaDurationRef.current;
 
-      if (isComposedRef.current) {
+      const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, time) : null;
+      if (activeClip && activeClip.type === 'video') {
+        const clipSpeed = activeClip.speed || (isComposedRef.current ? calculatePlaybackRate(naturalDur, mediaDurationRef.current || 3.0) : 1.0);
+        const targetVidTime = Math.min(
+          naturalDur - 0.03,
+          Math.max(0, (time - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0))
+        );
+        videoRef.current.currentTime = targetVidTime;
+      } else if (isComposedRef.current) {
         const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
         const targetVidTime = Math.min(
           naturalDur,
@@ -806,7 +840,17 @@ export function App() {
 
       // Sync video drift gently if needed without stuttering decoder
       if (video && media.type === 'video' && video.duration && !video.seeking) {
-        if (isComposedRef.current) {
+        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, nextTime) : null;
+        if (activeClip && activeClip.type === 'video') {
+          const clipSpeed = activeClip.speed || (isComposedRef.current ? calculatePlaybackRate(video.duration, mediaDurationRef.current || 3.0) : 1.0);
+          if (video.playbackRate !== clipSpeed) {
+            video.playbackRate = clipSpeed;
+          }
+          const targetVidTime = (nextTime - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0);
+          if (Math.abs(video.currentTime - targetVidTime) > 0.6) {
+            video.currentTime = Math.min(video.duration - 0.03, Math.max(0, targetVidTime));
+          }
+        } else if (isComposedRef.current) {
           const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
           if (nextTime <= medDur) {
             const targetVidTime = (nextTime / medDur) * video.duration;
@@ -853,7 +897,7 @@ export function App() {
     setCursorPos({ x, y });
   };
 
-  // Global Keyboard Shortcuts for Move (V), Orbit (R) and Spacebar (Play/Pause)
+  // Global Keyboard Shortcuts for Move (V), Orbit (R), Spacebar (Play/Pause), and Split (S)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -876,6 +920,13 @@ export function App() {
         const newLayer = createDefaultTextLayer(currentTimeRef.current);
         setTextLayers((prev) => [...prev, newLayer]);
         setSelectedTextLayerId(newLayer.id);
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        const { updatedClips, splitClipId } = splitMediaClipAtTime(mediaClipsRef.current, currentTimeRef.current);
+        if (splitClipId) {
+          setMediaClips(updatedClips);
+          setSelectedMediaClipId(splitClipId);
+        }
       }
     };
 
@@ -1640,6 +1691,13 @@ export function App() {
               if (totalMediaDur > 0) {
                 setMediaDuration(totalMediaDur);
                 mediaDurationRef.current = totalMediaDur;
+                if (videoRef.current && activeMediaRef.current.type === 'video') {
+                  const naturalDur = (videoRef.current.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+                    ? videoRef.current.duration
+                    : totalMediaDur;
+                  const computedRate = calculatePlaybackRate(naturalDur, totalMediaDur);
+                  videoRef.current.playbackRate = computedRate;
+                }
               }
             }}
             selectedMediaClipId={selectedMediaClipId}

@@ -2,6 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { TimelinePositionClip } from '../components/VideoTimeline';
 import { calculateTimelineDuration } from './timelineDurationEngine';
 import { generateClipsFromInterestRegions, InterestRegion } from './interestRegionEngine';
+import {
+  syncMediaClipsToKeyframeDuration,
+  syncKeyframeSequenceToDuration,
+  calculatePlaybackRate,
+} from './keyframeMediaSyncEngine';
+import { MediaTimelineClip } from '../types/mediaTimeline';
 
 describe('Keyframe and Media Synchronous Stretching Engine', () => {
   it('synchronously calculates timeline duration when keyframe sequence is stretched', () => {
@@ -60,14 +66,15 @@ describe('Keyframe and Media Synchronous Stretching Engine', () => {
 
     // Composed at 4.0s
     const composedDuration = 4.0;
-    const initialRate = naturalVideoDuration / composedDuration; // 2.5x speed
+    const initialRate = calculatePlaybackRate(naturalVideoDuration, composedDuration);
     expect(initialRate).toBe(2.5);
 
     // Stretched to 8.0s
     const stretchedDuration = 8.0;
-    const compensatedRate = naturalVideoDuration / stretchedDuration; // 1.25x speed
+    const compensatedRate = calculatePlaybackRate(naturalVideoDuration, stretchedDuration);
     expect(compensatedRate).toBe(1.25);
   });
+
   it('supports intra-sequence divider resizing while maintaining total sequence duration', () => {
     const p1Duration = 1.5;
     const p2Duration = 1.5;
@@ -106,5 +113,35 @@ describe('Keyframe and Media Synchronous Stretching Engine', () => {
     expect(timelineTotal).toBe(8.0);
     expect(clips[2].startTime).toBe(5.0);
     expect(clips[3].startTime).toBe(6.5);
+  });
+
+  it('syncs media clip duration and speed when keyframe sequence is stretched or compressed', () => {
+    const mediaClips: MediaTimelineClip[] = [
+      { id: 'c1', mediaId: 'm1', name: 'Video 1', type: 'video', url: 'v.mp4', startTime: 0, duration: 4.0 },
+    ];
+
+    // Keyframes stretched from 4.0s to 8.0s (source video is 12.0s)
+    const stretched = syncMediaClipsToKeyframeDuration(mediaClips, 8.0, 12.0);
+    expect(stretched[0].duration).toBe(8.0);
+    expect(stretched[0].speed).toBe(1.5); // 12.0s / 8.0s = 1.5x speed
+
+    // Keyframes compressed from 8.0s to 3.0s
+    const compressed = syncMediaClipsToKeyframeDuration(mediaClips, 3.0, 12.0);
+    expect(compressed[0].duration).toBe(3.0);
+    expect(compressed[0].speed).toBe(4.0); // 12.0s / 3.0s = 4.0x speed
+  });
+
+  it('syncs keyframe sequence proportionally when media clip is stretched vice-versa', () => {
+    const clips: TimelinePositionClip[] = [
+      { id: 'P01', name: 'P01', startTime: 0, duration: 2.0, camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 }, color: 'blue' },
+      { id: 'P02', name: 'P02', startTime: 2.0, duration: 2.0, camera: { rotX: 5, rotY: -10, rotZ: 0, zoom: 0.8, panX: 0, panY: 0, perspective: 1000 }, color: 'blue' },
+    ];
+
+    // Media clip resized from 4.0s to 6.0s
+    const rescaled = syncKeyframeSequenceToDuration(clips, 0, 2, 6.0);
+    expect(rescaled[0].duration).toBe(3.0);
+    expect(rescaled[1].startTime).toBe(3.0);
+    expect(rescaled[1].duration).toBe(3.0);
+    expect(rescaled[0].duration + rescaled[1].duration).toBe(6.0);
   });
 });

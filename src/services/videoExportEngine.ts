@@ -269,7 +269,8 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           activeElement = mediaClipElements.get(currentClip.id) || null;
           if (activeElement && activeType === 'video') {
             const vid = activeElement as HTMLVideoElement;
-            const localTime = Math.max(0, (time - currentClip.startTime) + (currentClip.sourceStartTime || 0));
+            const clipSpeed = currentClip.speed || 1.0;
+            const localTime = Math.max(0, (time - currentClip.startTime) * clipSpeed + (currentClip.sourceStartTime || 0));
             const safeVidTime = (vid.duration && isFinite(vid.duration) && vid.duration > 0)
               ? Math.min(vid.duration - 0.03, localTime)
               : localTime;

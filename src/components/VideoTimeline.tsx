@@ -20,6 +20,7 @@ import {
   Music,
   Volume2,
   VolumeX,
+  Scissors,
   Image as ImageIcon,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
@@ -29,7 +30,17 @@ import { TransitionType } from '../utils/transitionMath';
 import { getKeyframeTimesForGroup } from '../utils/splineInterpolation';
 import { TextLayerOverlay } from '../types/textLayer';
 import { createDefaultTextLayer } from '../utils/textLayer';
-import { MediaTimelineClip, sequenceClipsContiguously } from '../types/mediaTimeline';
+import {
+  MediaTimelineClip,
+  sequenceClipsContiguously,
+  calculateMediaSequenceDuration,
+  splitMediaClipAtTime,
+} from '../types/mediaTimeline';
+import {
+  calculatePlaybackRate,
+  syncMediaClipsToKeyframeDuration,
+  syncKeyframeSequenceToDuration,
+} from '../utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from '../types/audioTrack';
 import { AudioManagerModal } from './AudioManagerModal';
 
@@ -314,7 +325,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     audioTracksRef.current = audioTracks || [];
   }, [audioTracks]);
 
-  // Media Clip Resize Handler
+  // Media Clip Resize Handler (with vice-versa keyframe sync)
   const startMediaClipResize = useCallback((
     e: React.PointerEvent,
     clipId: string,
@@ -352,16 +363,46 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       if (handle === 'right') {
         const newDur = Math.max(0.5, Number((initialDuration + deltaSec).toFixed(2)));
         currentClips[clipIdx].duration = newDur;
+        const naturalDur = currentClips[clipIdx].sourceDuration || mediaDuration;
+        currentClips[clipIdx].speed = calculatePlaybackRate(naturalDur, newDur);
         const resequenced = sequenceClipsContiguously(currentClips);
         onMediaClipsChange?.(resequenced);
+
+        // Vice-versa: sync keyframe sequence proportionally to new media duration
+        const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
+        if (clipsRef.current.length > 0) {
+          const syncedClips = syncKeyframeSequenceToDuration(
+            clipsRef.current,
+            0,
+            clipsRef.current.length,
+            totalMediaDuration
+          );
+          onClipsChange(syncedClips);
+        }
+        onMediaDurationChange?.(totalMediaDuration);
       } else {
         const minDur = 0.5;
         const clampedDelta = Math.min(initialDuration - minDur, deltaSec);
         const newDur = Math.max(minDur, Number((initialDuration - clampedDelta).toFixed(2)));
         currentClips[clipIdx].duration = newDur;
+        const naturalDur = currentClips[clipIdx].sourceDuration || mediaDuration;
+        currentClips[clipIdx].speed = calculatePlaybackRate(naturalDur, newDur);
         currentClips[clipIdx].sourceStartTime = Math.max(0, Number(((targetClip.sourceStartTime || 0) + clampedDelta).toFixed(2)));
         const resequenced = sequenceClipsContiguously(currentClips);
         onMediaClipsChange?.(resequenced);
+
+        // Vice-versa: sync keyframe sequence proportionally to new media duration
+        const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
+        if (clipsRef.current.length > 0) {
+          const syncedClips = syncKeyframeSequenceToDuration(
+            clipsRef.current,
+            0,
+            clipsRef.current.length,
+            totalMediaDuration
+          );
+          onClipsChange(syncedClips);
+        }
+        onMediaDurationChange?.(totalMediaDuration);
       }
     };
 
@@ -379,7 +420,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
-  }, [onMediaClipsChange]);
+  }, [mediaDuration, onClipsChange, onMediaClipsChange, onMediaDurationChange]);
 
   const handleDeleteMediaClip = useCallback((clipId: string) => {
     const currentClips = mediaClipsRef.current.filter((c) => c.id !== clipId);
@@ -389,6 +430,42 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       onSelectMediaClip?.(resequenced[0].id);
     }
   }, [onMediaClipsChange, onSelectMediaClip, selectedMediaClipId]);
+
+  // Cut / Split Media Clip at current playhead
+  const canSplitMedia = Boolean(
+    mediaClipsRef.current &&
+    mediaClipsRef.current.some(
+      (c) => currentTime >= c.startTime + 0.15 && currentTime <= c.startTime + c.duration - 0.15
+    )
+  );
+
+  const handleSplitMediaClip = useCallback(() => {
+    if (!mediaClipsRef.current || mediaClipsRef.current.length === 0) return;
+    const { updatedClips, splitClipId } = splitMediaClipAtTime(mediaClipsRef.current, currentTime);
+    if (splitClipId) {
+      onMediaClipsChange?.(updatedClips);
+      onSelectMediaClip?.(splitClipId);
+    }
+  }, [currentTime, onMediaClipsChange, onSelectMediaClip]);
+
+  // Keyboard shortcut: S key splits media at playhead
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement).isContentEditable
+      ) {
+        return;
+      }
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleSplitMediaClip();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSplitMediaClip]);
 
   // Audio Track Resize Handler
   const startAudioTrackResize = useCallback((
@@ -637,6 +714,14 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         if (onTotalDurationChange && maxClipsEnd > initialRulerDuration) {
           onTotalDurationChange(Number((maxClipsEnd + 1.0).toFixed(2)));
         }
+        if (mediaClipsRef.current.length > 0 && onMediaClipsChange && maxClipsEnd > 0) {
+          const syncedMediaClips = syncMediaClipsToKeyframeDuration(
+            mediaClipsRef.current,
+            maxClipsEnd,
+            mediaDuration
+          );
+          onMediaClipsChange(syncedMediaClips);
+        }
       } else if (handle === 'left') {
         const minDuration = Math.max(0.4, subCount * 0.25);
         const maxDelta = initialDuration - minDuration;
@@ -688,6 +773,23 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         }
 
         onClipsChange(updated);
+
+        let maxClipsEnd = 0;
+        for (const c of updated) {
+          const end = (c.startTime || 0) + (c.duration || 0);
+          if (end > maxClipsEnd) maxClipsEnd = end;
+        }
+        if (onMediaDurationChange && maxClipsEnd > 0) {
+          onMediaDurationChange(Number(maxClipsEnd.toFixed(2)));
+        }
+        if (mediaClipsRef.current.length > 0 && onMediaClipsChange && maxClipsEnd > 0) {
+          const syncedMediaClips = syncMediaClipsToKeyframeDuration(
+            mediaClipsRef.current,
+            maxClipsEnd,
+            mediaDuration
+          );
+          onMediaClipsChange(syncedMediaClips);
+        }
       }
     };
 
@@ -705,7 +807,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
-  }, [onClipsChange, onMediaDurationChange, onTotalDurationChange]);
+  }, [mediaDuration, onClipsChange, onMediaClipsChange, onMediaDurationChange, onTotalDurationChange]);
 
   // Intra-Sequence Divider Drag Handler between Adjacent Keyframe Sub-blocks
   const startDividerResize = useCallback((
@@ -1004,6 +1106,19 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             data-testid="add-audio-track-btn"
           >
             <Music size={14} />
+          </button>
+          <button
+            type="button"
+            className={`timeline-tool-btn ${canSplitMedia ? 'is-split-ready' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSplitMediaClip();
+            }}
+            disabled={!canSplitMedia}
+            title={canSplitMedia ? "Split / Cut media clip at playhead (S)" : "Position playhead inside media clip to cut (S)"}
+            data-testid="split-media-clip-btn"
+          >
+            <Scissors size={14} />
           </button>
           <button
             type="button"
