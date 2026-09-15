@@ -6,6 +6,9 @@ import {
   getFontFamilyCss,
   getFontFamilyCanvas,
   splitTextLayerLines,
+  drawTextLayersOnCanvas,
+  getTokenInterpolation,
+  getStaggeredProgress,
 } from './textLayer';
 
 describe('textLayer utilities', () => {
@@ -133,5 +136,88 @@ describe('textLayer utilities', () => {
     expect(split.length).toBe(1);
     expect(split[0]).toBe(layer);
   });
+
+  it('drawTextLayersOnCanvas uses height-based scale matching stageScale', () => {
+    const layer = createDefaultTextLayer(0);
+    layer.fontSize = 48;
+
+    const fontsSet: string[] = [];
+    const mockCtx = {
+      save: () => {},
+      restore: () => {},
+      translate: () => {},
+      scale: () => {},
+      transform: () => {},
+      fillText: () => {},
+      measureText: () => ({ width: 100 }),
+      createLinearGradient: () => ({ addColorStop: () => {} }),
+      font: '',
+      textBaseline: '',
+      textAlign: '',
+      shadowColor: '',
+      shadowBlur: 0,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+      globalAlpha: 1,
+    } as unknown as CanvasRenderingContext2D;
+
+    Object.defineProperty(mockCtx, 'font', {
+      set(val: string) {
+        fontsSet.push(val);
+      },
+      get() {
+        return fontsSet[fontsSet.length - 1] || '';
+      },
+    });
+
+    // 1080p landscape (1920x1080) -> scale = 1080 / 540 = 2.0 -> fontSize = 96px
+    drawTextLayersOnCanvas(mockCtx, [layer], 1.5, 1920, 1080);
+    expect(fontsSet.some((f) => f.includes('96px'))).toBe(true);
+
+    // 9:16 vertical (1080x1920) -> scale = 1920 / 540 = 3.555 -> fontSize = 171px
+    fontsSet.length = 0;
+    drawTextLayersOnCanvas(mockCtx, [layer], 1.5, 1080, 1920);
+    expect(fontsSet.some((f) => f.includes('171px'))).toBe(true);
+  });
+
+  it('supports all motion-primitives animations in getTokenInterpolation', () => {
+    // fade-in-blur
+    const fibIn = getTokenInterpolation('fade-in-blur', 0.5, 'in');
+    expect(fibIn.translateY).toBeGreaterThan(0);
+    expect(fibIn.blur).toBeGreaterThan(0);
+
+    // scale
+    const scaleIn = getTokenInterpolation('scale', 0.5, 'in');
+    expect(scaleIn.scale).toBeCloseTo(0.8, 2);
+
+    // pop
+    const popIn = getTokenInterpolation('pop', 0.5, 'in');
+    expect(popIn.scale).toBeCloseTo(0.875, 2);
+
+    // slide-down
+    const slideDownIn = getTokenInterpolation('slide-down', 0.5, 'in');
+    expect(slideDownIn.translateY).toBeLessThan(0); // starts above
+
+    // roll
+    const rollIn = getTokenInterpolation('roll', 0.5, 'in');
+    expect(rollIn.rotateX).toBeGreaterThan(0);
+
+    // scramble
+    const scrambleIn = getTokenInterpolation('scramble', 0.5, 'in');
+    expect(scrambleIn.scrambleProgress).toBe(0.5);
+  });
+
+  it('getStaggeredProgress correctly computes token progress across animation phase', () => {
+    // 3 tokens
+    const p0 = getStaggeredProgress(0.0, 0, 3);
+    expect(p0).toBe(0);
+
+    const pLastAtStart = getStaggeredProgress(0.2, 2, 3);
+    expect(pLastAtStart).toBe(0); // last token hasn't started yet
+
+    const pComplete = getStaggeredProgress(1.0, 2, 3);
+    expect(pComplete).toBe(1);
+  });
 });
+
 

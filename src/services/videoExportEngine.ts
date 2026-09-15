@@ -16,7 +16,7 @@ import {
   validateExportedBlob,
 } from '../utils/timelineDurationEngine';
 import { TextLayerOverlay } from '../types/textLayer';
-import { drawTextLayersOnCanvas } from '../utils/textLayer';
+import { drawTextLayersOnCanvas, preloadTextFonts } from '../utils/textLayer';
 import { MediaTimelineClip, getActiveMediaClipAtTime } from '../types/mediaTimeline';
 import { AudioTrackItem } from '../types/audioTrack';
 import { mixAudioTracksToWavBlob } from '../utils/audioTrackHelper';
@@ -175,6 +175,18 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   const rawMediaName = options.projectName || options.mediaName || 'mockup';
 
   console.log(`[Export Engine] Starting 60fps deterministic export: ${totalFrames} frames @ ${fps}fps (${totalDuration}s), format: ${targetFormat}`);
+
+  // Preload and ensure text fonts are loaded before offscreen canvas rendering
+  if (options.textLayers && options.textLayers.length > 0) {
+    try {
+      await preloadTextFonts(options.textLayers);
+      if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+    } catch (e) {
+      console.warn('[Export Engine] Error preloading text fonts:', e);
+    }
+  }
 
   // Preload background image if any
   let bgImgElem: HTMLImageElement | null = null;

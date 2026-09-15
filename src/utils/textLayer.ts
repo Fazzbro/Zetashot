@@ -303,10 +303,10 @@ export function getFontFamilyCanvas(family: TextFontFamily): string {
 /**
  * Preloads all custom web fonts into the browser font cache so Canvas and stage render genuine typefaces immediately.
  */
-export async function preloadTextFonts(): Promise<void> {
+export async function preloadTextFonts(layers?: TextLayerOverlay[]): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts) return;
   try {
-    await Promise.allSettled([
+    const promises: Promise<any>[] = [
       // Sora (all weights 100 to 800)
       document.fonts.load("100 32px 'Sora'"),
       document.fonts.load("200 32px 'Sora'"),
@@ -325,7 +325,17 @@ export async function preloadTextFonts(): Promise<void> {
       document.fonts.load("700 32px 'Helvetica Neue'"),
       document.fonts.load("400 32px 'Poppins'"),
       document.fonts.load("700 32px 'Poppins'"),
-    ]);
+    ];
+
+    if (layers && layers.length > 0) {
+      for (const layer of layers) {
+        const weight = layer.fontWeight || '700';
+        const family = layer.fontFamily || 'Sora';
+        promises.push(document.fonts.load(`${weight} 48px '${family}'`));
+      }
+    }
+
+    await Promise.allSettled(promises);
   } catch {}
 
   // Restore saved custom uploaded fonts
@@ -339,7 +349,7 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Draws active text layers onto an HTML5 2D canvas at a specific time.
+ * Draws active text layers onto an HTML5 2D canvas at a specific time with full motion-primitives effects.
  */
 export function drawTextLayersOnCanvas(
   ctx: CanvasRenderingContext2D,
@@ -350,38 +360,44 @@ export function drawTextLayersOnCanvas(
 ): void {
   if (!layers || layers.length === 0) return;
 
-  const scale = canvasWidth / 1920;
+  // Canonical base scale matching App.tsx stageScale (reference height = 540)
+  const scale = canvasHeight / 540;
 
   for (const layer of layers) {
     const anim = getTextLayerInterpolation(layer, currentTime);
-    if (!anim.visible || anim.opacity <= 0.001) continue;
+    if (!anim.visible) continue;
 
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, anim.opacity));
-
-    const posX = (layer.x / 100) * canvasWidth;
-    const posY = (layer.y / 100) * canvasHeight + anim.translateY * scale;
-
-    ctx.translate(posX, posY);
-    if (anim.scale !== 1) {
-      ctx.scale(anim.scale, anim.scale);
-    }
-
-    if (anim.rotateX && Math.abs(anim.rotateX) > 0.1) {
-      const rad = (anim.rotateX * Math.PI) / 180;
-      const cos = Math.cos(rad);
-      ctx.transform(1, 0, 0, Math.max(0.01, cos), 0, 0);
-    }
-
-    if (anim.blur && anim.blur > 0.1 && 'filter' in ctx) {
-      try {
-        ctx.filter = `blur(${Math.max(1, Math.round(anim.blur * scale))}px)`;
-      } catch {}
-    }
+    const isAnimating = anim.phase === 'in' || anim.phase === 'out';
+    const activeAnimType = anim.phase === 'out' ? layer.outAnimation : layer.inAnimation;
+    const scope = layer.animationScope || 'word';
 
     const fontSizePx = Math.max(12, Math.round(layer.fontSize * scale));
     const fontWeight = layer.fontWeight || '700';
     const fontCanvas = getFontFamilyCanvas(layer.fontFamily);
+
+    ctx.save();
+
+    // Layer-level anchor position
+    const posX = (layer.x / 100) * canvasWidth;
+    const globalTranslateY = isAnimating && scope === 'all' ? anim.translateY * scale : 0;
+    const posY = (layer.y / 100) * canvasHeight + globalTranslateY;
+
+    ctx.translate(posX, posY);
+
+    if (isAnimating && scope === 'all') {
+      if (anim.scale !== 1) {
+        ctx.scale(anim.scale, anim.scale);
+      }
+      if (anim.rotateX && Math.abs(anim.rotateX) > 0.1) {
+        const rad = (anim.rotateX * Math.PI) / 180;
+        ctx.transform(1, 0, 0, Math.max(0.01, Math.cos(rad)), 0, 0);
+      }
+      if (anim.blur && anim.blur > 0.5 && 'filter' in ctx) {
+        try {
+          ctx.filter = `blur(${Math.max(1, Math.round(anim.blur * scale))}px)`;
+        } catch {}
+      }
+    }
 
     ctx.font = `${fontWeight} ${fontSizePx}px ${fontCanvas}`;
     if ('letterSpacing' in ctx && typeof layer.letterSpacing === 'number') {
@@ -391,31 +407,12 @@ export function drawTextLayersOnCanvas(
     }
     ctx.textBaseline = 'middle';
 
-    const rawLines = layer.text.split('\n');
-    const isScramble = (anim.phase === 'in' ? layer.inAnimation : layer.outAnimation) === 'scramble';
-    const isShimmer = layer.inAnimation === 'shimmer' || layer.outAnimation === 'shimmer';
-
-    const lines = rawLines.map((l) => {
-      if (isScramble && anim.scrambleProgress !== undefined && anim.scrambleProgress < 1) {
-        return getScrambledString(l, anim.scrambleProgress);
-      }
-      return l;
-    });
-
     const lineMultiplier = layer.lineHeight ?? 0.95;
     const lineHeight = fontSizePx * lineMultiplier;
-    const totalTextHeight = lines.length * lineHeight;
+    const rawLines = layer.text.split('\n');
+    const totalTextHeight = rawLines.length * lineHeight;
 
-    // Measure maximum line width to accurately position aligned lines within the centered bounding box
-    let maxLineWidth = 0;
-    for (const line of lines) {
-      const metrics = ctx.measureText(line);
-      if (metrics.width > maxLineWidth) {
-        maxLineWidth = metrics.width;
-      }
-    }
-
-    // Drop shadow: only if layer.shadow is explicitly enabled (no shadow by default)
+    // Drop shadow (if enabled)
     if (layer.shadow) {
       ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
       ctx.shadowBlur = Math.round(6 * scale);
@@ -428,37 +425,167 @@ export function drawTextLayersOnCanvas(
       ctx.shadowOffsetY = 0;
     }
 
-    // Render Text Lines matching DOM bounding-box alignment
     const baseColor = layer.color || '#000000';
-    if (isShimmer && anim.shimmerOffset !== undefined) {
-      try {
-        const offsetPct = (anim.shimmerOffset % 100) / 100;
-        const grad = ctx.createLinearGradient(-maxLineWidth / 2, 0, maxLineWidth / 2, 0);
-        grad.addColorStop(0, baseColor);
-        grad.addColorStop(Math.max(0, offsetPct - 0.2), baseColor);
-        grad.addColorStop(offsetPct, '#ffffff');
-        grad.addColorStop(Math.min(1, offsetPct + 0.2), baseColor);
-        grad.addColorStop(1, baseColor);
-        ctx.fillStyle = grad;
-      } catch {
-        ctx.fillStyle = baseColor;
-      }
-    } else {
-      ctx.fillStyle = baseColor;
+    const align = layer.textAlign || 'center';
+
+    // Stagger phase progress
+    const effectiveInDur = Math.max(0.01, Math.min(layer.inDuration || 0.35, layer.duration / 2));
+    const effectiveOutDur = Math.max(0.01, Math.min(layer.outDuration || 0.35, layer.duration / 2));
+    const phaseProgress = anim.phase === 'in'
+      ? Math.max(0, Math.min(1, (currentTime - layer.startTime) / effectiveInDur))
+      : anim.phase === 'out'
+      ? Math.max(0, Math.min(1, (layer.startTime + layer.duration - currentTime) / effectiveOutDur))
+      : 1.0;
+
+    // Total tokens count for staggering
+    let totalTokens = 1;
+    if (scope === 'char') {
+      totalTokens = Math.max(1, layer.text.replace(/\s/g, '').length);
+    } else if (scope === 'word') {
+      totalTokens = Math.max(1, layer.text.trim().split(/\s+/).filter(Boolean).length);
+    } else if (scope === 'line') {
+      totalTokens = Math.max(1, rawLines.length);
     }
 
-    const align = layer.textAlign || 'center';
-    ctx.textAlign = align;
+    // Measure line widths for alignment calculation
+    const lineWidths = rawLines.map((l) => ctx.measureText(l).width);
+    const maxLineWidth = Math.max(1, ...lineWidths);
+
+    const isShimmer = layer.inAnimation === 'shimmer' || layer.outAnimation === 'shimmer';
+    let shimmerGrad: CanvasGradient | null = null;
+    if (isShimmer && anim.shimmerOffset !== undefined) {
+      try {
+        const sweepPos = -maxLineWidth / 2 + maxLineWidth * ((anim.shimmerOffset % 100) / 100);
+        const bandWidth = Math.max(40, maxLineWidth * 0.3);
+        shimmerGrad = ctx.createLinearGradient(sweepPos - bandWidth, 0, sweepPos + bandWidth, 0);
+        shimmerGrad.addColorStop(0, baseColor);
+        shimmerGrad.addColorStop(0.5, '#ffffff');
+        shimmerGrad.addColorStop(1, baseColor);
+      } catch {}
+    }
 
     const startY = -(totalTextHeight / 2) + lineHeight / 2;
-    for (let i = 0; i < lines.length; i++) {
-      let lineX = 0;
-      if (align === 'left') {
-        lineX = -maxLineWidth / 2;
+    let tokenCounter = 0;
+
+    for (let lIdx = 0; lIdx < rawLines.length; lIdx++) {
+      const line = rawLines[lIdx];
+      const lineY = startY + lIdx * lineHeight;
+      const lineWidth = lineWidths[lIdx];
+
+      let lineStartX = 0;
+      if (align === 'center') {
+        lineStartX = -lineWidth / 2;
+      } else if (align === 'left') {
+        lineStartX = -maxLineWidth / 2;
       } else if (align === 'right') {
-        lineX = maxLineWidth / 2;
+        lineStartX = maxLineWidth / 2 - lineWidth;
       }
-      ctx.fillText(lines[i], lineX, startY + i * lineHeight);
+
+      // Case A: Whole layer animation or steady state
+      if (!isAnimating || scope === 'all') {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, anim.opacity));
+        ctx.fillStyle = shimmerGrad || baseColor;
+        ctx.textAlign = 'left';
+
+        const isScramble = isAnimating && activeAnimType === 'scramble' && anim.scrambleProgress !== undefined && anim.scrambleProgress < 1;
+        const lineText = isScramble ? getScrambledString(line, anim.scrambleProgress!) : line;
+
+        ctx.fillText(lineText, lineStartX, lineY);
+        ctx.restore();
+        continue;
+      }
+
+      // Case B: Line-by-line staggered animation
+      if (scope === 'line') {
+        const lineProg = getStaggeredProgress(phaseProgress, lIdx, totalTokens);
+        const tokenAnim = getTokenInterpolation(activeAnimType, lineProg, anim.phase);
+        if (tokenAnim.opacity <= 0.001) continue;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, tokenAnim.opacity));
+        ctx.fillStyle = shimmerGrad || baseColor;
+
+        const isLineScramble = activeAnimType === 'scramble' && tokenAnim.scrambleProgress < 1;
+        const lineText = isLineScramble ? getScrambledString(line, tokenAnim.scrambleProgress, lIdx + 1) : line;
+
+        const centerX = lineStartX + lineWidth / 2;
+        const centerY = lineY + tokenAnim.translateY * scale;
+        ctx.translate(centerX, centerY);
+
+        if (tokenAnim.scale !== 1) {
+          ctx.scale(tokenAnim.scale, tokenAnim.scale);
+        }
+        if (tokenAnim.rotateX && Math.abs(tokenAnim.rotateX) > 0.1) {
+          const rad = (tokenAnim.rotateX * Math.PI) / 180;
+          ctx.transform(1, 0, 0, Math.max(0.01, Math.cos(rad)), 0, 0);
+        }
+        if (tokenAnim.blur && tokenAnim.blur > 0.5 && 'filter' in ctx) {
+          try {
+            ctx.filter = `blur(${Math.max(1, Math.round(tokenAnim.blur * scale))}px)`;
+          } catch {}
+        }
+
+        ctx.textAlign = 'center';
+        ctx.fillText(lineText, 0, 0);
+        ctx.restore();
+        continue;
+      }
+
+      // Case C: Word or Character granularity
+      const rawTokens = scope === 'char'
+        ? line.split('')
+        : line.split(/(\s+)/);
+
+      let curX = lineStartX;
+
+      for (let t = 0; t < rawTokens.length; t++) {
+        const token = rawTokens[t];
+        if (!token) continue;
+
+        // Spaces advance without animation
+        if (/^\s+$/.test(token)) {
+          curX += ctx.measureText(token).width;
+          continue;
+        }
+
+        const tIdx = tokenCounter++;
+        const tokenProg = getStaggeredProgress(phaseProgress, tIdx, totalTokens);
+        const tokenAnim = getTokenInterpolation(activeAnimType, tokenProg, anim.phase);
+
+        const isScramble = activeAnimType === 'scramble' && tokenAnim.scrambleProgress < 1;
+        const displayText = isScramble ? getScrambledString(token, tokenAnim.scrambleProgress, tIdx + 1) : token;
+        const tokenWidth = ctx.measureText(displayText).width;
+
+        if (tokenAnim.opacity > 0.001) {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, Math.min(1, tokenAnim.opacity));
+          ctx.fillStyle = shimmerGrad || baseColor;
+
+          const centerX = curX + tokenWidth / 2;
+          const centerY = lineY + tokenAnim.translateY * scale;
+          ctx.translate(centerX, centerY);
+
+          if (tokenAnim.scale !== 1) {
+            ctx.scale(tokenAnim.scale, tokenAnim.scale);
+          }
+          if (tokenAnim.rotateX && Math.abs(tokenAnim.rotateX) > 0.1) {
+            const rad = (tokenAnim.rotateX * Math.PI) / 180;
+            ctx.transform(1, 0, 0, Math.max(0.01, Math.cos(rad)), 0, 0);
+          }
+          if (tokenAnim.blur && tokenAnim.blur > 0.5 && 'filter' in ctx) {
+            try {
+              ctx.filter = `blur(${Math.max(1, Math.round(tokenAnim.blur * scale))}px)`;
+            } catch {}
+          }
+
+          ctx.textAlign = 'center';
+          ctx.fillText(displayText, 0, 0);
+          ctx.restore();
+        }
+
+        curX += tokenWidth;
+      }
     }
 
     ctx.restore();

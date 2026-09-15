@@ -5,7 +5,7 @@ import { AspectRatioType, getMockupDimensions, getStageDimensions, calculateObje
 import { WebGL3DRenderer } from './webgl3DRenderer';
 import { isCropActive, calculateCroppedDimensions } from '../utils/cropMath';
 import { TextLayerOverlay } from '../types/textLayer';
-import { drawTextLayersOnCanvas } from '../utils/textLayer';
+import { drawTextLayersOnCanvas, preloadTextFonts } from '../utils/textLayer';
 
 export interface CaptureResult {
   blob: Blob;
@@ -94,6 +94,18 @@ export class CaptureEngine {
     const format = options.format || 'png';
     const quality = options.quality || 1.0;
     const projectName = options.projectName || 'photo_mockup';
+
+    // Ensure custom and web fonts are fully loaded before rendering offscreen canvas
+    if (options.textLayers && options.textLayers.length > 0) {
+      try {
+        await preloadTextFonts(options.textLayers);
+        if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+      } catch (e) {
+        console.warn('[Capture Engine] Error preloading text fonts:', e);
+      }
+    }
 
     // 1. Output Canvas
     const canvas = document.createElement('canvas');
