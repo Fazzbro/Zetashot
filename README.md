@@ -6,7 +6,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg?style=for-the-badge)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan.svg?style=for-the-badge)](https://react.dev/)
 
-> **Live Hosted Studio**: 🌐 [**https://zetashot.netlify.app**](https://zetashot.netlify.app)
 >
 > **"Cinematic 3D Camera Mockup & Video Animation Studio for Web Apps, Screen Recordings & Presentations."**
 
