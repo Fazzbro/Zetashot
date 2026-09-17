@@ -1,3 +1,6 @@
+export type TransitionType = 'cut' | 'gradient' | 'blocks' | 'fade' | 'push' | 'zoom';
+export type TransitionScope = 'clip' | 'canvas';
+
 export interface MediaTimelineClip {
   id: string;
   mediaId: string;
@@ -13,6 +16,9 @@ export interface MediaTimelineClip {
   thumbnails?: string[];
   volume?: number; // 0.0 to 1.0
   isMuted?: boolean;
+  transition?: TransitionType;
+  transitionDuration?: number;
+  transitionScope?: TransitionScope;
 }
 
 /**
@@ -104,6 +110,7 @@ export function splitMediaClipAtTime(
     startTime: Number(cutTime.toFixed(2)),
     duration: secondDuration,
     sourceStartTime: secondSourceStartTime,
+    transition: 'cut',
   };
 
   const updated = [

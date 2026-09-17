@@ -1,4 +1,6 @@
 import { AudioTrackItem, AudioPreset, BUILTIN_AUDIO_PRESETS } from '../types/audioTrack';
+import { MediaTimelineClip } from '../types/mediaTimeline';
+import { synthesizeTransitionAudioWaveform } from './soundEffects';
 
 /**
  * Encodes an AudioBuffer into a standard, universally compliant 16-bit PCM stereo WAV Blob.
@@ -281,15 +283,20 @@ export function getActiveAudioItemsAtTime(
 }
 
 /**
- * Mixes multiple audio tracks into a single WAV Blob using OfflineAudioContext.
+ * Mixes multiple audio tracks and auto transition SFX into a single WAV Blob using OfflineAudioContext.
  * Suitable for direct muxing into FFmpeg export.
  */
 export async function mixAudioTracksToWavBlob(
   tracks: AudioTrackItem[],
-  totalDuration: number
+  totalDuration: number,
+  transitionClips?: MediaTimelineClip[]
 ): Promise<Blob | null> {
-  const activeTracks = tracks.filter((t) => !t.isMuted && t.url);
-  if (activeTracks.length === 0) return null;
+  const activeTracks = (tracks || []).filter((t) => !t.isMuted && t.url);
+  const activeTransitions = (transitionClips || []).filter(
+    (c) => c.transition === 'gradient' || c.transition === 'blocks'
+  );
+
+  if (activeTracks.length === 0 && activeTransitions.length === 0) return null;
 
   const sampleRate = 44100;
   const length = Math.max(1, Math.round(sampleRate * totalDuration));
@@ -298,17 +305,21 @@ export async function mixAudioTracksToWavBlob(
     : null;
 
   if (!OfflineCtx) {
-    try {
-      const res = await fetch(activeTracks[0].url);
-      return await res.blob();
-    } catch {
-      return null;
+    if (activeTracks.length > 0) {
+      try {
+        const res = await fetch(activeTracks[0].url);
+        return await res.blob();
+      } catch {
+        return null;
+      }
     }
+    return null;
   }
 
   try {
     const ctx = new OfflineCtx(2, length, sampleRate);
 
+    // 1. Mix background music & SFX tracks
     for (const track of activeTracks) {
       try {
         const response = await fetch(track.url);
@@ -336,16 +347,45 @@ export async function mixAudioTracksToWavBlob(
       }
     }
 
+    // 2. Mix auto transition SFX at clip transition boundaries
+    for (const clip of activeTransitions) {
+      if (!clip.transition || (clip.transition !== 'gradient' && clip.transition !== 'blocks')) continue;
+      try {
+        const pcm = synthesizeTransitionAudioWaveform(clip.transition, sampleRate, 0.5);
+        const transBuffer = ctx.createBuffer(1, pcm.length, sampleRate);
+        transBuffer.getChannelData(0).set(pcm);
+
+        const transSource = ctx.createBufferSource();
+        transSource.buffer = transBuffer;
+
+        const transGain = ctx.createGain();
+        transGain.gain.value = 0.85;
+
+        transSource.connect(transGain);
+        transGain.connect(ctx.destination);
+
+        const transStart = Math.max(0, clip.startTime - 0.25);
+        if (transStart < totalDuration) {
+          transSource.start(transStart);
+        }
+      } catch (err) {
+        console.warn(`[Audio Mixer] Failed to mix transition sound for "${clip.name}":`, err);
+      }
+    }
+
     const rendered = await ctx.startRendering();
     return audioBufferToWavBlob(rendered);
   } catch (err) {
     console.warn('[Audio Mixer] OfflineAudioContext rendering failed:', err);
-    try {
-      const res = await fetch(activeTracks[0].url);
-      return await res.blob();
-    } catch {
-      return null;
+    if (activeTracks.length > 0) {
+      try {
+        const res = await fetch(activeTracks[0].url);
+        return await res.blob();
+      } catch {
+        return null;
+      }
     }
+    return null;
   }
 }
 

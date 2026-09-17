@@ -18,6 +18,7 @@ import {
 import { TextLayerOverlay } from '../types/textLayer';
 import { drawTextLayersOnCanvas, preloadTextFonts } from '../utils/textLayer';
 import { MediaTimelineClip, getActiveMediaClipAtTime } from '../types/mediaTimeline';
+import { getMediaTransitionAtTime, drawBlockTransitionCanvas } from '../utils/transitionMath';
 import { AudioTrackItem } from '../types/audioTrack';
 import { mixAudioTracksToWavBlob } from '../utils/audioTrackHelper';
 
@@ -269,6 +270,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
     for (let f = 0; f < totalFrames; f++) {
       const time = Math.min(totalDuration, f * frameDelta);
+      const mediaTrans = getMediaTransitionAtTime(options.mediaClips || [], time);
 
       // Determine active media element and type (multi-clip vs single media)
       let activeElement: HTMLImageElement | HTMLVideoElement | null = null;
@@ -387,6 +389,38 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         frameCtx.fillText('UI Camera Mockup', frameW / 2, frameH / 2);
       }
 
+      const isClipScope = mediaTrans.scope === 'clip';
+
+      // Composite warm radiant gradient flare over media during transition (Clip Scope)
+      if (isClipScope && mediaTrans.active && mediaTrans.type === 'gradient' && mediaTrans.intensity > 0.001) {
+        frameCtx.save();
+        frameCtx.globalCompositeOperation = 'screen';
+        const transIntensity = mediaTrans.intensity;
+
+        const radGrad = frameCtx.createRadialGradient(
+          frameW * 0.5, frameH * 0.6, 0,
+          frameW * 0.5, frameH * 0.6, frameW * 0.75
+        );
+        radGrad.addColorStop(0, `rgba(255, 200, 80, ${0.95 * transIntensity})`);
+        radGrad.addColorStop(0.35, `rgba(255, 125, 45, ${0.9 * transIntensity})`);
+        radGrad.addColorStop(0.7, `rgba(255, 65, 80, ${0.75 * transIntensity})`);
+        radGrad.addColorStop(1, `rgba(255, 150, 40, ${0.45 * transIntensity})`);
+        frameCtx.fillStyle = radGrad;
+        frameCtx.fillRect(0, 0, frameW, frameH);
+
+        const linGrad = frameCtx.createLinearGradient(0, 0, frameW, frameH);
+        linGrad.addColorStop(0, `rgba(255, 140, 40, ${0.8 * transIntensity})`);
+        linGrad.addColorStop(1, `rgba(255, 90, 110, ${0.7 * transIntensity})`);
+        frameCtx.fillStyle = linGrad;
+        frameCtx.fillRect(0, 0, frameW, frameH);
+        frameCtx.restore();
+      }
+
+      // Composite block-by-block mosaic grid during blocks transition (Clip Scope)
+      if (isClipScope && mediaTrans.active && mediaTrans.type === 'blocks' && mediaTrans.progress > 0 && mediaTrans.progress < 1) {
+        drawBlockTransitionCanvas(frameCtx, frameW, frameH, mediaTrans.progress, baseScale);
+      }
+
       frameCtx.restore();
 
       // --- B. Render 3D Perspective & Depth-of-Field Bokeh with WebGL on GPU ---
@@ -415,6 +449,50 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
       // Main 3D frame pass: single crisp render with zero corner-radius ghosting
       ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+
+      const isCanvasScope = (mediaTrans.scope || 'canvas') === 'canvas';
+
+      // Full Canvas Scope Transitions (covers full export canvas including stage and background)
+      if (isCanvasScope && mediaTrans.active) {
+        if (mediaTrans.type === 'gradient' && mediaTrans.intensity > 0.001) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          const linGrad = ctx.createLinearGradient(0, 0, width, height);
+          linGrad.addColorStop(0, `rgba(255, 140, 40, ${0.85 * mediaTrans.intensity})`);
+          linGrad.addColorStop(0.5, `rgba(255, 235, 160, ${0.95 * mediaTrans.intensity})`);
+          linGrad.addColorStop(1, `rgba(255, 90, 110, ${0.75 * mediaTrans.intensity})`);
+          ctx.fillStyle = linGrad;
+          ctx.fillRect(0, 0, width, height);
+
+          const radGrad = ctx.createRadialGradient(
+            width * 0.5, height * 0.5, width * 0.1,
+            width * 0.5, height * 0.5, width * 0.7
+          );
+          radGrad.addColorStop(0, `rgba(255, 255, 255, ${0.75 * mediaTrans.intensity})`);
+          radGrad.addColorStop(0.35, `rgba(255, 180, 60, ${0.65 * mediaTrans.intensity})`);
+          radGrad.addColorStop(0.7, `rgba(255, 90, 110, ${0.45 * mediaTrans.intensity})`);
+          radGrad.addColorStop(1, 'rgba(255, 90, 110, 0)');
+          ctx.fillStyle = radGrad;
+          ctx.fillRect(0, 0, width, height);
+          ctx.restore();
+        } else if (mediaTrans.type === 'blocks' && mediaTrans.progress > 0 && mediaTrans.progress < 1) {
+          drawBlockTransitionCanvas(ctx, width, height, mediaTrans.progress, baseScale * 1.5);
+        }
+      } else if (!isCanvasScope && mediaTrans.active && mediaTrans.type === 'gradient' && mediaTrans.intensity > 0.05) {
+        // Ambient warm lighting spill around device frame during clip-scoped gradient transition
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const ambientGrad = ctx.createRadialGradient(
+          width * 0.5, height * 0.5, width * 0.15,
+          width * 0.5, height * 0.5, width * 0.65
+        );
+        ambientGrad.addColorStop(0, `rgba(255, 130, 40, ${0.35 * mediaTrans.intensity})`);
+        ambientGrad.addColorStop(0.6, `rgba(255, 80, 50, ${0.15 * mediaTrans.intensity})`);
+        ambientGrad.addColorStop(1, 'rgba(255, 80, 50, 0)');
+        ctx.fillStyle = ambientGrad;
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+      }
 
       // Text Overlays Pass (rendered with in/out animations at current frame sample time)
       if (options.textLayers && options.textLayers.length > 0) {
@@ -446,9 +524,16 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   let exportAudioBlob: Blob | null = options.audioBlob || null;
   const exportAudioVolume = options.audioVolume ?? 1.0;
 
-  if (!exportAudioBlob && options.audioTracks && options.audioTracks.length > 0) {
+  const hasTransitions = (options.mediaClips || []).some(
+    (c) => c.transition === 'gradient' || c.transition === 'blocks'
+  );
+  if (!exportAudioBlob && ((options.audioTracks && options.audioTracks.length > 0) || hasTransitions)) {
     try {
-      exportAudioBlob = await mixAudioTracksToWavBlob(options.audioTracks, totalDuration);
+      exportAudioBlob = await mixAudioTracksToWavBlob(
+        options.audioTracks || [],
+        totalDuration,
+        options.mediaClips || []
+      );
     } catch (err) {
       console.warn('[Export Engine] Audio mixing failed, proceeding with silent audio:', err);
     }

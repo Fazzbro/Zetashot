@@ -18,12 +18,13 @@ import { CaptureEngine } from './services/captureEngine';
 import { exportMockupVideo, getCameraAtTime } from './services/videoExportEngine';
 import { storageService } from './services/storageService';
 import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration, splitMediaClipAtTime } from './types/mediaTimeline';
-import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration } from './utils/keyframeMediaSyncEngine';
+import { getMediaTransitionAtTime, getBlockTransitionGrid, getBlockTileStates, drawBlockTransitionCanvas } from './utils/transitionMath';
+import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration, syncKeyframeSequenceToDuration } from './utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from './types/audioTrack';
 import { getActiveAudioItemsAtTime } from './utils/audioTrackHelper';
 import { CubicBezierValues } from './utils/bezierSolver';
 import { interpolateCameraSpline, getKeyframeTargetTime, getActiveClipAtTime } from './utils/splineInterpolation';
-import { playGearSound, setSoundEnabled as setGlobalSoundEnabled } from './utils/soundEffects';
+import { playGearSound, setSoundEnabled as setGlobalSoundEnabled, playTransitionSound } from './utils/soundEffects';
 import { getMockupDimensions, getAspectRatioCss, getStageDimensions } from './utils/aspectRatioHelper';
 import { generateVideoThumbnails } from './utils/thumbnailGenerator';
 import {
@@ -163,6 +164,7 @@ export function App() {
     mediaDurationRef.current = mediaDuration;
   }, [mediaDuration]);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [mediaLibraryMode, setMediaLibraryMode] = useState<'select' | 'add'>('select');
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -295,6 +297,116 @@ export function App() {
   useEffect(() => {
     currentTimeRef.current = currentTime;
   }, [currentTime]);
+
+  const gradientOverlayRef = useRef<HTMLDivElement | null>(null);
+  const ambientBloomRef = useRef<HTMLDivElement | null>(null);
+  const blockCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const stageGradientOverlayRef = useRef<HTMLDivElement | null>(null);
+  const stageBlockCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const playedTransitionsRef = useRef<Set<string>>(new Set());
+
+  const updateGradientTransitionVisuals = useCallback((time: number) => {
+    const trans = getMediaTransitionAtTime(mediaClipsRef.current || [], time);
+    const gradIntensity = trans.active && trans.type === 'gradient' ? trans.intensity : 0;
+    const isCanvasScope = (trans.scope || 'canvas') === 'canvas';
+
+    // 1. Warm radiant gradient transition visuals
+    if (trans.active && trans.type === 'gradient' && gradIntensity > 0.001) {
+      if (isCanvasScope) {
+        // Fill Entire Canvas Overlay (covers whole background & stage)
+        if (stageGradientOverlayRef.current) {
+          stageGradientOverlayRef.current.style.display = 'block';
+          stageGradientOverlayRef.current.style.opacity = `${gradIntensity}`;
+          stageGradientOverlayRef.current.style.background = `
+            radial-gradient(ellipse at 50% 50%, rgba(255, 235, 160, ${0.98 * gradIntensity}) 0%, rgba(255, 140, 40, ${0.85 * gradIntensity}) 35%, rgba(255, 75, 95, ${0.75 * gradIntensity}) 65%, rgba(255, 140, 40, ${0.4 * gradIntensity}) 100%),
+            linear-gradient(135deg, rgba(255, 140, 40, ${0.85 * gradIntensity}) 0%, rgba(255, 90, 110, ${0.75 * gradIntensity}) 100%)
+          `;
+          stageGradientOverlayRef.current.style.filter = `brightness(${1 + 0.45 * gradIntensity}) contrast(${1 - 0.1 * gradIntensity})`;
+        }
+        if (gradientOverlayRef.current) gradientOverlayRef.current.style.display = 'none';
+        if (ambientBloomRef.current) ambientBloomRef.current.style.display = 'none';
+      } else {
+        // Constrain to Clip Only inside mockup frame
+        if (gradientOverlayRef.current) {
+          gradientOverlayRef.current.style.display = 'block';
+          gradientOverlayRef.current.style.opacity = `${gradIntensity}`;
+          gradientOverlayRef.current.style.background = `
+            radial-gradient(ellipse at 50% 60%, rgba(255, 200, 80, ${0.95 * gradIntensity}) 0%, rgba(255, 125, 45, ${0.9 * gradIntensity}) 35%, rgba(255, 65, 80, ${0.75 * gradIntensity}) 70%, rgba(255, 150, 40, ${0.45 * gradIntensity}) 100%),
+            linear-gradient(135deg, rgba(255, 140, 40, ${0.8 * gradIntensity}) 0%, rgba(255, 90, 110, ${0.7 * gradIntensity}) 100%)
+          `;
+          gradientOverlayRef.current.style.filter = `brightness(${1 + 0.4 * gradIntensity}) contrast(${1 - 0.15 * gradIntensity})`;
+        }
+        if (ambientBloomRef.current) {
+          ambientBloomRef.current.style.display = 'block';
+          ambientBloomRef.current.style.opacity = `${gradIntensity}`;
+          ambientBloomRef.current.style.background = `radial-gradient(circle at 50% 50%, rgba(255, 130, 40, ${0.55 * gradIntensity}) 0%, rgba(255, 80, 50, ${0.35 * gradIntensity}) 50%, transparent 75%)`;
+        }
+        if (stageGradientOverlayRef.current) stageGradientOverlayRef.current.style.display = 'none';
+      }
+    } else {
+      if (gradientOverlayRef.current) {
+        gradientOverlayRef.current.style.display = 'none';
+        gradientOverlayRef.current.style.opacity = '0';
+      }
+      if (ambientBloomRef.current) {
+        ambientBloomRef.current.style.display = 'none';
+        ambientBloomRef.current.style.opacity = '0';
+      }
+      if (stageGradientOverlayRef.current) {
+        stageGradientOverlayRef.current.style.display = 'none';
+        stageGradientOverlayRef.current.style.opacity = '0';
+      }
+    }
+
+    // 2. Block-by-Block mosaic grid transition visuals
+    if (trans.active && trans.type === 'blocks' && trans.progress > 0 && trans.progress < 1) {
+      if (isCanvasScope) {
+        // Full Stage Canvas Block Transition
+        const stageCanvas = stageBlockCanvasRef.current;
+        if (stageCanvas) {
+          stageCanvas.style.display = 'block';
+          const sCtx = stageCanvas.getContext('2d');
+          if (sCtx) {
+            sCtx.clearRect(0, 0, stageCanvas.width, stageCanvas.height);
+            drawBlockTransitionCanvas(sCtx, stageCanvas.width, stageCanvas.height, trans.progress, 1.25);
+          }
+        }
+        if (blockCanvasRef.current) {
+          blockCanvasRef.current.style.display = 'none';
+        }
+      } else {
+        // Clip Only Block Transition inside Mockup
+        const clipCanvas = blockCanvasRef.current;
+        if (clipCanvas) {
+          clipCanvas.style.display = 'block';
+          const cCtx = clipCanvas.getContext('2d');
+          if (cCtx) {
+            cCtx.clearRect(0, 0, clipCanvas.width, clipCanvas.height);
+            drawBlockTransitionCanvas(cCtx, clipCanvas.width, clipCanvas.height, trans.progress, 1.0);
+          }
+        }
+        if (stageBlockCanvasRef.current) {
+          stageBlockCanvasRef.current.style.display = 'none';
+        }
+      }
+    } else {
+      if (blockCanvasRef.current) {
+        blockCanvasRef.current.style.display = 'none';
+      }
+      if (stageBlockCanvasRef.current) {
+        stageBlockCanvasRef.current.style.display = 'none';
+      }
+    }
+
+    // 3. Auto SFX Triggering during Playback
+    if (isPlayingRef.current && trans.active && (trans.type === 'gradient' || trans.type === 'blocks')) {
+      const transKey = `${trans.cutTime.toFixed(2)}_${trans.type}`;
+      if (!playedTransitionsRef.current.has(transKey) && trans.progress >= 0.15 && trans.progress <= 0.65) {
+        playedTransitionsRef.current.add(transKey);
+        playTransitionSound(trans.type);
+      }
+    }
+  }, []);
 
   // Generate timeline filmstrip thumbnails for video media
   useEffect(() => {
@@ -740,7 +852,8 @@ export function App() {
     if (frameSceneRef.current) {
       frameSceneRef.current.style.transform = calculate3DTransform(interpolated, stageScaleRef.current);
     }
-  }, []);
+    updateGradientTransitionVisuals(time);
+  }, [updateGradientTransitionVisuals]);
 
   // Master Timeline Playback Animation Loop (Frame-Accurate & Zero-Drift)
   useEffect(() => {
@@ -770,13 +883,16 @@ export function App() {
           player.pause();
           player.currentTime = 0;
         });
+        playedTransitionsRef.current.clear();
         currentTimeRef.current = 0;
         setCurrentTime(0);
+        updateGradientTransitionVisuals(0);
         return;
       }
 
       currentTimeRef.current = nextTime;
       setCurrentTime(nextTime);
+      updateGradientTransitionVisuals(nextTime);
 
       // Multi-Clip active switch on stage
       if (mediaClipsRef.current.length > 0) {
@@ -994,6 +1110,61 @@ export function App() {
     window.addEventListener('mouseup', handleMouseUp);
   };
 
+  // Append a new media item to the multi-clip sequence
+  const handleAddMediaClip = useCallback((item: MediaItem) => {
+    const isVideo = item.type === 'video';
+    const dur = isVideo ? 4.0 : 3.0;
+
+    // Ensure item is registered in library list
+    setMediaList((prev) => {
+      if (prev.some((m) => m.id === item.id || (m.url && m.url === item.url))) {
+        return prev;
+      }
+      return [item, ...prev.filter((m) => m.id !== 'blank-media')];
+    });
+
+    setMediaClips((prev) => {
+      const nextStart = calculateMediaSequenceDuration(prev);
+      const newClip: MediaTimelineClip = {
+        id: `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        mediaId: item.id,
+        name: item.name,
+        type: item.type,
+        url: item.url,
+        startTime: nextStart,
+        duration: dur,
+        transition: prev.length > 0 ? 'gradient' : undefined,
+      };
+      const updated = [...prev, newClip];
+      const newSeqDur = calculateMediaSequenceDuration(updated);
+      setMediaDuration(newSeqDur);
+      mediaDurationRef.current = newSeqDur;
+      if (newSeqDur > totalDurationRef.current) {
+        setTotalDuration(Math.max(12.0, Math.ceil(newSeqDur)));
+        totalDurationRef.current = Math.max(12.0, Math.ceil(newSeqDur));
+      }
+      setSelectedMediaClipId(newClip.id);
+      return updated;
+    });
+
+    // Synchronize keyframe sequence duration if needed
+    setClips((prevClips) => {
+      const currentMediaDur = calculateMediaSequenceDuration(mediaClipsRef.current) + dur;
+      const keyframeSeqDur = prevClips.reduce((acc, c) => acc + (c.duration || 1.5), 0);
+      if (currentMediaDur > keyframeSeqDur) {
+        return syncKeyframeSequenceToDuration(prevClips, 0, prevClips.length, currentMediaDur);
+      }
+      return prevClips;
+    });
+
+    if (isVideo) {
+      setStudioMode('video');
+      const tempVid = document.createElement('video');
+      tempVid.preload = 'metadata';
+      tempVid.src = item.url;
+    }
+  }, []);
+
   // Upload user file
   const handleUploadFile = (file: File) => {
     const isVideo = file.type.startsWith('video');
@@ -1006,43 +1177,47 @@ export function App() {
       dimensions: 'Custom Media',
       format: file.name.split('.').pop()?.toUpperCase() || 'FILE',
     };
-    setIsComposed(false);
-    isComposedRef.current = false;
-    setInterestRegions([]);
-    setMediaList((prev) => [newItem, ...prev.filter((item) => item.id !== 'blank-media')]);
-    setActiveMedia(newItem);
-    setCropRect({ x: 0, y: 0, width: 100, height: 100 });
 
-    setMediaClips((prev) => {
-      const dur = isVideo ? 4.0 : 3.0;
-      if (prev.length <= 1) {
-        return [
-          {
-            id: `clip_${Date.now()}`,
-            mediaId: newItem.id,
-            name: newItem.name,
-            type: newItem.type,
-            url: newItem.url,
-            startTime: 0,
-            duration: dur,
-          },
-        ];
-      } else {
-        const nextStart = calculateMediaSequenceDuration(prev);
-        return [
-          ...prev,
-          {
-            id: `clip_${Date.now()}`,
-            mediaId: newItem.id,
-            name: newItem.name,
-            type: newItem.type,
-            url: newItem.url,
-            startTime: nextStart,
-            duration: dur,
-          },
-        ];
-      }
-    });
+    setMediaList((prev) => [newItem, ...prev.filter((item) => item.id !== 'blank-media')]);
+
+    if (mediaLibraryMode === 'add') {
+      handleAddMediaClip(newItem);
+    } else {
+      setIsComposed(false);
+      isComposedRef.current = false;
+      setInterestRegions([]);
+      setActiveMedia(newItem);
+      setCropRect({ x: 0, y: 0, width: 100, height: 100 });
+
+      setMediaClips((prev) => {
+        const dur = isVideo ? 4.0 : 3.0;
+        if (prev.length === 0) {
+          return [
+            {
+              id: `clip_${Date.now()}`,
+              mediaId: newItem.id,
+              name: newItem.name,
+              type: newItem.type,
+              url: newItem.url,
+              startTime: 0,
+              duration: dur,
+            },
+          ];
+        }
+        if (selectedMediaClipId) {
+          return prev.map((c) =>
+            c.id === selectedMediaClipId
+              ? { ...c, mediaId: newItem.id, name: newItem.name, type: newItem.type, url: newItem.url }
+              : c
+          );
+        }
+        return prev.map((c, idx) =>
+          idx === 0
+            ? { ...c, mediaId: newItem.id, name: newItem.name, type: newItem.type, url: newItem.url }
+            : c
+        );
+      });
+    }
 
     if (isVideo) {
       setStudioMode('video');
@@ -1224,7 +1399,10 @@ export function App() {
           type="button"
           className="top-pill-btn"
           data-guide="add-media"
-          onClick={() => setIsMediaLibraryOpen(true)}
+          onClick={() => {
+            setMediaLibraryMode('add');
+            setIsMediaLibraryOpen(true);
+          }}
         >
           <Plus size={14} />
           <span>Add media</span>
@@ -1365,7 +1543,14 @@ export function App() {
         onClose={() => setIsMediaLibraryOpen(false)}
         activeMediaId={activeMedia.id}
         mediaItems={mediaList}
+        mode={mediaLibraryMode}
+        onModeChange={setMediaLibraryMode}
+        onAddMediaClip={handleAddMediaClip}
         onSelectMedia={(item) => {
+          if (mediaLibraryMode === 'add') {
+            handleAddMediaClip(item);
+            return;
+          }
           setIsComposed(false);
           isComposedRef.current = false;
           setInterestRegions([]);
@@ -1376,10 +1561,10 @@ export function App() {
 
           setMediaClips((prev) => {
             const dur = item.type === 'video' ? 4.0 : 3.0;
-            if (prev.length <= 1) {
+            if (prev.length === 0) {
               return [
                 {
-                  id: prev[0]?.id || `clip_${Date.now()}`,
+                  id: `clip_${Date.now()}`,
                   mediaId: item.id,
                   name: item.name,
                   type: item.type,
@@ -1388,21 +1573,19 @@ export function App() {
                   duration: dur,
                 },
               ];
-            } else {
-              const nextStart = calculateMediaSequenceDuration(prev);
-              return [
-                ...prev,
-                {
-                  id: `clip_${Date.now()}`,
-                  mediaId: item.id,
-                  name: item.name,
-                  type: item.type,
-                  url: item.url,
-                  startTime: nextStart,
-                  duration: dur,
-                },
-              ];
             }
+            if (selectedMediaClipId) {
+              return prev.map((c) =>
+                c.id === selectedMediaClipId
+                  ? { ...c, mediaId: item.id, name: item.name, type: item.type, url: item.url }
+                  : c
+              );
+            }
+            return prev.map((c, idx) =>
+              idx === 0
+                ? { ...c, mediaId: item.id, name: item.name, type: item.type, url: item.url }
+                : c
+            );
           });
         }}
         onUploadFile={handleUploadFile}
@@ -1447,6 +1630,13 @@ export function App() {
             onMouseDown={handleSceneMouseDown}
             style={{ perspective: `${(camera.perspective || 1000) * stageScale}px` }}
           >
+            {/* Ambient warm lighting spill around device frame during gradient transition */}
+            <div
+              ref={ambientBloomRef}
+              className="gradient-transition-ambient-bloom"
+              style={{ display: 'none', opacity: 0 }}
+            />
+
             {/* 3D Rotated Frame Scene with zero-stutter dynamic transition */}
             <div
               ref={frameSceneRef}
@@ -1564,6 +1754,21 @@ export function App() {
                     }}
                   />
                 )}
+
+                {/* Warm radiant gradient flare overlay over media during transition */}
+                <div
+                  ref={gradientOverlayRef}
+                  className="gradient-transition-screen-overlay"
+                  style={{ display: 'none', opacity: 0 }}
+                />
+
+                {/* Block-by-Block mosaic transition canvas overlay */}
+                <canvas
+                  ref={blockCanvasRef}
+                  className="block-transition-canvas-overlay"
+                  width={1280}
+                  height={720}
+                />
               </div>
             </div>
           </div>
@@ -1607,6 +1812,20 @@ export function App() {
             }
             stageScale={stageScale}
             isPlaying={isPlaying}
+          />
+
+          {/* Full Stage Canvas Transition Overlays (active when Coverage is Fill Canvas) */}
+          <div
+            ref={stageGradientOverlayRef}
+            className="stage-gradient-transition-overlay"
+            style={{ display: 'none', opacity: 0 }}
+          />
+          <canvas
+            ref={stageBlockCanvasRef}
+            className="stage-block-transition-canvas"
+            width={1920}
+            height={1080}
+            style={{ display: 'none' }}
           />
         </div>
       </div>
@@ -1668,7 +1887,10 @@ export function App() {
             exportFps={exportFps}
             onExportFpsChange={setExportFps}
             onOpenCrop={() => setIsCropModalOpen(true)}
-            onOpenMediaLibrary={() => setIsMediaLibraryOpen(true)}
+            onOpenMediaLibrary={(mode = 'select') => {
+              setMediaLibraryMode(mode);
+              setIsMediaLibraryOpen(true);
+            }}
             easingValues={easingValues}
             onEasingValuesChange={setEasingValues}
             onCompose={handleCompose}
@@ -1770,6 +1992,7 @@ export function App() {
         activeMediaName={activeMedia.name}
         isMediaLibraryOpen={isMediaLibraryOpen}
         onOpenMediaLibrary={() => {
+          setMediaLibraryMode('select');
           setIsMediaLibraryOpen(true);
           if (guideStepIndex === 0) setGuideStepIndex(1);
         }}

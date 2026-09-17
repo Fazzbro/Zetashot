@@ -26,7 +26,7 @@ import {
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
 import { CubicBezierValues } from '../utils/bezierSolver';
-import { TransitionType } from '../utils/transitionMath';
+import { TransitionType, TransitionScope } from '../types/mediaTimeline';
 import { getKeyframeTimesForGroup } from '../utils/splineInterpolation';
 import { TextLayerOverlay } from '../types/textLayer';
 import { createDefaultTextLayer } from '../utils/textLayer';
@@ -75,7 +75,7 @@ interface VideoTimelineProps {
   exportFps?: 24 | 30 | 60;
   onExportFpsChange?: (fps: 24 | 30 | 60) => void;
   onOpenCrop: () => void;
-  onOpenMediaLibrary: () => void;
+  onOpenMediaLibrary: (mode?: 'select' | 'add') => void;
   easingValues: CubicBezierValues;
   onEasingValuesChange: (vals: CubicBezierValues) => void;
   onCompose?: () => void;
@@ -170,6 +170,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   // Popovers for Transitions
   const [activeTransitionPopover, setActiveTransitionPopover] = useState<{
     type: 'start' | 'exit';
+    clipId: string;
+  } | null>(null);
+  const [activeMediaTransitionPopover, setActiveMediaTransitionPopover] = useState<{
     clipId: string;
   } | null>(null);
 
@@ -987,6 +990,35 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     setActiveTransitionPopover(null);
   };
 
+  const handleUpdateMediaTransition = (clipId: string, trans: TransitionType) => {
+    if (!mediaClipsRef.current || !onMediaClipsChange) return;
+    const updated = mediaClipsRef.current.map((c) => {
+      if (c.id === clipId) {
+        return {
+          ...c,
+          transition: trans,
+          transitionScope: c.transitionScope || 'canvas',
+        };
+      }
+      return c;
+    });
+    onMediaClipsChange(updated);
+    if (trans === 'cut') {
+      setActiveMediaTransitionPopover(null);
+    }
+  };
+
+  const handleUpdateMediaTransitionScope = (clipId: string, scope: TransitionScope) => {
+    if (!mediaClipsRef.current || !onMediaClipsChange) return;
+    const updated = mediaClipsRef.current.map((c) => {
+      if (c.id === clipId) {
+        return { ...c, transitionScope: scope };
+      }
+      return c;
+    });
+    onMediaClipsChange(updated);
+  };
+
   const progressPercent = Math.max(0, Math.min(100, (currentTime / rulerDuration) * 100));
 
   // Group clips into multi-set sequence blocks
@@ -1034,6 +1066,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       onClick={() => {
         setShowEasingModal(false);
         setActiveTransitionPopover(null);
+        setActiveMediaTransitionPopover(null);
       }}
     >
       {/* 1. Top Action Controls */}
@@ -1044,7 +1077,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             className="timeline-tool-btn is-media-thumb"
             onClick={(e) => {
               e.stopPropagation();
-              onOpenMediaLibrary();
+              onOpenMediaLibrary('select');
             }}
             title="Replace Media / Open Media Library"
           >
@@ -1410,16 +1443,16 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                                     </button>
                                   </div>
                                   <div className="popover-pills-row">
-                                    {(['cut', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
+                                    {(['cut', 'gradient', 'blocks', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
                                       const isCurrent = (subClip.transition || 'cut') === t;
                                       return (
                                         <button
                                           key={t}
                                           type="button"
-                                          className={`transition-option-pill ${isCurrent ? 'is-selected-pill' : ''}`}
+                                          className={`transition-option-pill ${t === 'gradient' ? 'is-gradient-pill' : t === 'blocks' ? 'is-blocks-pill' : ''} ${isCurrent ? 'is-selected-pill' : ''}`}
                                           onClick={() => handleUpdateTransition(subClip.id, 'start', t)}
                                         >
-                                          {t.toUpperCase()}
+                                          {t === 'blocks' ? '▦ BLOCKS' : t.toUpperCase()}
                                         </button>
                                       );
                                     })}
@@ -1469,16 +1502,16 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                                     </button>
                                   </div>
                                   <div className="popover-pills-row">
-                                    {(['cut', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
+                                    {(['cut', 'gradient', 'blocks', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
                                       const isCurrent = (subClip.exitTransition || 'cut') === t;
                                       return (
                                         <button
                                           key={t}
                                           type="button"
-                                          className={`transition-option-pill ${isCurrent ? 'is-selected-pill' : ''}`}
+                                          className={`transition-option-pill ${t === 'gradient' ? 'is-gradient-pill' : t === 'blocks' ? 'is-blocks-pill' : ''} ${isCurrent ? 'is-selected-pill' : ''}`}
                                           onClick={() => handleUpdateTransition(subClip.id, 'exit', t)}
                                         >
-                                          {t.toUpperCase()}
+                                          {t === 'blocks' ? '▦ BLOCKS' : t.toUpperCase()}
                                         </button>
                                       );
                                     })}
@@ -1608,16 +1641,16 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                             </button>
                           </div>
                           <div className="popover-pills-row">
-                            {(['cut', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
+                            {(['cut', 'gradient', 'blocks', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
                               const isCurrent = (c.transition || 'cut') === t;
                               return (
                                 <button
                                   key={t}
                                   type="button"
-                                  className={`transition-option-pill ${isCurrent ? 'is-selected-pill' : ''}`}
+                                  className={`transition-option-pill ${t === 'gradient' ? 'is-gradient-pill' : t === 'blocks' ? 'is-blocks-pill' : ''} ${isCurrent ? 'is-selected-pill' : ''}`}
                                   onClick={() => handleUpdateTransition(c.id, 'start', t)}
                                 >
-                                  {t.toUpperCase()}
+                                  {t === 'blocks' ? '▦ BLOCKS' : t.toUpperCase()}
                                 </button>
                               );
                             })}
@@ -1881,74 +1914,181 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           {/* BOTTOM ROW: Multi-Clip Media Track or Single Media Shot Strip */}
           {mediaClips && mediaClips.length > 0 ? (
             <div className="timeline-multiclip-track" data-testid="timeline-multiclip-track">
-              {mediaClips.map((mClip) => {
+              {mediaClips.map((mClip, idx) => {
                 const isSelected = mClip.id === selectedMediaClipId;
                 const leftPct = (mClip.startTime / rulerDuration) * 100;
                 const widthPct = Math.min(100 - leftPct, (mClip.duration / rulerDuration) * 100);
 
                 return (
-                  <div
-                    key={mClip.id}
-                    className={`multiclip-card ${isSelected ? 'is-active-clip' : ''}`}
-                    style={{
-                      left: `${leftPct}%`,
-                      width: `${widthPct}%`,
-                      minWidth: '70px',
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectMediaClip?.(mClip.id);
-                      onSeek(mClip.startTime);
-                    }}
-                    title={`Clip: ${mClip.name} (${mClip.duration.toFixed(1)}s) - Drag edges to trim`}
-                  >
-                    {/* Left Trim Handle */}
-                    <div
-                      className="sequence-drag-handle handle-left"
-                      title="Trim clip start"
-                      onPointerDown={(e) => startMediaClipResize(e, mClip.id, 'left')}
-                    />
-
-                    <div className="multiclip-card-content">
+                  <React.Fragment key={mClip.id}>
+                    {/* Transition junction badge between adjacent clips */}
+                    {idx > 0 && (
                       <div
-                        className="multiclip-thumb-preview"
-                        style={
-                          mClip.thumbnails?.[0] || (mClip.type === 'image' ? mClip.url : undefined)
-                            ? { backgroundImage: `url(${mClip.thumbnails?.[0] || mClip.url})` }
-                            : {}
-                        }
+                        className="multiclip-transition-junction-container"
+                        style={{ left: `${leftPct}%` }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {mClip.type === 'video' ? (
-                          <Video size={10} color="#94a3b8" />
-                        ) : (
-                          <ImageIcon size={10} color="#94a3b8" />
+                        <button
+                          type="button"
+                          className={`multiclip-transition-btn ${
+                            mClip.transition && mClip.transition !== 'cut' ? 'has-transition' : ''
+                          } ${mClip.transition === 'gradient' ? 'is-gradient-transition' : ''} ${
+                            mClip.transition === 'blocks' ? 'is-blocks-transition' : ''
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMediaTransitionPopover(
+                              activeMediaTransitionPopover?.clipId === mClip.id ? null : { clipId: mClip.id }
+                            );
+                          }}
+                          title={`Transition to ${mClip.name}: ${mClip.transition || 'cut'} (${(mClip.transitionScope || 'canvas') === 'canvas' ? 'Fill Canvas' : 'Clip Only'})`}
+                        >
+                          {mClip.transition === 'gradient' ? (
+                            <span className="transition-badge-fx-label">
+                              ⚡ Grad{mClip.transitionScope === 'clip' ? ' • Clip' : ''}
+                            </span>
+                          ) : mClip.transition === 'blocks' ? (
+                            <span className="transition-badge-fx-label">
+                              ▦ Blocks{mClip.transitionScope === 'clip' ? ' • Clip' : ''}
+                            </span>
+                          ) : mClip.transition && mClip.transition !== 'cut' ? (
+                            <span className="transition-badge-fx-label">
+                              {mClip.transition.toUpperCase()}{mClip.transitionScope === 'clip' ? ' • Clip' : ''}
+                            </span>
+                          ) : (
+                            <span className="transition-badge-cut-icon">⧗</span>
+                          )}
+                        </button>
+
+                        {/* Media Transition Popover Card */}
+                        {activeMediaTransitionPopover?.clipId === mClip.id && (
+                          <div className="transition-popover-card is-media-transition-popover" onClick={(e) => e.stopPropagation()}>
+                            <div className="popover-header-row">
+                              <span className="popover-title-label">TRANSITION</span>
+                              <span className="popover-current-name">
+                                {mClip.transition ? mClip.transition.charAt(0).toUpperCase() + mClip.transition.slice(1) : 'Cut'}
+                              </span>
+                              <button
+                                type="button"
+                                className="popover-trash-icon-btn"
+                                onClick={() => handleUpdateMediaTransition(mClip.id, 'cut')}
+                                title="Reset transition"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                            <div className="popover-pills-row">
+                              {(['cut', 'gradient', 'blocks', 'fade', 'push', 'zoom'] as TransitionType[]).map((t) => {
+                                const isCurrent = (mClip.transition || 'cut') === t;
+                                return (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    className={`transition-option-pill ${t === 'gradient' ? 'is-gradient-pill' : t === 'blocks' ? 'is-blocks-pill' : ''} ${isCurrent ? 'is-selected-pill' : ''}`}
+                                    onClick={() => handleUpdateMediaTransition(mClip.id, t)}
+                                  >
+                                    {t === 'blocks' ? '▦ BLOCKS' : t.toUpperCase()}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Coverage Selector: Fill Canvas vs Clip Only */}
+                            {mClip.transition && mClip.transition !== 'cut' && (
+                              <div className="popover-scope-section">
+                                <div className="popover-scope-header">
+                                  <span className="popover-scope-label">COVERAGE</span>
+                                  <span className="popover-scope-sublabel">
+                                    {(mClip.transitionScope || 'canvas') === 'canvas' ? 'Fill Canvas' : 'Clip Only'}
+                                  </span>
+                                </div>
+                                <div className="popover-scope-pills-row">
+                                  <button
+                                    type="button"
+                                    className={`transition-scope-pill ${(mClip.transitionScope || 'canvas') === 'canvas' ? 'is-selected-pill' : ''}`}
+                                    onClick={() => handleUpdateMediaTransitionScope(mClip.id, 'canvas')}
+                                    title="Fill entire canvas including stage and background"
+                                  >
+                                    ⛶ Fill Canvas
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`transition-scope-pill ${mClip.transitionScope === 'clip' ? 'is-selected-pill' : ''}`}
+                                    onClick={() => handleUpdateMediaTransitionScope(mClip.id, 'clip')}
+                                    title="Constrain transition effect inside the clip / device frame only"
+                                  >
+                                    ◻ Clip Only
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <span className="multiclip-card-name">{mClip.name}</span>
-                      <span className="multiclip-card-dur">{mClip.duration.toFixed(1)}s</span>
-                    </div>
-
-                    {mediaClips.length > 1 && (
-                      <button
-                        type="button"
-                        className="multiclip-delete-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteMediaClip(mClip.id);
-                        }}
-                        title="Remove clip from sequence"
-                      >
-                        <Trash2 size={11} />
-                      </button>
                     )}
 
-                    {/* Right Trim Handle */}
                     <div
-                      className="sequence-drag-handle handle-right"
-                      title="Trim clip duration"
-                      onPointerDown={(e) => startMediaClipResize(e, mClip.id, 'right')}
-                    />
-                  </div>
+                      className={`multiclip-card ${isSelected ? 'is-active-clip' : ''}`}
+                      style={{
+                        left: `${leftPct}%`,
+                        width: `${widthPct}%`,
+                        minWidth: '70px',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectMediaClip?.(mClip.id);
+                        onSeek(mClip.startTime);
+                      }}
+                      title={`Clip: ${mClip.name} (${mClip.duration.toFixed(1)}s) - Drag edges to trim`}
+                    >
+                      {/* Left Trim Handle */}
+                      <div
+                        className="sequence-drag-handle handle-left"
+                        title="Trim clip start"
+                        onPointerDown={(e) => startMediaClipResize(e, mClip.id, 'left')}
+                      />
+
+                      <div className="multiclip-card-content">
+                        <div
+                          className="multiclip-thumb-preview"
+                          style={
+                            mClip.thumbnails?.[0] || (mClip.type === 'image' ? mClip.url : undefined)
+                              ? { backgroundImage: `url(${mClip.thumbnails?.[0] || mClip.url})` }
+                              : {}
+                          }
+                        >
+                          {mClip.type === 'video' ? (
+                            <Video size={10} color="#94a3b8" />
+                          ) : (
+                            <ImageIcon size={10} color="#94a3b8" />
+                          )}
+                        </div>
+                        <span className="multiclip-card-name">{mClip.name}</span>
+                        <span className="multiclip-card-dur">{mClip.duration.toFixed(1)}s</span>
+                      </div>
+
+                      {mediaClips.length > 1 && (
+                        <button
+                          type="button"
+                          className="multiclip-delete-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMediaClip(mClip.id);
+                          }}
+                          title="Remove clip from sequence"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+
+                      {/* Right Trim Handle */}
+                      <div
+                        className="sequence-drag-handle handle-right"
+                        title="Trim clip duration"
+                        onPointerDown={(e) => startMediaClipResize(e, mClip.id, 'right')}
+                      />
+                    </div>
+                  </React.Fragment>
                 );
               })}
 
@@ -1965,7 +2105,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     style={{ left: `${nextLeftPct}%` }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onOpenMediaLibrary();
+                      onOpenMediaLibrary('add');
                     }}
                     title="Add another video or image clip to sequence"
                   >
