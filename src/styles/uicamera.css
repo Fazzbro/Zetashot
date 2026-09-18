@@ -180,7 +180,12 @@
 }
 
 .studio-root:has(.ui-camera-timeline-tray) .stage-wrap {
-  padding-bottom: 270px;
+  padding-bottom: calc(var(--timeline-height, 172px) + 84px);
+}
+
+.studio-root:has(.ui-camera-timeline-tray) .capture-stage {
+  height: min(calc(100vh - var(--timeline-height, 172px) - 150px), 540px);
+  max-height: calc(100vh - var(--timeline-height, 172px) - 130px);
 }
 
 .capture-stage {
@@ -486,7 +491,7 @@
 }
 
 .bottom-studio-controls-slot.has-timeline {
-  bottom: 220px;
+  bottom: calc(var(--timeline-height, 172px) + 16px);
 }
 
 .bottom-chrome-row {

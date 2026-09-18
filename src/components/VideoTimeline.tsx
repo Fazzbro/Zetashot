@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   Crop,
   Spline,
@@ -148,7 +148,35 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   onSelectAudioTrack,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const trayRef = useRef<HTMLDivElement | null>(null);
   const [showFormatMenu, setShowFormatMenu] = useState(false);
+
+  // Dynamically sync timeline tray height to CSS variable --timeline-height
+  // Ensures floating control panel (CameraControlsIsland) and canvas stage adapt seamlessly
+  // when extra tracks (SFX, music, text overlays, multi-clips) are added or removed
+  useLayoutEffect(() => {
+    const el = trayRef.current;
+    if (!el) return;
+
+    const syncHeight = () => {
+      const h = el.offsetHeight;
+      if (h > 0) {
+        document.documentElement.style.setProperty('--timeline-height', `${h}px`);
+      }
+    };
+
+    syncHeight();
+
+    const ro = new ResizeObserver(() => {
+      syncHeight();
+    });
+    ro.observe(el);
+
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--timeline-height');
+    };
+  }, []);
   const [showEasingModal, setShowEasingModal] = useState(false);
   const [isAudioManagerOpen, setIsAudioManagerOpen] = useState(false);
   const [activeVolumePopoverTrackId, setActiveVolumePopoverTrackId] = useState<string | null>(null);
@@ -1126,6 +1154,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
   return (
     <div
+      ref={trayRef}
       className="ui-camera-timeline-tray"
       onClick={() => {
         setShowEasingModal(false);
