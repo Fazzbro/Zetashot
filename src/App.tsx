@@ -17,9 +17,9 @@ import { BackgroundConfig, generateBackgroundCss } from './utils/gradientUtils';
 import { CaptureEngine } from './services/captureEngine';
 import { exportMockupVideo, getCameraAtTime } from './services/videoExportEngine';
 import { storageService } from './services/storageService';
-import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration, splitMediaClipAtTime } from './types/mediaTimeline';
+import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration, splitMediaClipAtTime, sequenceClipsContiguously } from './types/mediaTimeline';
 import { getMediaTransitionAtTime, getBlockTransitionGrid, getBlockTileStates, drawBlockTransitionCanvas } from './utils/transitionMath';
-import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration, syncKeyframeSequenceToDuration } from './utils/keyframeMediaSyncEngine';
+import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration, syncKeyframeSequenceToDuration, generateKeyframesForNewMediaClip } from './utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from './types/audioTrack';
 import { getActiveAudioItemsAtTime } from './utils/audioTrackHelper';
 import { CubicBezierValues } from './utils/bezierSolver';
@@ -486,11 +486,38 @@ export function App() {
   // 13. Shareable Hosted Link State
   const [isCopiedLink, setIsCopiedLink] = useState(false);
 
-  const handleShareLink = () => {
-    navigator.clipboard.writeText('https://zetashot.netlify.app');
-    setIsCopiedLink(true);
-    confetti({ particleCount: 30, spread: 60, origin: { y: 0.1, x: 0.85 } });
-    setTimeout(() => setIsCopiedLink(false), 2500);
+  const getShareUrl = () => {
+    if (typeof window !== 'undefined' && window.location.origin) {
+      const origin = window.location.origin;
+      if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+        return origin;
+      }
+    }
+    return 'https://zetashot.vercel.app';
+  };
+
+  const handleShareLink = async () => {
+    const url = getShareUrl();
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setIsCopiedLink(true);
+      confetti({ particleCount: 30, spread: 60, origin: { y: 0.1, x: 0.85 } });
+      setTimeout(() => setIsCopiedLink(false), 2500);
+    } catch {
+      // Fallback silently if clipboard is restricted
+    }
   };
 
   // When selected clip changes, load its camera angle and seek to its keyframe point (0s for 1st set, 3s for 2nd set)
@@ -600,8 +627,9 @@ export function App() {
         const computedRate = calculatePlaybackRate(naturalDur, clamped);
         videoRef.current.playbackRate = computedRate;
       }
-      // Also ensure mediaClips duration is synchronized
-      if (mediaClipsRef.current.length > 0) {
+      // Also ensure mediaClips duration is synchronized (only for single media clip!)
+      // For multi-clip sequences, each clip preserves its independent length.
+      if (mediaClipsRef.current.length === 1) {
         const naturalDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
           ? videoRef.current.duration
           : clamped;
@@ -622,31 +650,104 @@ export function App() {
       setTotalDuration(12.0);
       totalDurationRef.current = 12.0;
 
-      // Media duration extends/syncs to composedDuration (e.g. 4.0s)
-      setMediaDuration(composedDuration);
-      mediaDurationRef.current = composedDuration;
+      const targetClipIdx = selectedMediaClipId
+        ? mediaClipsRef.current.findIndex((c) => c.id === selectedMediaClipId)
+        : 0;
+      const actualClipIdx = targetClipIdx !== -1 ? targetClipIdx : 0;
+      const targetClip = mediaClipsRef.current[actualClipIdx] || mediaClipsRef.current[0];
+      const clipStart = mediaClipsRef.current
+        .slice(0, actualClipIdx)
+        .reduce((sum, c) => sum + c.duration, 0);
+      const oldDuration = targetClip ? targetClip.duration : composedDuration;
+      const durationDelta = Number((composedDuration - oldDuration).toFixed(2));
 
-      // Sync media clips sequence to composedDuration
-      const natDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
-        ? videoRef.current.duration
-        : composedDuration;
-      setMediaClips((prev) => syncMediaClipsToKeyframeDuration(prev, composedDuration, natDur));
+      // Update target clip's duration
+      const updatedMediaClips = mediaClipsRef.current.map((c, idx) =>
+        idx === actualClipIdx ? { ...c, duration: composedDuration } : c
+      );
+      const resequenced = sequenceClipsContiguously(updatedMediaClips);
+      mediaClipsRef.current = resequenced;
+      setMediaClips(resequenced);
 
+      const totalMediaDur = calculateMediaSequenceDuration(resequenced);
+      setMediaDuration(totalMediaDur);
+      mediaDurationRef.current = totalMediaDur;
+
+      // Determine keyframe numbering starting index
+      let startKeyframeIndex = 1;
+      if (actualClipIdx > 0) {
+        let maxNum = 0;
+        clipsRef.current.forEach((c) => {
+          if (c.startTime < clipStart - 0.001) {
+            const match = c.name?.match(/^P(\d+)$/i);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          }
+        });
+        startKeyframeIndex = maxNum + 1;
+      }
+
+      const blockId = `compose_block_${targetClip.id}_${Date.now()}`;
       const generated = generateClipsFromInterestRegions(
         interestRegions,
         composedDuration,
         STAGE_BASE_DIMS,
-        camera
+        camera,
+        'cinematic',
+        {
+          blockId,
+          mediaClipId: targetClip.id,
+          startKeyframeIndex,
+        }
       );
-      setClips(generated);
+
+      const offsetGenerated = generated.map((k) => ({
+        ...k,
+        startTime: Number((k.startTime + clipStart).toFixed(2)),
+      }));
+
+      setClips((prevClips) => {
+        if (mediaClipsRef.current.length <= 1) {
+          return offsetGenerated;
+        }
+        // Upstream: all keyframes belonging to preceding clips.
+        // Preserves the preceding clip's terminal keyframe at t = clipStart!
+        const upstream = prevClips.filter((c) => {
+          if (c.mediaClipId) {
+            return c.mediaClipId !== targetClip.id && c.startTime <= clipStart + 0.001;
+          }
+          return c.startTime < clipStart - 0.001 || (Math.abs(c.startTime - clipStart) <= 0.01 && c.duration === 0);
+        });
+
+        // Downstream: all keyframes belonging to subsequent clips, shifted by durationDelta
+        const downstream = prevClips
+          .filter((c) => {
+            if (c.mediaClipId) {
+              return c.mediaClipId !== targetClip.id && c.startTime >= clipStart + oldDuration - 0.001;
+            }
+            return c.startTime >= clipStart + oldDuration - 0.001;
+          })
+          .map((c) => ({
+            ...c,
+            startTime: Math.max(0, Number((c.startTime + durationDelta).toFixed(2))),
+          }));
+
+        return [...upstream, ...offsetGenerated, ...downstream];
+      });
+
       setInterestRegions([]);
-      if (generated.length > 0) {
-        setSelectedClipId(generated[0].id);
-        currentTimeRef.current = 0;
-        setCurrentTime(0);
-        setCamera(generated[0].camera);
+      if (offsetGenerated.length > 0) {
+        setSelectedClipId(offsetGenerated[0].id);
+        currentTimeRef.current = clipStart;
+        setCurrentTime(clipStart);
+        setCamera(offsetGenerated[0].camera);
         if (videoRef.current) {
           videoRef.current.currentTime = 0;
+          const natDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
+            ? videoRef.current.duration
+            : composedDuration;
           const computedRate = calculatePlaybackRate(natDur, composedDuration);
           videoRef.current.playbackRate = computedRate;
         }
@@ -665,24 +766,92 @@ export function App() {
       setIsComposed(true);
       isComposedRef.current = true;
       const composedDuration = Number((interestRegions.length * 1.0).toFixed(2));
-      setMediaDuration(composedDuration);
-      mediaDurationRef.current = composedDuration;
 
-      const natDur = (videoRef.current?.duration && isFinite(videoRef.current.duration) && videoRef.current.duration > 0)
-        ? videoRef.current.duration
-        : composedDuration;
-      setMediaClips((prev) => syncMediaClipsToKeyframeDuration(prev, composedDuration, natDur));
+      const targetClipIdx = selectedMediaClipId
+        ? mediaClipsRef.current.findIndex((c) => c.id === selectedMediaClipId)
+        : 0;
+      const actualClipIdx = targetClipIdx !== -1 ? targetClipIdx : 0;
+      const targetClip = mediaClipsRef.current[actualClipIdx] || mediaClipsRef.current[0];
+      const clipStart = mediaClipsRef.current
+        .slice(0, actualClipIdx)
+        .reduce((sum, c) => sum + c.duration, 0);
+      const oldDuration = targetClip ? targetClip.duration : composedDuration;
+      const durationDelta = Number((composedDuration - oldDuration).toFixed(2));
 
+      const updatedMediaClips = mediaClipsRef.current.map((c, idx) =>
+        idx === actualClipIdx ? { ...c, duration: composedDuration } : c
+      );
+      const resequenced = sequenceClipsContiguously(updatedMediaClips);
+      mediaClipsRef.current = resequenced;
+      setMediaClips(resequenced);
+
+      const totalMediaDur = calculateMediaSequenceDuration(resequenced);
+      setMediaDuration(totalMediaDur);
+      mediaDurationRef.current = totalMediaDur;
+
+      let startKeyframeIndex = 1;
+      if (actualClipIdx > 0) {
+        let maxNum = 0;
+        clipsRef.current.forEach((c) => {
+          if (c.startTime < clipStart - 0.001) {
+            const match = c.name?.match(/^P(\d+)$/i);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          }
+        });
+        startKeyframeIndex = maxNum + 1;
+      }
+
+      const blockId = `compose_block_${targetClip.id}_${Date.now()}`;
       const generated = generateClipsFromInterestRegions(
         interestRegions,
         composedDuration,
         STAGE_BASE_DIMS,
-        camera
+        camera,
+        'cinematic',
+        {
+          blockId,
+          mediaClipId: targetClip.id,
+          startKeyframeIndex,
+        }
       );
-      setClips(generated);
+
+      const offsetGenerated = generated.map((k) => ({
+        ...k,
+        startTime: Number((k.startTime + clipStart).toFixed(2)),
+      }));
+
+      setClips((prevClips) => {
+        if (mediaClipsRef.current.length <= 1) {
+          return offsetGenerated;
+        }
+        const upstream = prevClips.filter((c) => {
+          if (c.mediaClipId) {
+            return c.mediaClipId !== targetClip.id && c.startTime <= clipStart + 0.001;
+          }
+          return c.startTime < clipStart - 0.001 || (Math.abs(c.startTime - clipStart) <= 0.01 && c.duration === 0);
+        });
+
+        const downstream = prevClips
+          .filter((c) => {
+            if (c.mediaClipId) {
+              return c.mediaClipId !== targetClip.id && c.startTime >= clipStart + oldDuration - 0.001;
+            }
+            return c.startTime >= clipStart + oldDuration - 0.001;
+          })
+          .map((c) => ({
+            ...c,
+            startTime: Math.max(0, Number((c.startTime + durationDelta).toFixed(2))),
+          }));
+
+        return [...upstream, ...offsetGenerated, ...downstream];
+      });
+
       setInterestRegions([]);
-      if (generated.length > 0) {
-        setSelectedClipId(generated[0].id);
+      if (offsetGenerated.length > 0) {
+        setSelectedClipId(offsetGenerated[0].id);
       }
     }
     setIsMarkingRegion(false);
@@ -1123,10 +1292,11 @@ export function App() {
       return [item, ...prev.filter((m) => m.id !== 'blank-media')];
     });
 
+    const newClipId = `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     setMediaClips((prev) => {
       const nextStart = calculateMediaSequenceDuration(prev);
       const newClip: MediaTimelineClip = {
-        id: `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        id: newClipId,
         mediaId: item.id,
         name: item.name,
         type: item.type,
@@ -1136,6 +1306,7 @@ export function App() {
         transition: prev.length > 0 ? 'gradient' : undefined,
       };
       const updated = [...prev, newClip];
+      mediaClipsRef.current = updated;
       const newSeqDur = calculateMediaSequenceDuration(updated);
       setMediaDuration(newSeqDur);
       mediaDurationRef.current = newSeqDur;
@@ -1147,14 +1318,11 @@ export function App() {
       return updated;
     });
 
-    // Synchronize keyframe sequence duration if needed
+    // Generate new keyframes for the newly uploaded media clip
+    // leaving existing composed keyframes intact
     setClips((prevClips) => {
-      const currentMediaDur = calculateMediaSequenceDuration(mediaClipsRef.current) + dur;
-      const keyframeSeqDur = prevClips.reduce((acc, c) => acc + (c.duration || 1.5), 0);
-      if (currentMediaDur > keyframeSeqDur) {
-        return syncKeyframeSequenceToDuration(prevClips, 0, prevClips.length, currentMediaDur);
-      }
-      return prevClips;
+      const nextStart = calculateMediaSequenceDuration(mediaClipsRef.current);
+      return generateKeyframesForNewMediaClip(prevClips, nextStart, dur, DEFAULT_STATIC_CAMERA, newClipId);
     });
 
     if (isVideo) {
@@ -1501,7 +1669,7 @@ export function App() {
           type="button"
           className="top-pill-btn"
           onClick={handleShareLink}
-          title="Share live studio link (https://zetashot.netlify.app)"
+          title="Share live studio link (https://zetashot.vercel.app)"
         >
           {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
           <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>

@@ -1,5 +1,6 @@
 import { TimelinePositionClip } from '../components/VideoTimeline';
 import { MediaTimelineClip, sequenceClipsContiguously } from '../types/mediaTimeline';
+import { Camera3DState } from './camera3D';
 
 /**
  * Calculates the compensated video playback speed multiplier based on natural duration and composed/target duration.
@@ -43,36 +44,10 @@ export function syncMediaClipsToKeyframeDuration(
     ];
   }
 
-  const origDurs = mediaClips.map((c) => Math.max(0.1, c.duration));
-  const currentTotal = origDurs.reduce((a, b) => a + b, 0);
-
-  // Strictly proportional scaling
-  const rawDurs = origDurs.map((d) => (currentTotal > 0 ? (d / currentTotal) * clampedTarget : clampedTarget / mediaClips.length));
-  const newDurs = rawDurs.map((d) => Math.max(0.2, Number(d.toFixed(2))));
-
-  // Eliminate rounding drift
-  const sumDurs = Number(newDurs.reduce((a, b) => a + b, 0).toFixed(2));
-  const drift = Number((clampedTarget - sumDurs).toFixed(2));
-  if (drift !== 0) {
-    let maxIdx = 0;
-    for (let i = 1; i < newDurs.length; i++) {
-      if (newDurs[i] > newDurs[maxIdx]) maxIdx = i;
-    }
-    newDurs[maxIdx] = Math.max(0.2, Number((newDurs[maxIdx] + drift).toFixed(2)));
-  }
-
-  const updated = mediaClips.map((c, i) => {
-    const naturalDur = naturalVideoDuration || c.sourceDuration || c.duration;
-    const computedSpeed = calculatePlaybackRate(naturalDur, newDurs[i]);
-    return {
-      ...c,
-      duration: newDurs[i],
-      speed: computedSpeed,
-      sourceDuration: naturalDur,
-    };
-  });
-
-  return sequenceClipsContiguously(updated);
+  // When multiple media clips exist, we do NOT proportionally distort them.
+  // Each clip in a multi-clip sequence preserves its dedicated, independent duration.
+  // Rescaling all clips proportionally leads to non-uniform distortion across combos.
+  return mediaClips;
 }
 
 /**
@@ -146,3 +121,131 @@ export function syncKeyframeSequenceToDuration(
 
   return updated;
 }
+
+export function getNextKeyframeIndex(clips: TimelinePositionClip[]): number {
+  let maxPNum = 0;
+  (clips || []).forEach((c) => {
+    const match = c.name?.match(/^P(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxPNum) maxPNum = num;
+    }
+  });
+  return maxPNum + 1;
+}
+
+/**
+ * Generates a fresh 2-keyframe position block for a newly uploaded/added media clip
+ * without altering or extending any existing keyframes.
+ */
+export function generateKeyframesForNewMediaClip(
+  prevClips: TimelinePositionClip[],
+  clipStartTime: number,
+  clipDuration: number,
+  defaultCamera: Camera3DState,
+  mediaClipId?: string
+): TimelinePositionClip[] {
+  const nextIdx = getNextKeyframeIndex(prevClips);
+  const dur = Math.max(0.5, Number(clipDuration.toFixed(2)));
+  const halfDur = Number((dur / 2).toFixed(2));
+  const remDur = Number((dur - halfDur).toFixed(2));
+  const p1Num = nextIdx;
+  const p2Num = nextIdx + 1;
+  const p1Name = `P${p1Num < 10 ? '0' + p1Num : p1Num}`;
+  const p2Name = `P${p2Num < 10 ? '0' + p2Num : p2Num}`;
+  const newBlockId = `block_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  const newClips: TimelinePositionClip[] = [
+    {
+      id: `clip_${Date.now()}_${p1Name}`,
+      name: p1Name,
+      startTime: Number(clipStartTime.toFixed(2)),
+      duration: halfDur,
+      color: 'yellow',
+      camera: { ...defaultCamera },
+      transition: 'cut',
+      blockId: newBlockId,
+      mediaClipId,
+    },
+    {
+      id: `clip_${Date.now()}_${p2Name}`,
+      name: p2Name,
+      startTime: Number((clipStartTime + halfDur).toFixed(2)),
+      duration: remDur,
+      color: 'yellow',
+      camera: { ...defaultCamera },
+      transition: 'cut',
+      blockId: newBlockId,
+      mediaClipId,
+    },
+  ];
+
+  return [...(prevClips || []), ...newClips];
+}
+
+/**
+ * Synchronously scales the keyframes corresponding to a specific media clip
+ * when that clip's duration is changed, and shifts downstream keyframes accordingly.
+ * Keyframes for upstream clips remain completely untouched.
+ */
+export function syncKeyframesForResizedMediaClip(
+  clips: TimelinePositionClip[],
+  mediaClips: MediaTimelineClip[],
+  resizedClipIdx: number,
+  newClipDuration: number
+): TimelinePositionClip[] {
+  if (!clips || clips.length === 0 || !mediaClips || resizedClipIdx < 0 || resizedClipIdx >= mediaClips.length) {
+    return clips;
+  }
+
+  // If there is only 1 media clip, scale all keyframes
+  if (mediaClips.length === 1) {
+    return syncKeyframeSequenceToDuration(clips, 0, clips.length, newClipDuration);
+  }
+
+  const targetMediaClip = mediaClips[resizedClipIdx];
+  const clipStart = targetMediaClip.startTime;
+  const clipOldDuration = targetMediaClip.duration;
+  const clipEnd = clipStart + clipOldDuration;
+
+  let groupStartIndex = -1;
+  let subCount = 0;
+
+  // 1. If keyframes have mediaClipId, match directly by mediaClipId
+  const targetId = targetMediaClip.id;
+  const matchedById: number[] = [];
+  clips.forEach((c, idx) => {
+    if (c.mediaClipId === targetId) {
+      matchedById.push(idx);
+    }
+  });
+
+  if (matchedById.length > 0) {
+    groupStartIndex = matchedById[0];
+    subCount = matchedById.length;
+    return syncKeyframeSequenceToDuration(clips, groupStartIndex, subCount, newClipDuration);
+  }
+
+  // 2. Otherwise match by time window
+  for (let i = 0; i < clips.length; i++) {
+    const c = clips[i];
+    const isTerminalAnchor = Math.abs(c.startTime - clipEnd) <= 0.05 && c.duration === 0;
+    const isWithinClip = c.startTime >= clipStart - 0.05 && c.startTime < clipEnd - 0.05;
+    if (isWithinClip || isTerminalAnchor) {
+      if (groupStartIndex === -1) {
+        groupStartIndex = i;
+      }
+      subCount++;
+    }
+  }
+
+  // Fallback: If no keyframe matched by time window, match by proportional index
+  if (groupStartIndex === -1 || subCount === 0) {
+    const approxPerClip = Math.max(1, Math.floor(clips.length / mediaClips.length));
+    groupStartIndex = Math.min(clips.length - 1, resizedClipIdx * approxPerClip);
+    subCount = Math.min(clips.length - groupStartIndex, approxPerClip);
+  }
+
+  return syncKeyframeSequenceToDuration(clips, groupStartIndex, subCount, newClipDuration);
+}
+

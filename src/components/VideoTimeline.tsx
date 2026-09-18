@@ -40,6 +40,7 @@ import {
   calculatePlaybackRate,
   syncMediaClipsToKeyframeDuration,
   syncKeyframeSequenceToDuration,
+  syncKeyframesForResizedMediaClip,
 } from '../utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from '../types/audioTrack';
 import { AudioManagerModal } from './AudioManagerModal';
@@ -54,6 +55,7 @@ export interface TimelinePositionClip {
   transition?: TransitionType;
   exitTransition?: TransitionType;
   blockId?: string;
+  mediaClipId?: string;
 }
 
 interface VideoTimelineProps {
@@ -371,17 +373,17 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         const resequenced = sequenceClipsContiguously(currentClips);
         onMediaClipsChange?.(resequenced);
 
-        // Vice-versa: sync keyframe sequence proportionally to new media duration
-        const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
+        // Vice-versa: sync keyframe sequence for the resized media clip
         if (clipsRef.current.length > 0) {
-          const syncedClips = syncKeyframeSequenceToDuration(
+          const syncedClips = syncKeyframesForResizedMediaClip(
             clipsRef.current,
-            0,
-            clipsRef.current.length,
-            totalMediaDuration
+            mediaClipsRef.current,
+            clipIdx,
+            newDur
           );
           onClipsChange(syncedClips);
         }
+        const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
         onMediaDurationChange?.(totalMediaDuration);
       } else {
         const minDur = 0.5;
@@ -394,17 +396,17 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         const resequenced = sequenceClipsContiguously(currentClips);
         onMediaClipsChange?.(resequenced);
 
-        // Vice-versa: sync keyframe sequence proportionally to new media duration
-        const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
+        // Vice-versa: sync keyframe sequence for the resized media clip
         if (clipsRef.current.length > 0) {
-          const syncedClips = syncKeyframeSequenceToDuration(
+          const syncedClips = syncKeyframesForResizedMediaClip(
             clipsRef.current,
-            0,
-            clipsRef.current.length,
-            totalMediaDuration
+            mediaClipsRef.current,
+            clipIdx,
+            newDur
           );
           onClipsChange(syncedClips);
         }
+        const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
         onMediaDurationChange?.(totalMediaDuration);
       }
     };
@@ -424,6 +426,37 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
   }, [mediaDuration, onClipsChange, onMediaClipsChange, onMediaDurationChange]);
+
+  const handleNudgeMediaClipDuration = useCallback(
+    (clipId: string, delta: number) => {
+      const currentClips = mediaClipsRef.current.map((c) => ({ ...c }));
+      const clipIdx = currentClips.findIndex((c) => c.id === clipId);
+      if (clipIdx === -1) return;
+
+      const initialDuration = currentClips[clipIdx].duration;
+      const newDur = Math.max(0.5, Number((initialDuration + delta).toFixed(2)));
+      if (newDur === initialDuration) return;
+
+      currentClips[clipIdx].duration = newDur;
+      const naturalDur = currentClips[clipIdx].sourceDuration || mediaDuration;
+      currentClips[clipIdx].speed = calculatePlaybackRate(naturalDur, newDur);
+      const resequenced = sequenceClipsContiguously(currentClips);
+      onMediaClipsChange?.(resequenced);
+
+      if (clipsRef.current.length > 0) {
+        const syncedClips = syncKeyframesForResizedMediaClip(
+          clipsRef.current,
+          mediaClipsRef.current,
+          clipIdx,
+          newDur
+        );
+        onClipsChange(syncedClips);
+      }
+      const totalMediaDuration = calculateMediaSequenceDuration(resequenced);
+      onMediaDurationChange?.(totalMediaDuration);
+    },
+    [mediaDuration, onClipsChange, onMediaClipsChange, onMediaDurationChange]
+  );
 
   const handleDeleteMediaClip = useCallback((clipId: string) => {
     const currentClips = mediaClipsRef.current.filter((c) => c.id !== clipId);
@@ -718,12 +751,25 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           onTotalDurationChange(Number((maxClipsEnd + 1.0).toFixed(2)));
         }
         if (mediaClipsRef.current.length > 0 && onMediaClipsChange && maxClipsEnd > 0) {
-          const syncedMediaClips = syncMediaClipsToKeyframeDuration(
-            mediaClipsRef.current,
-            maxClipsEnd,
-            mediaDuration
-          );
-          onMediaClipsChange(syncedMediaClips);
+          if (mediaClipsRef.current.length === 1) {
+            const syncedMediaClips = syncMediaClipsToKeyframeDuration(
+              mediaClipsRef.current,
+              maxClipsEnd,
+              mediaDuration
+            );
+            onMediaClipsChange(syncedMediaClips);
+          } else {
+            const targetMediaClip = mediaClipsRef.current.find(
+              (m) => Math.abs(m.startTime - initialStart) < 0.1
+            );
+            if (targetMediaClip) {
+              const updatedMedia = mediaClipsRef.current.map((m) =>
+                m.id === targetMediaClip.id ? { ...m, duration: newDuration } : m
+              );
+              const resequenced = sequenceClipsContiguously(updatedMedia);
+              onMediaClipsChange(resequenced);
+            }
+          }
         }
       } else if (handle === 'left') {
         const minDuration = Math.max(0.4, subCount * 0.25);
@@ -786,12 +832,25 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           onMediaDurationChange(Number(maxClipsEnd.toFixed(2)));
         }
         if (mediaClipsRef.current.length > 0 && onMediaClipsChange && maxClipsEnd > 0) {
-          const syncedMediaClips = syncMediaClipsToKeyframeDuration(
-            mediaClipsRef.current,
-            maxClipsEnd,
-            mediaDuration
-          );
-          onMediaClipsChange(syncedMediaClips);
+          if (mediaClipsRef.current.length === 1) {
+            const syncedMediaClips = syncMediaClipsToKeyframeDuration(
+              mediaClipsRef.current,
+              maxClipsEnd,
+              mediaDuration
+            );
+            onMediaClipsChange(syncedMediaClips);
+          } else {
+            const targetMediaClip = mediaClipsRef.current.find(
+              (m) => Math.abs(m.startTime - initialStart) < 0.1
+            );
+            if (targetMediaClip) {
+              const updatedMedia = mediaClipsRef.current.map((m) =>
+                m.id === targetMediaClip.id ? { ...m, duration: newDuration } : m
+              );
+              const resequenced = sequenceClipsContiguously(updatedMedia);
+              onMediaClipsChange(resequenced);
+            }
+          }
         }
       }
     };
@@ -1363,8 +1422,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     key={`seq_multi_${gIdx}_${firstClip.id}`}
                     className={`sequence-capsule-container ${isBlue ? 'is-blue' : 'is-yellow'}`}
                     style={{
+                      position: 'absolute',
+                      left: `${seqLeftPct}%`,
                       width: `${seqWidthPct}%`,
-                      marginLeft: gIdx === 0 ? `${seqLeftPct}%` : '0%',
                       minWidth: `${Math.max(48, Math.min(300, subClips.length * 28))}px`,
                     }}
                     onClick={(e) => e.stopPropagation()}
@@ -1584,8 +1644,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     key={`seq_single_${gIdx}`}
                     className={`sequence-capsule-container ${isBlue ? 'is-blue' : 'is-yellow'} is-single`}
                     style={{
+                      position: 'absolute',
+                      left: `${leftPct}%`,
                       width: `${widthPct}%`,
-                      marginLeft: gIdx === 0 ? `${leftPct}%` : '0%',
                       minWidth: '80px',
                     }}
                     onClick={(e) => {
@@ -1673,17 +1734,31 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             })}
 
             {/* Dotted Plus (+) Button to Add ONLY ONE Keyframe */}
-            <button
-              type="button"
-              className="timeline-add-sequence-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddSingleKeyframe();
-              }}
-              title="Add Next Keyframe Block"
-            >
-              <Plus size={16} />
-            </button>
+            {(() => {
+              let maxEnd = 0;
+              for (const c of clips) {
+                const end = (c.startTime || 0) + (c.duration || 0);
+                if (end > maxEnd) maxEnd = end;
+              }
+              const addBtnLeft = Math.min(94, (maxEnd / rulerDuration) * 100);
+              return (
+                <button
+                  type="button"
+                  className="timeline-add-sequence-btn"
+                  style={{
+                    position: 'absolute',
+                    left: `calc(${addBtnLeft}% + 8px)`,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddSingleKeyframe();
+                  }}
+                  title="Add Next Keyframe Block"
+                >
+                  <Plus size={16} />
+                </button>
+              );
+            })()}
           </div>
 
           {/* MIDDLE ROW: Layer-Based Text Overlays Track */}
@@ -2064,7 +2139,35 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                           )}
                         </div>
                         <span className="multiclip-card-name">{mClip.name}</span>
-                        <span className="multiclip-card-dur">{mClip.duration.toFixed(1)}s</span>
+                        {isSelected ? (
+                          <div className="multiclip-dur-stepper" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="multiclip-dur-step-btn"
+                              title="Decrease duration by 0.5s"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNudgeMediaClipDuration(mClip.id, -0.5);
+                              }}
+                            >
+                              -
+                            </button>
+                            <span className="multiclip-card-dur">{mClip.duration.toFixed(1)}s</span>
+                            <button
+                              type="button"
+                              className="multiclip-dur-step-btn"
+                              title="Increase duration by 0.5s"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNudgeMediaClipDuration(mClip.id, 0.5);
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="multiclip-card-dur">{mClip.duration.toFixed(1)}s</span>
+                        )}
                       </div>
 
                       {mediaClips.length > 1 && (

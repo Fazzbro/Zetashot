@@ -150,18 +150,24 @@ export function generateClipsFromInterestRegions(
   totalDuration: number,
   stageDims: { width: number; height: number } = STAGE_BASE_DIMS,
   baseCamera?: Camera3DState,
-  style: ChoreographyStyle = 'cinematic'
+  style: ChoreographyStyle = 'cinematic',
+  options?: {
+    blockId?: string;
+    mediaClipId?: string;
+    startKeyframeIndex?: number;
+  }
 ): TimelinePositionClip[] {
   if (!regions || regions.length === 0) return [];
 
   const sortedRegions = [...regions].sort((a, b) => a.index - b.index);
   const K = sortedRegions.length;
   const stepDuration = totalDuration / K;
-  const blockGroupId = `compose_block_${Date.now()}`;
+  const blockGroupId = options?.blockId || `compose_block_${Date.now()}`;
+  const startIdx = options?.startKeyframeIndex ?? 1;
 
   const clips: TimelinePositionClip[] = [];
 
-  // 1. Initial Overview Keyframe (P01) - Cinematic floating 3D wide overview
+  // 1. Initial Overview Keyframe (e.g. P01) - Cinematic floating 3D wide overview
   const baseZoom = baseCamera?.zoom && baseCamera.zoom > 0 ? baseCamera.zoom : 0.72;
   const firstRegion = sortedRegions[0];
   const firstRegionCenterX = firstRegion.x + firstRegion.width / 2;
@@ -179,23 +185,26 @@ export function generateClipsFromInterestRegions(
     perspective: baseCamera?.perspective ?? 1000,
   };
 
+  const p1Pad = startIdx < 10 ? `0${startIdx}` : `${startIdx}`;
+
   clips.push({
-    id: `compose_p01_${Date.now()}_0`,
-    name: 'P01',
+    id: `compose_p${p1Pad}_${Date.now()}_0`,
+    name: `P${p1Pad}`,
     startTime: 0,
     duration: Number(stepDuration.toFixed(2)),
     camera: overviewCamera,
     color: 'blue',
     transition: 'fade',
     blockId: blockGroupId,
+    mediaClipId: options?.mediaClipId,
   });
 
-  // 2. Interest Region Focus Keyframes (P02, P03, ... P{K+1})
+  // 2. Interest Region Focus Keyframes (e.g. P02, P03, ... P{K+1})
   let prevCenter: { x: number; y: number } | null = null;
   let prevZoom: number = baseZoom;
 
   sortedRegions.forEach((region, idx) => {
-    const num = idx + 2;
+    const num = startIdx + idx + 1;
     const pad = num < 10 ? `0${num}` : `${num}`;
     let targetCam = calculateCameraForRegion(
       region,
@@ -236,6 +245,7 @@ export function generateClipsFromInterestRegions(
       color: 'blue',
       exitTransition: idx === K - 1 ? 'fade' : 'cut',
       blockId: blockGroupId,
+      mediaClipId: options?.mediaClipId,
     });
   });
 
