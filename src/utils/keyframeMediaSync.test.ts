@@ -9,7 +9,7 @@ import {
   generateKeyframesForNewMediaClip,
   syncKeyframesForResizedMediaClip,
 } from './keyframeMediaSyncEngine';
-import { MediaTimelineClip } from '../types/mediaTimeline';
+import { MediaTimelineClip, calculateMediaSequenceDuration } from '../types/mediaTimeline';
 
 describe('Keyframe and Media Synchronous Stretching Engine', () => {
   it('synchronously calculates timeline duration when keyframe sequence is stretched', () => {
@@ -262,5 +262,54 @@ describe('Keyframe and Media Synchronous Stretching Engine', () => {
     const lastClip = upstream[upstream.length - 1];
     const seqDuration = Math.max(0.1, lastClip.startTime + (lastClip.duration ?? 0) - firstClip.startTime);
     expect(seqDuration).toBe(5.1);
+  });
+
+  it('positions second clip keyframes directly above the second clip starting at clip2 startTime, not after it', () => {
+    const defaultCam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+    // Clip 1: 3.0s with initial keyframes [0s -> 3.0s]
+    const clip1Keyframes: TimelinePositionClip[] = [
+      { id: 'P01', name: 'P01', startTime: 0, duration: 1.5, camera: defaultCam, mediaClipId: 'clip1' },
+      { id: 'P02', name: 'P02', startTime: 1.5, duration: 1.5, camera: defaultCam, mediaClipId: 'clip1' },
+    ];
+
+    const mediaClips: MediaTimelineClip[] = [
+      { id: 'clip1', mediaId: 'm1', name: 'Clip 1', type: 'image', url: '1.png', startTime: 0, duration: 3.0 },
+    ];
+
+    // Compute start time for clip 2 BEFORE adding it to mediaClips (equals 3.0s)
+    const newClipStartTime = calculateMediaSequenceDuration(mediaClips);
+    expect(newClipStartTime).toBe(3.0);
+
+    const clip2Duration = 3.0;
+    const updatedClips = generateKeyframesForNewMediaClip(
+      clip1Keyframes,
+      newClipStartTime,
+      clip2Duration,
+      defaultCam,
+      'clip2'
+    );
+
+    expect(updatedClips.length).toBe(4);
+    // P01 & P02 are preserved on clip 1 [0s -> 3.0s]
+    expect(updatedClips[0].startTime).toBe(0);
+    expect(updatedClips[1].startTime + updatedClips[1].duration).toBe(3.0);
+
+    // Clip 2 keyframes P03 and P04 MUST start at 3.0s (NOT 6.0s!)
+    expect(updatedClips[2].name).toBe('P03');
+    expect(updatedClips[2].startTime).toBe(3.0);
+    expect(updatedClips[2].duration).toBe(1.5);
+    expect(updatedClips[2].mediaClipId).toBe('clip2');
+
+    expect(updatedClips[3].name).toBe('P04');
+    expect(updatedClips[3].startTime).toBe(4.5);
+    expect(updatedClips[3].duration).toBe(1.5);
+    expect(updatedClips[3].mediaClipId).toBe('clip2');
+
+    // Capsule 2 visual start and duration match Clip 2 (from 3.0s to 6.0s) exactly
+    const clip2Keyframes = updatedClips.filter((c) => c.mediaClipId === 'clip2');
+    const cap2Start = clip2Keyframes[0].startTime;
+    const cap2End = clip2Keyframes[clip2Keyframes.length - 1].startTime + (clip2Keyframes[clip2Keyframes.length - 1].duration || 0);
+    expect(cap2Start).toBe(3.0);
+    expect(cap2End).toBe(6.0);
   });
 });

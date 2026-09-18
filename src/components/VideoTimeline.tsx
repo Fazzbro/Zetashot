@@ -759,8 +759,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             );
             onMediaClipsChange(syncedMediaClips);
           } else {
+            const firstSubClip = capturedClips[groupStartIndex];
             const targetMediaClip = mediaClipsRef.current.find(
-              (m) => Math.abs(m.startTime - initialStart) < 0.1
+              (m) => (firstSubClip?.mediaClipId && m.id === firstSubClip.mediaClipId) || Math.abs(m.startTime - initialStart) < 0.1
             );
             if (targetMediaClip) {
               const updatedMedia = mediaClipsRef.current.map((m) =>
@@ -840,8 +841,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             );
             onMediaClipsChange(syncedMediaClips);
           } else {
+            const firstSubClip = capturedClips[groupStartIndex];
             const targetMediaClip = mediaClipsRef.current.find(
-              (m) => Math.abs(m.startTime - initialStart) < 0.1
+              (m) => (firstSubClip?.mediaClipId && m.id === firstSubClip.mediaClipId) || Math.abs(m.startTime - initialStart) < 0.1
             );
             if (targetMediaClip) {
               const updatedMedia = mediaClipsRef.current.map((m) =>
@@ -1107,6 +1109,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       const seqClips: TimelinePositionClip[] = [current];
       let j = i + 1;
       while (j < clips.length && !clips[j].blockId) {
+        if (current.mediaClipId && clips[j].mediaClipId && clips[j].mediaClipId !== current.mediaClipId) {
+          break;
+        }
         seqClips.push(clips[j]);
         j++;
       }

@@ -209,8 +209,8 @@ export function App() {
   };
 
   const INITIAL_CLIPS: TimelinePositionClip[] = [
-    { id: 'P01', name: 'P01', startTime: 0, duration: 1.5, color: 'yellow', camera: { ...DEFAULT_STATIC_CAMERA }, transition: 'cut' },
-    { id: 'P02', name: 'P02', startTime: 1.5, duration: 1.5, color: 'yellow', camera: { ...DEFAULT_STATIC_CAMERA }, transition: 'cut' },
+    { id: 'P01', name: 'P01', startTime: 0, duration: 1.5, color: 'yellow', camera: { ...DEFAULT_STATIC_CAMERA }, transition: 'cut', blockId: 'block_init', mediaClipId: 'clip_init' },
+    { id: 'P02', name: 'P02', startTime: 1.5, duration: 1.5, color: 'yellow', camera: { ...DEFAULT_STATIC_CAMERA }, transition: 'cut', blockId: 'block_init', mediaClipId: 'clip_init' },
   ];
 
   const [clips, setClips] = useState<TimelinePositionClip[]>(INITIAL_CLIPS);
@@ -678,7 +678,10 @@ export function App() {
       if (actualClipIdx > 0) {
         let maxNum = 0;
         clipsRef.current.forEach((c) => {
-          if (c.startTime < clipStart - 0.001) {
+          const isUpstream = c.mediaClipId
+            ? c.mediaClipId !== targetClip.id && c.startTime <= clipStart + 0.001
+            : c.startTime <= clipStart + 0.001;
+          if (isUpstream) {
             const match = c.name?.match(/^P(\d+)$/i);
             if (match) {
               const num = parseInt(match[1], 10);
@@ -793,7 +796,10 @@ export function App() {
       if (actualClipIdx > 0) {
         let maxNum = 0;
         clipsRef.current.forEach((c) => {
-          if (c.startTime < clipStart - 0.001) {
+          const isUpstream = c.mediaClipId
+            ? c.mediaClipId !== targetClip.id && c.startTime <= clipStart + 0.001
+            : c.startTime <= clipStart + 0.001;
+          if (isUpstream) {
             const match = c.name?.match(/^P(\d+)$/i);
             if (match) {
               const num = parseInt(match[1], 10);
@@ -1293,6 +1299,11 @@ export function App() {
     });
 
     const newClipId = `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    
+    // IMPORTANT: Compute start time of new clip BEFORE updating mediaClipsRef.current!
+    // The new clip starts directly at the end of the existing clips sequence.
+    const newClipStartTime = calculateMediaSequenceDuration(mediaClipsRef.current);
+
     setMediaClips((prev) => {
       const nextStart = calculateMediaSequenceDuration(prev);
       const newClip: MediaTimelineClip = {
@@ -1319,10 +1330,9 @@ export function App() {
     });
 
     // Generate new keyframes for the newly uploaded media clip
-    // leaving existing composed keyframes intact
+    // positioned DIRECTLY above the new clip on the timeline starting at newClipStartTime
     setClips((prevClips) => {
-      const nextStart = calculateMediaSequenceDuration(mediaClipsRef.current);
-      return generateKeyframesForNewMediaClip(prevClips, nextStart, dur, DEFAULT_STATIC_CAMERA, newClipId);
+      return generateKeyframesForNewMediaClip(prevClips, newClipStartTime, dur, DEFAULT_STATIC_CAMERA, newClipId);
     });
 
     if (isVideo) {
