@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FFmpegExportDiagnostics",
+  "type": "object",
+  "required": [
+    "project_id",
+    "export_id",
+    "timestamp",
+    "overall_status",
+    "render_config",
+    "validation_results"
+  ],
+  "properties": {
+    "project_id": { "type": "string" },
+    "export_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "overall_status": {
+      "type": "string",
+      "enum": ["PASSED", "FAILED"]
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "os": { "type": "string" },
+        "ffmpeg_version": { "type": "string" },
+        "hardware_accelerator": { "type": "string" }
+      }
+    },
+    "render_config": {
+      "type": "object",
+      "required": ["container", "video_codec", "width", "height", "fps", "duration_s"],
+      "properties": {
+        "container": { "type": "string" },
+        "video_codec": { "type": "string" },
+        "audio_codec": { "type": "string" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "fps": { "type": "number" },
+        "duration_s": { "type": "number" },
+        "expected_frames": { "type": "integer" },
+        "bitrate": { "type": "string" },
+        "pixel_format": { "type": "string" }
+      }
+    },
+    "timings": {
+      "type": "object",
+      "properties": {
+        "analysis_time_s": { "type": "number" },
+        "render_time_s": { "type": "number" },
+        "encode_time_s": { "type": "number" },
+        "validation_time_s": { "type": "number" },
+        "total_time_s": { "type": "number" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "frames_rendered": { "type": "integer" },
+        "frames_encoded": { "type": "integer" },
+        "output_file_size_bytes": { "type": "integer" },
+        "actual_duration_s": { "type": "number" },
+        "av_sync_delta_s": { "type": "number" }
+      }
+    },
+    "validation_results": {
+      "type": "object",
+      "required": ["passed_count", "failed_count", "checks"],
+      "properties": {
+        "passed_count": { "type": "integer" },
+        "failed_count": { "type": "integer" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["check", "passed", "expected", "actual"],
+            "properties": {
+              "check": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "expected": {},
+              "actual": {},
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "failure_classification": {
+      "type": "object",
+      "properties": {
+        "primary_error": {
+          "type": "string",
+          "enum": [
+            "DURATION_MISMATCH",
+            "FRAME_COUNT_MISMATCH",
+            "AUDIO_VIDEO_DESYNC",
+            "INVALID_CONTAINER",
+            "CODEC_MISMATCH",
+            "TIMESTAMP_DISCONTINUITY",
+            "DECODE_FAILURE",
+            "SEEK_FAILURE",
+            "FIRST_FRAME_REPLICATION",
+            "FROZEN_FRAME",
+            "BLACK_FRAME",
+            "FRAME_CORRUPTION",
+            "MISSING_FINAL_FRAMES",
+            "ENCODER_FAILURE",
+            "MUXER_FAILURE",
+            "GPU_SYNC_FAILURE",
+            "APPLICATION_REOPEN_FAILURE"
+          ]
+        },
+        "root_cause_analysis": { "type": "string" },
+        "remediation_steps": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

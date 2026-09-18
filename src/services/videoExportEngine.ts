@@ -9,6 +9,7 @@ import {
   encodeFrameSequenceToMP4,
   transcodeWebMToMP4,
   transcodeToSeekableWebM,
+  fastMuxAudioVideoMP4,
 } from './ffmpegTranscoder';
 import {
   calculateTimelineDuration,
@@ -20,7 +21,17 @@ import { drawTextLayersOnCanvas, preloadTextFonts } from '../utils/textLayer';
 import { MediaTimelineClip, getActiveMediaClipAtTime } from '../types/mediaTimeline';
 import { getMediaTransitionAtTime, drawBlockTransitionCanvas } from '../utils/transitionMath';
 import { AudioTrackItem } from '../types/audioTrack';
-import { mixAudioTracksToWavBlob } from '../utils/audioTrackHelper';
+import {
+  mixAudioTracksToAudioBuffer,
+  mixAudioTracksToWavBlob,
+  audioBufferToWavBlob,
+} from '../utils/audioTrackHelper';
+import {
+  isWebCodecsSupported,
+  isAudioEncoderSupported,
+  WebCodecsMP4Session,
+} from './webcodecsExporter';
+
 
 export interface VideoExportOptions {
   mediaName?: string;
@@ -262,9 +273,57 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     }
   }
 
+  // 7. Prepare Audio (Background music, sound effects, transition whoosh/ticks)
+  let exportAudioBlob: Blob | null = options.audioBlob || null;
+  let exportAudioBuffer: AudioBuffer | null = null;
+  const exportAudioVolume = options.audioVolume ?? 1.0;
+
+  const hasTransitions = (options.mediaClips || []).some(
+    (c) => c.transition === 'gradient' || c.transition === 'blocks'
+  );
+  if (!exportAudioBlob && ((options.audioTracks && options.audioTracks.length > 0) || hasTransitions)) {
+    try {
+      exportAudioBuffer = await mixAudioTracksToAudioBuffer(
+        options.audioTracks || [],
+        totalDuration,
+        options.mediaClips || []
+      );
+      if (exportAudioBuffer) {
+        exportAudioBlob = audioBufferToWavBlob(exportAudioBuffer);
+      }
+    } catch (err) {
+      console.warn('[Export Engine] Audio mixing failed, proceeding with silent audio:', err);
+    }
+  }
+
+  // 8. Hardware-Accelerated WebCodecs Initialization (MP4 target)
+  const canUseWebCodecs = targetFormat === 'mp4' && isWebCodecsSupported();
+  let webCodecsSession: WebCodecsMP4Session | null = null;
+  let webCodecsAudioHandled = false;
+
+  if (canUseWebCodecs) {
+    try {
+      const audioSupported = exportAudioBuffer ? await isAudioEncoderSupported(exportAudioBuffer.sampleRate) : false;
+      webCodecsSession = new WebCodecsMP4Session(
+        {
+          width,
+          height,
+          fps,
+          audioBuffer: exportAudioBuffer,
+        },
+        audioSupported
+      );
+      webCodecsAudioHandled = audioSupported;
+      console.log(`[Export Engine] Initialized WebCodecs GPU encoder (AAC audio: ${audioSupported})`);
+    } catch (wcErr) {
+      console.warn('[Export Engine] WebCodecs session init failed, falling back to FFmpeg WASM:', wcErr);
+      webCodecsSession = null;
+    }
+  }
+
   const frameBlobs: Blob[] = [];
 
-  // 7. Deterministic Frame-by-Frame Rendering Loop
+  // 9. Deterministic Frame-by-Frame Rendering Loop
   try {
     const frameDelta = 1 / fps;
 
@@ -499,79 +558,101 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         drawTextLayersOnCanvas(ctx, options.textLayers, time, width, height);
       }
 
-      // Capture frame Blob with ultra-high fidelity to prevent edge crawling
-      const frameBlob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.98);
-      });
-      frameBlobs.push(frameBlob);
+      if (webCodecsSession) {
+        try {
+          await webCodecsSession.addFrame(canvas, f);
+          if (options.onProgress) {
+            options.onProgress(Math.round(((f + 1) / totalFrames) * 90));
+          }
+        } catch (addFrameErr) {
+          console.warn(`[Export Engine] WebCodecs addFrame failed at frame ${f}, falling back to frame collection:`, addFrameErr);
+          webCodecsSession.destroy();
+          webCodecsSession = null;
+          const frameBlob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.95);
+          });
+          frameBlobs.push(frameBlob);
+        }
+      } else {
+        // Collect frames for FFmpeg WASM fallback
+        const frameBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.95);
+        });
+        frameBlobs.push(frameBlob);
 
-      // Report progress (Phase 1: 0 - 65%)
-      if (options.onProgress) {
-        options.onProgress(Math.round(((f + 1) / totalFrames) * 65));
+        // Report progress (Phase 1: 0 - 65%)
+        if (options.onProgress) {
+          options.onProgress(Math.round(((f + 1) / totalFrames) * 65));
+        }
       }
     }
   } finally {
     webglRenderer.destroy();
   }
 
-  // 8. Direct Frame Sequence Encoding via FFmpeg (Zero Jitter, Zero Dropped Frames) with Audio Muxing
-  let finalBlob: Blob;
-  let filename: string;
+  // 10. Container Finalization & Encoding
+  let finalBlob: Blob | null = null;
   const timestamp = Date.now();
   const sanitizedName = rawMediaName.trim().replace(/[/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_').replace(/\.[^/.]+$/, '');
+  let filename = `openshot-${sanitizedName}-${timestamp}.${targetFormat}`;
 
-  // Prepare Audio Track Blob if audio is present
-  let exportAudioBlob: Blob | null = options.audioBlob || null;
-  const exportAudioVolume = options.audioVolume ?? 1.0;
-
-  const hasTransitions = (options.mediaClips || []).some(
-    (c) => c.transition === 'gradient' || c.transition === 'blocks'
-  );
-  if (!exportAudioBlob && ((options.audioTracks && options.audioTracks.length > 0) || hasTransitions)) {
+  if (webCodecsSession) {
     try {
-      exportAudioBlob = await mixAudioTracksToWavBlob(
-        options.audioTracks || [],
-        totalDuration,
-        options.mediaClips || []
-      );
-    } catch (err) {
-      console.warn('[Export Engine] Audio mixing failed, proceeding with silent audio:', err);
+      if (options.onProgress) options.onProgress(92);
+      let mp4Blob = await webCodecsSession.finalize();
+
+      // If audio was present but AudioEncoder was not supported natively, fast mux audio with FFmpeg -c:v copy
+      if (exportAudioBlob && !webCodecsAudioHandled) {
+        if (options.onProgress) options.onProgress(95);
+        mp4Blob = await fastMuxAudioVideoMP4(mp4Blob, exportAudioBlob, totalDuration, (p: number) => {
+          if (options.onProgress) options.onProgress(95 + Math.round(p * 0.04));
+        });
+      }
+
+      if (options.onProgress) options.onProgress(99);
+      finalBlob = mp4Blob;
+      filename = `openshot-${sanitizedName}-${timestamp}.mp4`;
+    } catch (wcFinalizeErr) {
+      console.warn('[Export Engine] WebCodecs finalize failed, falling back to FFmpeg sequence encoder:', wcFinalizeErr);
+      webCodecsSession.destroy();
+      webCodecsSession = null;
     }
   }
 
-  if (targetFormat === 'mp4') {
-    if (options.onProgress) options.onProgress(68);
-    finalBlob = await encodeFrameSequenceToMP4(
-      frameBlobs,
-      fps,
-      totalDuration,
-      (p: number) => {
-        if (options.onProgress) options.onProgress(65 + Math.round(p * 0.33));
-      },
-      exportAudioBlob,
-      exportAudioVolume
-    );
-    filename = `openshot-${sanitizedName}-${timestamp}.mp4`;
-  } else {
-    // WebM fallback path
-    if (options.onProgress) options.onProgress(68);
-    const tempMp4 = await encodeFrameSequenceToMP4(
-      frameBlobs,
-      fps,
-      totalDuration,
-      (p: number) => {
-        if (options.onProgress) options.onProgress(65 + Math.round(p * 0.25));
-      },
-      exportAudioBlob,
-      exportAudioVolume
-    );
-    finalBlob = await transcodeToSeekableWebM(tempMp4, totalDuration, (p: number) => {
-      if (options.onProgress) options.onProgress(90 + Math.round(p * 0.1));
-    });
-    filename = `openshot-${sanitizedName}-${timestamp}.webm`;
+  // Fallback path: FFmpeg WASM ultra-fast sequence encoding
+  if (!finalBlob) {
+    if (targetFormat === 'mp4') {
+      finalBlob = await encodeFrameSequenceToMP4(
+        frameBlobs,
+        fps,
+        totalDuration,
+        (p: number) => {
+          if (options.onProgress) options.onProgress(65 + Math.round(p * 0.33));
+        },
+        exportAudioBlob,
+        exportAudioVolume
+      );
+      filename = `openshot-${sanitizedName}-${timestamp}.mp4`;
+    } else {
+      // WebM fallback path
+      const tempMp4 = await encodeFrameSequenceToMP4(
+        frameBlobs,
+        fps,
+        totalDuration,
+        (p: number) => {
+          if (options.onProgress) options.onProgress(65 + Math.round(p * 0.25));
+        },
+        exportAudioBlob,
+        exportAudioVolume
+      );
+      finalBlob = await transcodeToSeekableWebM(tempMp4, totalDuration, (p: number) => {
+        if (options.onProgress) options.onProgress(90 + Math.round(p * 0.09));
+      });
+      filename = `openshot-${sanitizedName}-${timestamp}.webm`;
+    }
   }
 
-  // 9. Post-Export Validation Pass
+  // 11. Post-Export Validation Pass
   await validateExportedBlob(finalBlob, targetFormat, totalDuration);
 
   const url = URL.createObjectURL(finalBlob);
@@ -586,3 +667,4 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     filename,
   };
 }
+

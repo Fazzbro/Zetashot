@@ -283,14 +283,13 @@ export function getActiveAudioItemsAtTime(
 }
 
 /**
- * Mixes multiple audio tracks and auto transition SFX into a single WAV Blob using OfflineAudioContext.
- * Suitable for direct muxing into FFmpeg export.
+ * Mixes multiple audio tracks and auto transition SFX into a single AudioBuffer using OfflineAudioContext.
  */
-export async function mixAudioTracksToWavBlob(
+export async function mixAudioTracksToAudioBuffer(
   tracks: AudioTrackItem[],
   totalDuration: number,
   transitionClips?: MediaTimelineClip[]
-): Promise<Blob | null> {
+): Promise<AudioBuffer | null> {
   const activeTracks = (tracks || []).filter((t) => !t.isMuted && t.url);
   const activeTransitions = (transitionClips || []).filter(
     (c) => c.transition === 'gradient' || c.transition === 'blocks'
@@ -304,17 +303,7 @@ export async function mixAudioTracksToWavBlob(
     ? (window.OfflineAudioContext || (window as any).webkitOfflineAudioContext)
     : null;
 
-  if (!OfflineCtx) {
-    if (activeTracks.length > 0) {
-      try {
-        const res = await fetch(activeTracks[0].url);
-        return await res.blob();
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
+  if (!OfflineCtx) return null;
 
   try {
     const ctx = new OfflineCtx(2, length, sampleRate);
@@ -373,19 +362,37 @@ export async function mixAudioTracksToWavBlob(
       }
     }
 
-    const rendered = await ctx.startRendering();
-    return audioBufferToWavBlob(rendered);
+    return await ctx.startRendering();
   } catch (err) {
     console.warn('[Audio Mixer] OfflineAudioContext rendering failed:', err);
-    if (activeTracks.length > 0) {
-      try {
-        const res = await fetch(activeTracks[0].url);
-        return await res.blob();
-      } catch {
-        return null;
-      }
-    }
     return null;
   }
 }
+
+/**
+ * Mixes multiple audio tracks and auto transition SFX into a single WAV Blob using OfflineAudioContext.
+ * Suitable for direct muxing into FFmpeg export.
+ */
+export async function mixAudioTracksToWavBlob(
+  tracks: AudioTrackItem[],
+  totalDuration: number,
+  transitionClips?: MediaTimelineClip[]
+): Promise<Blob | null> {
+  const buffer = await mixAudioTracksToAudioBuffer(tracks, totalDuration, transitionClips);
+  if (buffer) {
+    return audioBufferToWavBlob(buffer);
+  }
+
+  const activeTracks = (tracks || []).filter((t) => !t.isMuted && t.url);
+  if (activeTracks.length > 0) {
+    try {
+      const res = await fetch(activeTracks[0].url);
+      return await res.blob();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 
