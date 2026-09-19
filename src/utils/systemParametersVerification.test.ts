@@ -22,30 +22,30 @@ describe('Comprehensive System & Parameter Verification', () => {
     expect(emptyClips.length).toBe(0);
   });
 
-  it('verifies subtle, non-excessive auto-zoom scaling across different region sizes', () => {
+  it('verifies intelligent, readable auto-zoom scaling across different region sizes', () => {
     const baseCam: Camera3DState = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.70, panX: 0, panY: 0, perspective: 1000 };
 
-    // Small region
+    // Small region (e.g. button or card) -> High focus push-in for maximum readability
     const smallRegion: InterestRegion = { id: 'r1', index: 1, x: 100, y: 75, width: 125, height: 90 };
     const smallCam = calculateCameraForRegion(smallRegion, stageDims, baseCam);
-    expect(smallCam.zoom).toBeGreaterThanOrEqual(0.70);
-    expect(smallCam.zoom).toBeLessThanOrEqual(1.05); // NOT 2.5x
+    expect(smallCam.zoom).toBeGreaterThanOrEqual(1.50);
+    expect(smallCam.zoom).toBeLessThanOrEqual(2.50);
 
-    // Large region (> 35% of stage)
+    // Large region (> 35% of stage) -> Balanced framing
     const largeRegion: InterestRegion = { id: 'r2', index: 2, x: 50, y: 50, width: 700, height: 400 };
     const largeCam = calculateCameraForRegion(largeRegion, stageDims, baseCam);
-    expect(largeCam.zoom).toBeGreaterThanOrEqual(0.70);
-    expect(largeCam.zoom).toBeLessThanOrEqual(0.75); // Minimal/no zoom for large subjects
+    expect(largeCam.zoom).toBeGreaterThanOrEqual(1.05);
+    expect(largeCam.zoom).toBeLessThanOrEqual(1.40);
   });
 
-  it('respects existing manual user camera zoom and position', () => {
+  it('respects existing manual user camera zoom and position while focusing region', () => {
     const userCam: Camera3DState = { rotX: -5, rotY: 10, rotZ: 0, zoom: 1.20, panX: 50, panY: -20, perspective: 1000 };
     const region: InterestRegion = { id: 'r1', index: 1, x: 100, y: 75, width: 125, height: 90 };
     const adjustedCam = calculateCameraForRegion(region, stageDims, userCam);
 
-    // Adjusts subtly around 1.20x without jumping to 2.5x or resetting
-    expect(adjustedCam.zoom).toBeGreaterThanOrEqual(1.20);
-    expect(adjustedCam.zoom).toBeLessThanOrEqual(1.35);
+    // Adjusts to ensure focus is clear and readable
+    expect(adjustedCam.zoom).toBeGreaterThanOrEqual(1.40);
+    expect(adjustedCam.zoom).toBeLessThanOrEqual(2.50);
   });
 
   it('verifies 1s per interest point synchronization across 1, 3, and 5 points', () => {
@@ -97,7 +97,7 @@ describe('Comprehensive System & Parameter Verification', () => {
     for (let t = 0; t <= 4.0; t += 0.25) {
       const interpolated = interpolateCameraSpline(clips, t);
       expect(interpolated.zoom).toBeGreaterThanOrEqual(0.65);
-      expect(interpolated.zoom).toBeLessThanOrEqual(1.35);
+      expect(interpolated.zoom).toBeLessThanOrEqual(2.80);
       expect(Number.isFinite(interpolated.panX)).toBe(true);
       expect(Number.isFinite(interpolated.panY)).toBe(true);
       expect(Number.isFinite(interpolated.rotX)).toBe(true);

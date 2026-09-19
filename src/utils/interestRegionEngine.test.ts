@@ -40,7 +40,7 @@ describe('interestRegionEngine (Intelligent Auto-Zoom & Framing)', () => {
     },
   ];
 
-  it('calculates subtle, conservative camera zoom (never jumping excessively to 2.5x)', () => {
+  it('calculates intelligent, readable camera zoom for marked focus region', () => {
     const baseCamera: Camera3DState = {
       rotX: 0,
       rotY: 0,
@@ -53,12 +53,12 @@ describe('interestRegionEngine (Intelligent Auto-Zoom & Framing)', () => {
     const r1 = sampleRegions[0];
     const cam = calculateCameraForRegion(r1, stageDims, baseCamera, 1000);
 
-    // Zoom should be a gentle, subtle push-in (e.g. 0.70 -> 0.75 - 0.85)
-    expect(cam.zoom).toBeGreaterThanOrEqual(0.70);
-    expect(cam.zoom).toBeLessThanOrEqual(1.0);
-    // Pan should be smooth and bounded
-    expect(Math.abs(cam.panX)).toBeLessThan(stageDims.width);
-    expect(Math.abs(cam.panY)).toBeLessThan(stageDims.height);
+    // Zoom pushes in cleanly to make the 200x150 region readable and highlighted (e.g. 1.8x - 2.5x)
+    expect(cam.zoom).toBeGreaterThanOrEqual(1.40);
+    expect(cam.zoom).toBeLessThanOrEqual(2.50);
+    // Pan centers the region accurately
+    expect(Math.abs(cam.panX)).toBeLessThan(stageDims.width * cam.zoom);
+    expect(Math.abs(cam.panY)).toBeLessThan(stageDims.height * cam.zoom);
   });
 
   it('calculates cinematic dynamic 3D angles (Auto X, Y, Z) based on region position', () => {
@@ -89,7 +89,7 @@ describe('interestRegionEngine (Intelligent Auto-Zoom & Framing)', () => {
     expect(cam.panX).toBe(Number((-offsetX * cam.zoom).toFixed(1)));
   });
 
-  it('respects existing user camera zoom and adjusts around it subtly', () => {
+  it('respects existing user camera zoom and pushes into readable focus', () => {
     const customUserCamera: Camera3DState = {
       rotX: -5,
       rotY: 10,
@@ -102,9 +102,9 @@ describe('interestRegionEngine (Intelligent Auto-Zoom & Framing)', () => {
     const r1 = sampleRegions[0];
     const cam = calculateCameraForRegion(r1, stageDims, customUserCamera, 1000);
 
-    // When user had 1.20x zoom, it adjusts subtly (e.g. 1.20 -> ~1.27 - 1.35x), NOT resetting or jumping to 2.5x
-    expect(cam.zoom).toBeGreaterThanOrEqual(1.20);
-    expect(cam.zoom).toBeLessThanOrEqual(1.35);
+    // When user had 1.20x zoom, it pushes into readable focus (>= 1.40x)
+    expect(cam.zoom).toBeGreaterThanOrEqual(1.40);
+    expect(cam.zoom).toBeLessThanOrEqual(2.50);
   });
 
   it('returns empty array when 0 interest points exist (causing ZERO keyframes and zero camera movement)', () => {

@@ -26,38 +26,26 @@ export function solveIntelligentFramingZoom(
   baseZoom: number = 0.72,
   style: ChoreographyStyle = 'cinematic'
 ): number {
-  const safeW = Math.max(30, region.width);
+  const safeW = Math.max(40, region.width);
   const safeH = Math.max(30, region.height);
 
-  // Golden ratio target occupancy (~46% of active viewport)
-  const targetOccupancy = style === 'macro' ? 0.60 : style === 'showcase' ? 0.42 : 0.48;
-  const fitScaleW = (stageDims.width * targetOccupancy) / safeW;
-  const fitScaleH = (stageDims.height * targetOccupancy) / safeH;
+  // Target viewport occupancy for readable, cinematic SaaS framing (~55% - 72%)
+  const targetOccupancyW = style === 'macro' ? 0.72 : style === 'showcase' ? 0.58 : 0.65;
+  const targetOccupancyH = style === 'macro' ? 0.70 : style === 'showcase' ? 0.56 : 0.62;
 
-  // Soft-knee sigmoidal mapping relative to base zoom
-  const regionArea = safeW * safeH;
-  const stageArea = stageDims.width * stageDims.height;
-  const areaRatio = Math.max(0.01, Math.min(1.0, regionArea / stageArea));
+  const fitScaleW = (stageDims.width * targetOccupancyW) / safeW;
+  const fitScaleH = (stageDims.height * targetOccupancyH) / safeH;
 
-  let zoomBoost = 0.08;
-  if (areaRatio < 0.05) {
-    // Micro UI detail (button, icon, tag) -> High-definition push-in
-    zoomBoost = style === 'macro' ? 0.32 : 0.22 + (0.05 - areaRatio) * 1.2;
-  } else if (areaRatio < 0.15) {
-    // Small card, dropdown, or modal section
-    zoomBoost = style === 'macro' ? 0.20 : 0.14 + (0.15 - areaRatio) * 0.5;
-  } else if (areaRatio < 0.35) {
-    // Medium column or form block
-    zoomBoost = style === 'showcase' ? 0.05 : 0.08;
-  } else {
-    // Large hero or full-stage section
-    zoomBoost = 0.02;
-  }
+  // Primary bounding-box fit: ensures content fills the frame comfortably while being large and readable
+  const boundingFit = Math.min(fitScaleW, fitScaleH);
 
-  // Combined weighted zoom calculation
-  const calculatedZoom = baseZoom + zoomBoost;
-  const maxZoom = style === 'macro' ? 1.45 : style === 'showcase' ? 1.25 : 1.35;
-  return Number(Math.max(0.70, Math.min(maxZoom, calculatedZoom)).toFixed(2));
+  // High-end SaaS target zoom: micro elements zoom up to 2.2x-2.6x; large cards zoom 1.35x-1.75x
+  const minFocusZoom = Math.max(1.30, (baseZoom || 0.72) + 0.35);
+  const maxFocusZoom = style === 'macro' ? 2.80 : style === 'showcase' ? 2.20 : 2.50;
+
+  // Soft clamp boundingFit
+  const targetZoom = Math.max(minFocusZoom, Math.min(maxFocusZoom, boundingFit));
+  return Number(targetZoom.toFixed(2));
 }
 
 /**
@@ -84,7 +72,7 @@ export function calculateCameraForRegion(
   const normX = Math.max(-1.0, Math.min(1.0, offsetX / (stageDims.width / 2)));
   const normY = Math.max(-1.0, Math.min(1.0, offsetY / (stageDims.height / 2)));
 
-  // 1. Intelligent Context-Aware Zoom
+  // 1. Intelligent Context-Aware Zoom (Crisp, readable, prominent framing)
   const baseZoom = baseCamera?.zoom && baseCamera.zoom > 0 ? baseCamera.zoom : 0.72;
   const targetZoom = solveIntelligentFramingZoom(region, stageDims, baseZoom, style);
 
@@ -93,6 +81,9 @@ export function calculateCameraForRegion(
   const panY = Number((-offsetY * targetZoom).toFixed(1));
 
   // 3. Cinematic Dynamic 3D Parallax Angles (Auto X, Y, Z)
+  // Subtle damping at high zoom to ensure text and UI content remain razor-sharp and easily readable
+  const readabilityDamping = Math.max(0.40, Math.min(1.0, 1.4 / targetZoom));
+
   let rotX = baseCamera?.rotX ?? 0;
   let rotY = baseCamera?.rotY ?? 0;
   let rotZ = baseCamera?.rotZ ?? 0;
@@ -100,30 +91,30 @@ export function calculateCameraForRegion(
   if (enableCinematic3D) {
     if (style === 'orbit') {
       // Dynamic Orbital Arc: Wider sweeping yaw & roll
-      rotX = Number((6.0 + normY * 10.0).toFixed(1));
-      rotY = Number((-normX * 20.0).toFixed(1));
-      rotZ = Number((-4.5 - normX * 3.5).toFixed(1));
+      rotX = Number(((5.0 + normY * 7.0) * readabilityDamping).toFixed(1));
+      rotY = Number((-normX * 14.0 * readabilityDamping).toFixed(1));
+      rotZ = Number((-3.0 - normX * 2.0 * readabilityDamping).toFixed(1));
     } else if (style === 'showcase') {
-      // SaaS Clean View: Minimal tilt, maximum UI readability
-      rotX = Number((4.0 + normY * 5.0).toFixed(1));
-      rotY = Number((-normX * 8.0).toFixed(1));
-      rotZ = Number((-normX * 1.5).toFixed(1));
+      // SaaS Clean View: Minimal tilt, maximum UI readability (Linear / Stripe style)
+      rotX = Number(((3.0 + normY * 4.0) * readabilityDamping).toFixed(1));
+      rotY = Number((-normX * 6.5 * readabilityDamping).toFixed(1));
+      rotZ = Number((-normX * 1.2 * readabilityDamping).toFixed(1));
     } else if (style === 'macro') {
       // Macro Drone: Deep dramatic perspective
-      rotX = Number((8.0 + normY * 12.0).toFixed(1));
-      rotY = Number((-normX * 16.0).toFixed(1));
-      rotZ = Number((-4.0 - normX * 3.0).toFixed(1));
+      rotX = Number(((6.0 + normY * 8.5) * readabilityDamping).toFixed(1));
+      rotY = Number((-normX * 12.0 * readabilityDamping).toFixed(1));
+      rotZ = Number((-3.0 - normX * 2.0 * readabilityDamping).toFixed(1));
     } else {
       // Standard Cinematic Studio (Apple/Stripe grade)
-      rotX = Number((5.5 + normY * 8.5).toFixed(1));
-      rotY = Number((-normX * 14.0).toFixed(1));
-      rotZ = Number((-3.2 - normX * 2.2).toFixed(1));
+      rotX = Number(((4.5 + normY * 7.5) * readabilityDamping).toFixed(1));
+      rotY = Number((-normX * 13.0 * readabilityDamping).toFixed(1));
+      rotZ = Number((-2.0 - normX * 1.5 * readabilityDamping).toFixed(1));
     }
   }
 
-  // Dynamic subtle perspective modulation for enhanced depth pop
+  // Dynamic subtle perspective modulation for enhanced depth pop without distortion
   const basePersp = style === 'macro' ? 850 : perspective;
-  const dynamicPerspective = Math.round(basePersp * (1 - (targetZoom - 0.70) * 0.15));
+  const dynamicPerspective = Math.round(basePersp * (1 + (targetZoom - 1.0) * 0.15));
 
   return {
     rotX,
@@ -136,15 +127,6 @@ export function calculateCameraForRegion(
   };
 }
 
-/**
- * Generates choreographed timeline position clips from an ordered list of interest regions.
- * For K interest points, creates K+1 sets inside a single unified sequence block:
- * - P01: Initial overview / wide angle entrance (at t = 0)
- * - P02: First interest point focus (at t = stepDuration)
- * - P03: Second interest point focus
- * - ...
- * - P{K+1}: K-th interest point focus (at t = totalDuration)
- */
 export function generateClipsFromInterestRegions(
   regions: InterestRegion[],
   totalDuration: number,

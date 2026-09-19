@@ -22,6 +22,7 @@ import {
   VolumeX,
   Scissors,
   Image as ImageIcon,
+  Zap,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
@@ -791,7 +792,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         if (groupStartIndex > 0) {
           const prevBlockLastClip = capturedClips[groupStartIndex - 1];
           if (prevBlockLastClip && Math.abs((prevBlockLastClip.startTime + (prevBlockLastClip.duration || 1.5)) - initialStart) < 0.05) {
-            const prevNewDuration = Math.max(0.3, Number((newStart - prevBlockLastClip.startTime).toFixed(2)));
+            const prevNewDuration = Math.max(0.3, Number((initialStart - prevBlockLastClip.startTime).toFixed(2)));
             updated[groupStartIndex - 1].duration = prevNewDuration;
           }
         }
@@ -1094,7 +1095,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
         newStartTime = Number((activeMediaClip.startTime + halfDur).toFixed(2));
         defaultCamera = { ...firstInClip.camera };
-        blockId = updatedFirst.blockId;
+        blockId = updatedFirst.blockId || `block_${activeMediaClip.id}`;
 
         const newClip: TimelinePositionClip = {
           id: `P${pad}_${Date.now()}`,
@@ -2285,6 +2286,24 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                           )}
                         </div>
                         <span className="multiclip-card-name">{mClip.name}</span>
+                        {idx > 0 && (
+                          <button
+                            type="button"
+                            className={`multiclip-card-transition-trigger ${
+                              mClip.transition && mClip.transition !== 'cut' ? 'has-transition' : ''
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMediaTransitionPopover(
+                                activeMediaTransitionPopover?.clipId === mClip.id ? null : { clipId: mClip.id }
+                              );
+                            }}
+                            title={`Transition into ${mClip.name}: ${mClip.transition || 'cut'} - Click to change`}
+                          >
+                            <Zap size={10} />
+                            <span>{mClip.transition && mClip.transition !== 'cut' ? mClip.transition.toUpperCase() : 'TRANSITION'}</span>
+                          </button>
+                        )}
                         {isSelected ? (
                           <div className="multiclip-dur-stepper" onClick={(e) => e.stopPropagation()}>
                             <button

@@ -199,6 +199,35 @@ export class CaptureEngine {
       frameCtx.fillText('UI Camera Mockup', frameW / 2, frameH / 2);
     }
 
+    // --- High-End SaaS Black Border Frame & Glass Sheen Overlay ---
+    frameCtx.save();
+    frameCtx.beginPath();
+    frameCtx.roundRect(0.5, 0.5, frameW - 1, frameH - 1, cornerRadius);
+    frameCtx.lineWidth = Math.max(1, Math.round(1.5 * baseScale));
+    frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    frameCtx.stroke();
+
+    frameCtx.beginPath();
+    frameCtx.roundRect(1.5, 1.5, frameW - 3, frameH - 3, Math.max(0, cornerRadius - 1));
+    frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
+    frameCtx.strokeStyle = 'rgba(0, 0, 0, 0.50)';
+    frameCtx.stroke();
+
+    frameCtx.beginPath();
+    frameCtx.roundRect(2.5, 2.5, frameW - 5, frameH - 5, Math.max(0, cornerRadius - 2));
+    frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
+    frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    frameCtx.stroke();
+
+    const glassGrad = frameCtx.createLinearGradient(0, 0, frameW, frameH);
+    glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+    glassGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.03)');
+    glassGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.0)');
+    glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+    frameCtx.fillStyle = glassGrad;
+    frameCtx.fill();
+    frameCtx.restore();
+
     frameCtx.restore();
 
     // 6. WebGL 3D Perspective & Depth-of-Field Bokeh Render on GPU

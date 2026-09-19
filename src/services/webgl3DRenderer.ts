@@ -222,8 +222,19 @@ void main() {
   float fresnel = (1.0 - smoothstep(0.0, 0.06, edgeDist)) * 0.04;
 
   vec3 litRgb = finalColor.rgb + vec3(sheen + fresnel);
+
+  // High-end dark border frame & crisp specular edge rim
+  // cornerDist is <= 0 inside the rounded rectangle, 0.0 at the perimeter.
+  float borderDist = clamp(-cornerDist, 0.0, 3.5);
+  float darkBezelFactor = smoothstep(2.5, 0.0, borderDist) * 0.85;
+  vec3 darkBezelColor = vec3(0.05, 0.07, 0.09); // #0d1117 chassis dark
+
+  // Specular highlight line along inner rim (-3.0px to -1.2px)
+  float specularRim = smoothstep(3.2, 2.0, borderDist) * (1.0 - smoothstep(2.0, 0.8, borderDist)) * 0.16;
+
+  vec3 framedColor = mix(litRgb, darkBezelColor, darkBezelFactor) + vec3(specularRim);
   float outAlpha = finalColor.a * cornerAlpha * u_opacity;
-  gl_FragColor = vec4(litRgb * outAlpha, outAlpha);
+  gl_FragColor = vec4(framedColor * outAlpha, outAlpha);
 }
 `;
 
