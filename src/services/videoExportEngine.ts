@@ -70,8 +70,8 @@ export interface VideoExportResult {
   filename: string;
 }
 
-export function getCameraAtTime(clips: TimelinePositionClip[], time: number): Camera3DState {
-  return interpolateCameraSpline(clips, time);
+export function getCameraAtTime(clips: TimelinePositionClip[], time: number, mediaClips?: MediaTimelineClip[]): Camera3DState {
+  return interpolateCameraSpline(clips, time, mediaClips);
 }
 
 /**
@@ -372,7 +372,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       }
 
       // Canonical camera evaluation matching preview 1:1 with Catmull-Rom continuous trajectory
-      const camera = interpolateCameraSpline(options.clips, time);
+      const camera = interpolateCameraSpline(options.clips, time, options.mediaClips);
 
       // --- A. Draw 2D Frame Content (Chassis, Rounded Clip, Media, Blur) ---
       frameCtx.clearRect(0, 0, frameW, frameH);

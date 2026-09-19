@@ -35,12 +35,15 @@ import {
   sequenceClipsContiguously,
   calculateMediaSequenceDuration,
   splitMediaClipAtTime,
+  getActiveMediaClipAtTime,
 } from '../types/mediaTimeline';
 import {
   calculatePlaybackRate,
   syncMediaClipsToKeyframeDuration,
   syncKeyframeSequenceToDuration,
   syncKeyframesForResizedMediaClip,
+  splitKeyframesAtTime,
+  getNextKeyframeIndex,
 } from '../utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from '../types/audioTrack';
 import { AudioManagerModal } from './AudioManagerModal';
@@ -510,10 +513,17 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     if (!mediaClipsRef.current || mediaClipsRef.current.length === 0) return;
     const { updatedClips, splitClipId } = splitMediaClipAtTime(mediaClipsRef.current, currentTime);
     if (splitClipId) {
+      const targetClip = mediaClipsRef.current.find(
+        (c) => currentTime >= c.startTime + 0.15 && currentTime <= c.startTime + c.duration - 0.15
+      );
+      if (targetClip) {
+        const updatedKeyframes = splitKeyframesAtTime(clipsRef.current, currentTime, targetClip.id, splitClipId);
+        onClipsChange(updatedKeyframes);
+      }
       onMediaClipsChange?.(updatedClips);
       onSelectMediaClip?.(splitClipId);
     }
-  }, [currentTime, onMediaClipsChange, onSelectMediaClip]);
+  }, [currentTime, onClipsChange, onMediaClipsChange, onSelectMediaClip]);
 
   // Keyboard shortcut: S key splits media at playhead
   useEffect(() => {
@@ -1018,20 +1028,48 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
   // Add ONE keyframe to the sequence on '+' click
   const handleAddSingleKeyframe = () => {
-    const lastClip = clips[clips.length - 1];
-    const nextNum = clips.length + 1;
+    const nextNum = getNextKeyframeIndex(clips);
     const pad = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
-
     const stepDur = 1.5;
-    let newStartTime = 0;
-    if (lastClip) {
-      newStartTime = Number((lastClip.startTime + (lastClip.duration || stepDur)).toFixed(2));
-    }
 
-    // Default camera inherits previous keyframe angle
-    const defaultCamera: Camera3DState = lastClip
-      ? { ...lastClip.camera }
-      : { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+    // Find active media clip at current playhead or selected media clip
+    const currentMediaClips = mediaClipsRef.current || [];
+    const activeMediaClip = currentMediaClips.length > 0
+      ? (getActiveMediaClipAtTime(currentMediaClips, currentTime) || currentMediaClips.find((m) => m.id === selectedMediaClipId) || currentMediaClips[0])
+      : null;
+
+    let newStartTime = currentTime;
+    let defaultCamera: Camera3DState = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+    let mediaClipId: string | undefined = undefined;
+    let blockId = `block_${Date.now()}`;
+
+    if (activeMediaClip) {
+      mediaClipId = activeMediaClip.id;
+      blockId = `block_${activeMediaClip.id}`;
+
+      // Keyframes belonging to this media clip
+      const clipKeyframes = clips.filter((c) => c.mediaClipId === activeMediaClip.id || (!c.mediaClipId && c.startTime >= activeMediaClip.startTime && c.startTime < activeMediaClip.startTime + activeMediaClip.duration));
+
+      if (clipKeyframes.length > 0) {
+        const lastInClip = clipKeyframes[clipKeyframes.length - 1];
+        newStartTime = Number((lastInClip.startTime + (lastInClip.duration || stepDur)).toFixed(2));
+        if (newStartTime >= activeMediaClip.startTime + activeMediaClip.duration) {
+          newStartTime = Number((activeMediaClip.startTime + Math.max(0, activeMediaClip.duration - stepDur)).toFixed(2));
+        }
+        defaultCamera = { ...lastInClip.camera };
+        if (lastInClip.blockId) blockId = lastInClip.blockId;
+      } else {
+        // First keyframe for this media clip starts at the media clip's start time and uses the clean imported pose!
+        newStartTime = Number(activeMediaClip.startTime.toFixed(2));
+        defaultCamera = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+      }
+    } else {
+      const lastClip = clips[clips.length - 1];
+      if (lastClip) {
+        newStartTime = Number((lastClip.startTime + (lastClip.duration || stepDur)).toFixed(2));
+        defaultCamera = { ...lastClip.camera };
+      }
+    }
 
     const newClip: TimelinePositionClip = {
       id: `P${pad}_${Date.now()}`,
@@ -1042,16 +1080,18 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       color: 'yellow',
       transition: 'cut',
       exitTransition: 'cut',
+      mediaClipId,
+      blockId,
     };
 
-    const updated = [...clips, newClip];
+    const updated = [...clips, newClip].sort((a, b) => a.startTime - b.startTime);
     onClipsChange(updated);
     const newSpan = Number((newStartTime + stepDur).toFixed(2));
     if (onMediaDurationChange) {
       onMediaDurationChange(newSpan);
     }
     onSelectClip(newClip.id);
-    onSeek(newSpan);
+    onSeek(newStartTime);
   };
 
   const handleDeleteClip = (idToDelete?: string) => {

@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   interpolateCameraSpline,
+  DEFAULT_SPLINE_CAMERA,
   getKeyframeSpans,
   getKeyframeTimesForGroup,
   getKeyframeTargetTime,
   getActiveClipAtTime,
 } from './splineInterpolation';
 import { TimelinePositionClip } from '../components/VideoTimeline';
+import { MediaTimelineClip } from '../types/mediaTimeline';
 
 describe('splineInterpolation utilities', () => {
   const pairClips: TimelinePositionClip[] = [
@@ -280,5 +282,51 @@ describe('splineInterpolation utilities', () => {
     expect(times).toEqual([0, 2.0, 4.0, 6.0]);
     expect(getKeyframeTargetTime(composeClips, 'c04')).toBe(6.0);
   });
-});
+it('returns DEFAULT_SPLINE_CAMERA when active media clip has no keyframes', () => {
+    // Clip 1 (0s - 3s) has keyframes with extreme rotation
+    const clip1Keyframes: TimelinePositionClip[] = [
+      {
+        id: 'p01',
+        name: 'P01',
+        startTime: 0,
+        duration: 1.5,
+        camera: { rotX: 10, rotY: 20, rotZ: 0, zoom: 1.0, panX: 0, panY: 0, perspective: 1000 },
+        mediaClipId: 'm1',
+      },
+      {
+        id: 'p02',
+        name: 'P02',
+        startTime: 1.5,
+        duration: 1.5,
+        camera: { rotX: 45, rotY: 60, rotZ: 10, zoom: 1.5, panX: 50, panY: -20, perspective: 1000 },
+        mediaClipId: 'm1',
+      },
+    ];
 
+    // Two media clips: m1 [0s - 3s] and m2 [3s - 6s] (m2 has NO keyframes)
+    const mediaClips: MediaTimelineClip[] = [
+      { id: 'm1', mediaId: 'm1', name: 'Clip 1', type: 'video', url: '1.mp4', startTime: 0, duration: 3.0 },
+      { id: 'm2', mediaId: 'm2', name: 'Clip 2', type: 'video', url: '2.mp4', startTime: 3.0, duration: 3.0 },
+    ];
+
+    // Inside Clip 1 at 1.5s, camera should reflect Clip 1's keyframes
+    const camInClip1 = interpolateCameraSpline(clip1Keyframes, 1.5, mediaClips);
+    expect(camInClip1.rotX).toBeGreaterThan(10);
+    expect(camInClip1.rotY).toBeGreaterThan(20);
+
+    // Inside Clip 2 at 4.0s (which has NO keyframes), camera MUST revert to DEFAULT_SPLINE_CAMERA (clean imported pose)
+    const camInClip2 = interpolateCameraSpline(clip1Keyframes, 4.0, mediaClips);
+    expect(camInClip2.rotX).toBe(DEFAULT_SPLINE_CAMERA.rotX);
+    expect(camInClip2.rotY).toBe(DEFAULT_SPLINE_CAMERA.rotY);
+    expect(camInClip2.rotZ).toBe(DEFAULT_SPLINE_CAMERA.rotZ);
+    expect(camInClip2.zoom).toBe(DEFAULT_SPLINE_CAMERA.zoom);
+    expect(camInClip2.panX).toBe(DEFAULT_SPLINE_CAMERA.panX);
+    expect(camInClip2.panY).toBe(DEFAULT_SPLINE_CAMERA.panY);
+    expect(camInClip2.perspective).toBe(DEFAULT_SPLINE_CAMERA.perspective);
+
+    // At the boundary 3.0s into Clip 2, it also immediately yields DEFAULT_SPLINE_CAMERA
+    const camAtClip2Start = interpolateCameraSpline(clip1Keyframes, 3.0, mediaClips);
+    expect(camAtClip2Start.rotX).toBe(DEFAULT_SPLINE_CAMERA.rotX);
+    expect(camAtClip2Start.rotY).toBe(DEFAULT_SPLINE_CAMERA.rotY);
+  });
+});

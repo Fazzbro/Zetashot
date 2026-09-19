@@ -8,6 +8,7 @@ import {
   calculatePlaybackRate,
   generateKeyframesForNewMediaClip,
   syncKeyframesForResizedMediaClip,
+  splitKeyframesAtTime,
 } from './keyframeMediaSyncEngine';
 import { MediaTimelineClip, calculateMediaSequenceDuration } from '../types/mediaTimeline';
 
@@ -311,5 +312,65 @@ describe('Keyframe and Media Synchronous Stretching Engine', () => {
     const cap2End = clip2Keyframes[clip2Keyframes.length - 1].startTime + (clip2Keyframes[clip2Keyframes.length - 1].duration || 0);
     expect(cap2Start).toBe(3.0);
     expect(cap2End).toBe(6.0);
+  });
+it('correctly splits keyframes at cut time when cutting a clip into two', () => {
+    const defaultCam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+    const customCam = { rotX: 15, rotY: 25, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 };
+
+    const initialClips: TimelinePositionClip[] = [
+      { id: 'P01', name: 'P01', startTime: 0, duration: 2.0, camera: defaultCam, mediaClipId: 'clip1' },
+      { id: 'P02', name: 'P02', startTime: 2.0, duration: 2.0, camera: customCam, mediaClipId: 'clip1' },
+      // Unaffected 3rd clip
+      { id: 'P03', name: 'P03', startTime: 4.0, duration: 2.0, camera: defaultCam, mediaClipId: 'clip3' },
+    ];
+
+    // Split clip1 at 2.0s into clip1 and clip2
+    const splitClips = splitKeyframesAtTime(initialClips, 2.0, 'clip1', 'clip2');
+
+    expect(splitClips.length).toBe(3);
+
+    // First keyframe stays with clip1
+    expect(splitClips[0].id).toBe('P01');
+    expect(splitClips[0].mediaClipId).toBe('clip1');
+    expect(splitClips[0].blockId).toBe('block_clip1');
+    expect(splitClips[0].startTime).toBe(0);
+    expect(splitClips[0].duration).toBe(2.0);
+
+    // Second keyframe is transferred to clip2 with unique blockId
+    expect(splitClips[1].id).toBe('P02');
+    expect(splitClips[1].mediaClipId).toBe('clip2');
+    expect(splitClips[1].blockId).toBe('block_clip2');
+    expect(splitClips[1].startTime).toBe(2.0);
+    expect(splitClips[1].duration).toBe(2.0);
+
+    // Third keyframe on clip3 is completely untouched
+    expect(splitClips[2].id).toBe('P03');
+    expect(splitClips[2].mediaClipId).toBe('clip3');
+  });
+
+  it('correctly splits a straddling keyframe when cut time falls inside a keyframe span', () => {
+    const defaultCam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+
+    // Single keyframe spanning from 0s to 4.0s
+    const initialClips: TimelinePositionClip[] = [
+      { id: 'P01', name: 'P01', startTime: 0, duration: 4.0, camera: defaultCam, mediaClipId: 'clip1' },
+    ];
+
+    // Split at 1.5s
+    const splitClips = splitKeyframesAtTime(initialClips, 1.5, 'clip1', 'clip2');
+
+    expect(splitClips.length).toBe(2);
+
+    // First part: 0s -> 1.5s
+    expect(splitClips[0].startTime).toBe(0);
+    expect(splitClips[0].duration).toBe(1.5);
+    expect(splitClips[0].mediaClipId).toBe('clip1');
+    expect(splitClips[0].blockId).toBe('block_clip1');
+
+    // Second part: 1.5s -> 4.0s (duration = 2.5s)
+    expect(splitClips[1].startTime).toBe(1.5);
+    expect(splitClips[1].duration).toBe(2.5);
+    expect(splitClips[1].mediaClipId).toBe('clip2');
+    expect(splitClips[1].blockId).toBe('block_clip2');
   });
 });

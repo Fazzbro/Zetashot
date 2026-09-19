@@ -249,3 +249,85 @@ export function syncKeyframesForResizedMediaClip(
   return syncKeyframeSequenceToDuration(clips, groupStartIndex, subCount, newClipDuration);
 }
 
+
+
+/**
+ * Splits keyframes belonging to a media clip when that clip is cut at cutTime.
+ * - Keyframes before cutTime retain firstMediaClipId and block_${firstMediaClipId}.
+ * - Keyframes after cutTime are assigned secondMediaClipId and block_${secondMediaClipId}.
+ * - Any keyframe straddling cutTime is split at cutTime into two contiguous keyframes.
+ * - Keyframes belonging to other media clips are preserved unchanged.
+ */
+export function splitKeyframesAtTime(
+  clips: TimelinePositionClip[],
+  cutTime: number,
+  firstMediaClipId: string,
+  secondMediaClipId: string
+): TimelinePositionClip[] {
+  if (!clips || clips.length === 0) return clips;
+
+  const firstBlockId = `block_${firstMediaClipId}`;
+  const secondBlockId = `block_${secondMediaClipId}`;
+  const result: TimelinePositionClip[] = [];
+
+  let nextPNum = getNextKeyframeIndex(clips);
+
+  for (const c of clips) {
+    // Check if keyframe belongs to target media clip or is in the cut region
+    const isTarget = c.mediaClipId === firstMediaClipId || (!c.mediaClipId && c.startTime <= cutTime + 0.05);
+
+    if (!isTarget) {
+      result.push(c);
+      continue;
+    }
+
+    const start = c.startTime;
+    const dur = typeof c.duration === 'number' ? c.duration : 1.5;
+    const end = Number((start + dur).toFixed(2));
+
+    if (end <= cutTime + 0.001) {
+      // Entirely before cut
+      result.push({
+        ...c,
+        mediaClipId: firstMediaClipId,
+        blockId: c.blockId || firstBlockId,
+      });
+    } else if (start >= cutTime - 0.001) {
+      // Entirely after cut
+      result.push({
+        ...c,
+        mediaClipId: secondMediaClipId,
+        blockId: secondBlockId,
+      });
+    } else {
+      // Straddles cutTime -> split into two contiguous keyframes
+      const dur1 = Number((cutTime - start).toFixed(2));
+      const dur2 = Number((end - cutTime).toFixed(2));
+
+      const p2Name = `P${nextPNum < 10 ? '0' + nextPNum : nextPNum}`;
+      nextPNum++;
+
+      // First half
+      result.push({
+        ...c,
+        duration: dur1,
+        mediaClipId: firstMediaClipId,
+        blockId: c.blockId || firstBlockId,
+      });
+
+      // Second half
+      result.push({
+        ...c,
+        id: `${c.id}_part_${Date.now()}`,
+        name: p2Name,
+        startTime: Number(cutTime.toFixed(2)),
+        duration: dur2,
+        mediaClipId: secondMediaClipId,
+        blockId: secondBlockId,
+        transition: 'cut',
+      });
+    }
+  }
+
+  return result.sort((a, b) => a.startTime - b.startTime);
+}

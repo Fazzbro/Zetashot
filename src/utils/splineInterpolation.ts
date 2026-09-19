@@ -1,4 +1,5 @@
 import { Camera3DState } from './camera3D';
+import { MediaTimelineClip, getActiveMediaClipAtTime } from '../types/mediaTimeline';
 import { TimelinePositionClip } from '../components/VideoTimeline';
 
 export interface KeyframeSpan {
@@ -226,11 +227,11 @@ export function getKeyframeSpans(clips: TimelinePositionClip[]): KeyframeSpan[] 
  * Uses Cubic Hermite Spline with boundary-clamped zero-acceleration entrance/exit
  * and continuous C1 velocity through all intermediate waypoints.
  */
-const DEFAULT_SPLINE_CAMERA: Camera3DState = {
+export const DEFAULT_SPLINE_CAMERA: Camera3DState = {
   rotX: 0,
   rotY: 0,
   rotZ: 0,
-  zoom: 1.0,
+  zoom: 0.7,
   panX: 0,
   panY: 0,
   perspective: 1000,
@@ -249,30 +250,8 @@ function safeCamera(cam?: Partial<Camera3DState> | null): Camera3DState {
   };
 }
 
-export function interpolateCameraSpline(
-  clips: TimelinePositionClip[],
-  time: number
-): Camera3DState {
-  if (!clips || clips.length === 0) {
-    return { ...DEFAULT_SPLINE_CAMERA };
-  }
-
-  const spans = getKeyframeSpans(clips);
-  if (spans.length === 0) {
-    return safeCamera(clips[0]?.camera);
-  }
-
-  // 1. If before first span
-  if (time <= spans[0].startTime) {
-    return safeCamera(spans[0].startCamera);
-  }
-
-  // 2. If after last span
+function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
   const lastSpan = spans[spans.length - 1];
-  if (time >= lastSpan.endTime) {
-    return safeCamera(lastSpan.endCamera);
-  }
-
   // 3. Find active span
   for (let i = 0; i < spans.length; i++) {
     const span = spans[i];
@@ -380,4 +359,67 @@ export function interpolateCameraSpline(
   }
 
   return safeCamera(lastSpan.endCamera);
+}
+
+export function interpolateCameraSpline(
+  clips: TimelinePositionClip[],
+  time: number,
+  mediaClips?: MediaTimelineClip[]
+): Camera3DState {
+  if (!clips || clips.length === 0) {
+    return { ...DEFAULT_SPLINE_CAMERA };
+  }
+
+  // If multi-clip media sequence exists, scope camera evaluation to the active media clip
+  if (mediaClips && mediaClips.length > 0) {
+    const activeMediaClip = getActiveMediaClipAtTime(mediaClips, time);
+    if (activeMediaClip) {
+      // Find keyframes associated with this media clip
+      const clipKeyframes = clips.filter((c) => {
+        if (c.mediaClipId) {
+          return c.mediaClipId === activeMediaClip.id;
+        }
+        return c.startTime >= activeMediaClip.startTime - 0.05 && c.startTime < activeMediaClip.startTime + activeMediaClip.duration;
+      });
+
+      // If the active media clip has no keyframes, it must remain in the clean default imported pose!
+      if (clipKeyframes.length === 0) {
+        return { ...DEFAULT_SPLINE_CAMERA };
+      }
+
+      const spans = getKeyframeSpans(clipKeyframes);
+      if (spans.length === 0) {
+        return safeCamera(clipKeyframes[0]?.camera);
+      }
+
+      if (time <= spans[0].startTime) {
+        return safeCamera(spans[0].startCamera);
+      }
+
+      const lastSpan = spans[spans.length - 1];
+      if (time >= lastSpan.endTime) {
+        return safeCamera(lastSpan.endCamera);
+      }
+
+      return evaluateSpans(spans, time);
+    }
+  }
+
+  const spans = getKeyframeSpans(clips);
+  if (spans.length === 0) {
+    return safeCamera(clips[0]?.camera);
+  }
+
+  // 1. If before first span
+  if (time <= spans[0].startTime) {
+    return safeCamera(spans[0].startCamera);
+  }
+
+  // 2. If after last span
+  const lastSpan = spans[spans.length - 1];
+  if (time >= lastSpan.endTime) {
+    return safeCamera(lastSpan.endCamera);
+  }
+
+  return evaluateSpans(spans, time);
 }

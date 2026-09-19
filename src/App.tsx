@@ -19,7 +19,7 @@ import { exportMockupVideo, getCameraAtTime } from './services/videoExportEngine
 import { storageService } from './services/storageService';
 import { MediaTimelineClip, getActiveMediaClipAtTime, calculateMediaSequenceDuration, splitMediaClipAtTime, sequenceClipsContiguously } from './types/mediaTimeline';
 import { getMediaTransitionAtTime, getBlockTransitionGrid, getBlockTileStates, drawBlockTransitionCanvas } from './utils/transitionMath';
-import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration, syncKeyframeSequenceToDuration, generateKeyframesForNewMediaClip } from './utils/keyframeMediaSyncEngine';
+import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration, syncKeyframeSequenceToDuration, generateKeyframesForNewMediaClip, splitKeyframesAtTime, getNextKeyframeIndex } from './utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from './types/audioTrack';
 import { getActiveAudioItemsAtTime } from './utils/audioTrackHelper';
 import { CubicBezierValues } from './utils/bezierSolver';
@@ -576,22 +576,56 @@ export function App() {
       frameSceneRef.current.style.transform = calculate3DTransform(cleanedCam, stageScaleRef.current);
     }
 
-    // Determine target clip: selectedClipId, or active clip at currentTime, or first clip
     const currentClips = clipsRef.current;
-    let targetId = selectedClipIdRef.current || selectedClipId;
-    if (!targetId || !currentClips.some((c) => c.id === targetId)) {
-      const active = getActiveClipAtTime(currentClips, currentTimeRef.current);
-      targetId = active ? active.id : (currentClips[0]?.id || '');
-      if (targetId) {
-        setSelectedClipId(targetId);
-        selectedClipIdRef.current = targetId;
-      }
+    const currentMediaClips = mediaClipsRef.current;
+    const activeMedia = currentMediaClips.length > 0
+      ? getActiveMediaClipAtTime(currentMediaClips, currentTimeRef.current)
+      : null;
+
+    // Filter candidate clips strictly belonging to the active media clip when multi-clip
+    let candidateClips = currentClips;
+    if (activeMedia) {
+      candidateClips = currentClips.filter((c) =>
+        c.mediaClipId ? c.mediaClipId === activeMedia.id : (c.startTime >= activeMedia.startTime - 0.05 && c.startTime < activeMedia.startTime + activeMedia.duration)
+      );
     }
 
-    // Synchronously update clipsRef.current and setClips
-    const nextClips = currentClips.map((c) => (c.id === targetId ? { ...c, camera: cleanedCam } : c));
-    clipsRef.current = nextClips;
-    setClips(nextClips);
+    let targetId = selectedClipIdRef.current || selectedClipId;
+    if (!targetId || !candidateClips.some((c) => c.id === targetId)) {
+      const active = getActiveClipAtTime(candidateClips, currentTimeRef.current);
+      targetId = active ? active.id : (candidateClips[0]?.id || '');
+    }
+
+    if (targetId && currentClips.some((c) => c.id === targetId)) {
+      // Update existing keyframe belonging to this media clip
+      setSelectedClipId(targetId);
+      selectedClipIdRef.current = targetId;
+      const nextClips = currentClips.map((c) => (c.id === targetId ? { ...c, camera: cleanedCam } : c));
+      clipsRef.current = nextClips;
+      setClips(nextClips);
+    } else if (activeMedia) {
+      // Active media clip has NO keyframe! Create a keyframe directly for activeMedia
+      // DO NOT fall back to modifying a keyframe from another clip!
+      const nextNum = getNextKeyframeIndex(currentClips);
+      const pad = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
+      const newKeyframe: TimelinePositionClip = {
+        id: `P${pad}_${Date.now()}`,
+        name: `P${pad}`,
+        startTime: Number(currentTimeRef.current.toFixed(2)),
+        duration: Math.min(1.5, Number((activeMedia.duration / 2).toFixed(2)) || 1.5),
+        camera: cleanedCam,
+        color: 'yellow',
+        transition: 'cut',
+        exitTransition: 'cut',
+        mediaClipId: activeMedia.id,
+        blockId: `block_${activeMedia.id}`,
+      };
+      const nextClips = [...currentClips, newKeyframe].sort((a, b) => a.startTime - b.startTime);
+      clipsRef.current = nextClips;
+      setClips(nextClips);
+      setSelectedClipId(newKeyframe.id);
+      selectedClipIdRef.current = newKeyframe.id;
+    }
   };
 
   // Synchronous Media Duration and Playback Rate Sync Handler
@@ -1012,14 +1046,31 @@ export function App() {
     });
 
     const currentClips = clipsRef.current;
+    const currentMediaClips = mediaClipsRef.current;
+    const activeMedia = currentMediaClips.length > 0
+      ? getActiveMediaClipAtTime(currentMediaClips, time)
+      : null;
+
     if (currentClips.length > 0) {
-      const targetClip = getActiveClipAtTime(currentClips, time);
-      if (targetClip && selectedClipIdRef.current !== targetClip.id) {
-        selectedClipIdRef.current = targetClip.id;
-        setSelectedClipId(targetClip.id);
+      let candidateClips = currentClips;
+      if (activeMedia) {
+        candidateClips = currentClips.filter((c) =>
+          c.mediaClipId ? c.mediaClipId === activeMedia.id : (c.startTime >= activeMedia.startTime - 0.05 && c.startTime < activeMedia.startTime + activeMedia.duration)
+        );
+      }
+      const targetClip = getActiveClipAtTime(candidateClips, time);
+      if (targetClip) {
+        if (selectedClipIdRef.current !== targetClip.id) {
+          selectedClipIdRef.current = targetClip.id;
+          setSelectedClipId(targetClip.id);
+        }
+      } else if (activeMedia && candidateClips.length === 0) {
+        // Active media clip has no keyframes, clear selected keyframe
+        selectedClipIdRef.current = '';
+        setSelectedClipId('');
       }
     }
-    const interpolated = getCameraAtTime(currentClips, time);
+    const interpolated = getCameraAtTime(currentClips, time, currentMediaClips);
     setCamera(interpolated);
     if (frameAnchorRef.current) {
       frameAnchorRef.current.style.perspective = `${(interpolated.perspective || 1000) * (stageScaleRef.current || 1.0)}px`;
@@ -1117,7 +1168,7 @@ export function App() {
 
       // Canonical camera evaluation matching export 1:1 with Catmull-Rom spline
       const currentClips = clipsRef.current;
-      const interpolated = interpolateCameraSpline(currentClips, nextTime);
+      const interpolated = interpolateCameraSpline(currentClips, nextTime, mediaClipsRef.current);
       setCamera(interpolated);
       setFrameOpacity(1.0);
 
@@ -1215,6 +1266,14 @@ export function App() {
         e.preventDefault();
         const { updatedClips, splitClipId } = splitMediaClipAtTime(mediaClipsRef.current, currentTimeRef.current);
         if (splitClipId) {
+          const targetClip = mediaClipsRef.current.find(
+            (c) => currentTimeRef.current >= c.startTime + 0.15 && currentTimeRef.current <= c.startTime + c.duration - 0.15
+          );
+          if (targetClip) {
+            const updatedKeyframes = splitKeyframesAtTime(clipsRef.current, currentTimeRef.current, targetClip.id, splitClipId);
+            setClips(updatedKeyframes);
+            clipsRef.current = updatedKeyframes;
+          }
           setMediaClips(updatedClips);
           setSelectedMediaClipId(splitClipId);
         }
@@ -2115,6 +2174,16 @@ export function App() {
                   dimensions: '1920 × 1080',
                   format: target.type === 'video' ? 'MP4' : 'PNG',
                 });
+              }
+              if (id) {
+                const clipKeyframes = clipsRef.current.filter((c) => c.mediaClipId === id);
+                if (clipKeyframes.length > 0) {
+                  setSelectedClipId(clipKeyframes[0].id);
+                  selectedClipIdRef.current = clipKeyframes[0].id;
+                } else {
+                  setSelectedClipId('');
+                  selectedClipIdRef.current = '';
+                }
               }
             }}
             audioTracks={audioTracks}
