@@ -133,74 +133,6 @@ export function playShutterSound() {
 }
 
 /**
- * Warm radiant gradient transition sound:
- * A cinematic airy whoosh with a soft exposure bloom swell and shimmering chime.
- */
-export function playGradientTransitionSound(volumeScale = 1.0) {
-  if (!soundEnabled) return;
-  try {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-
-    const t = ctx.currentTime;
-    const dur = 0.5;
-
-    // 1. Filtered airy noise swell (whoosh)
-    const bufferSize = Math.floor(ctx.sampleRate * dur);
-    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      const p = i / bufferSize;
-      // Parabolic envelope peaking at 50%
-      const env = Math.sin(p * Math.PI);
-      output[i] = (Math.random() * 2 - 1) * env;
-    }
-
-    const noiseSrc = ctx.createBufferSource();
-    noiseSrc.buffer = noiseBuffer;
-
-    const bqFilter = ctx.createBiquadFilter();
-    bqFilter.type = 'bandpass';
-    bqFilter.frequency.setValueAtTime(600, t);
-    bqFilter.frequency.exponentialRampToValueAtTime(2400, t + dur * 0.5);
-    bqFilter.frequency.exponentialRampToValueAtTime(450, t + dur);
-    bqFilter.Q.value = 2.0;
-
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.001, t);
-    noiseGain.gain.linearRampToValueAtTime(0.35 * volumeScale, t + dur * 0.5);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-
-    noiseSrc.connect(bqFilter);
-    bqFilter.connect(noiseGain);
-    noiseGain.connect(ctx.destination);
-
-    noiseSrc.start(t);
-    noiseSrc.stop(t + dur);
-
-    // 2. Warm low-sub swell for weight
-    const subOsc = ctx.createOscillator();
-    const subGain = ctx.createGain();
-    subOsc.type = 'sine';
-    subOsc.frequency.setValueAtTime(90, t);
-    subOsc.frequency.linearRampToValueAtTime(140, t + dur * 0.5);
-    subOsc.frequency.exponentialRampToValueAtTime(60, t + dur);
-
-    subGain.gain.setValueAtTime(0.001, t);
-    subGain.gain.linearRampToValueAtTime(0.25 * volumeScale, t + dur * 0.5);
-    subGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-
-    subOsc.connect(subGain);
-    subGain.connect(ctx.destination);
-
-    subOsc.start(t);
-    subOsc.stop(t + dur);
-  } catch {
-    // Fail silently
-  }
-}
-
-/**
  * Block-by-block mosaic transition sound:
  * Rapid, high-tech cascade of tactile mechanical tile clicks / digital shutter flips.
  */
@@ -253,9 +185,7 @@ export function playBlockTransitionSound(volumeScale = 1.0) {
  */
 export function playTransitionSound(type: string, volumeScale = 1.0) {
   if (!soundEnabled) return;
-  if (type === 'gradient') {
-    playGradientTransitionSound(volumeScale);
-  } else if (type === 'blocks') {
+  if (type === 'blocks') {
     playBlockTransitionSound(volumeScale);
   }
 }
@@ -265,29 +195,14 @@ export function playTransitionSound(type: string, volumeScale = 1.0) {
  * Generates raw Float32Array audio waveform at the specified sample rate.
  */
 export function synthesizeTransitionAudioWaveform(
-  type: 'gradient' | 'blocks',
+  type: 'blocks' | string,
   sampleRate = 44100,
   duration = 0.5
 ): Float32Array {
   const totalSamples = Math.floor(sampleRate * duration);
   const buffer = new Float32Array(totalSamples);
 
-  if (type === 'gradient') {
-    for (let i = 0; i < totalSamples; i++) {
-      const p = i / totalSamples;
-      const env = Math.sin(p * Math.PI);
-
-      // Noise whoosh
-      const noise = (Math.random() * 2 - 1) * env * 0.35;
-
-      // Low sine rumble
-      const freq = 90 + Math.sin(p * Math.PI) * 50;
-      const t = i / sampleRate;
-      const sub = Math.sin(2 * Math.PI * freq * t) * env * 0.25;
-
-      buffer[i] = Math.max(-1, Math.min(1, noise + sub));
-    }
-  } else if (type === 'blocks') {
+  if (type === 'blocks') {
     const numTicks = 8;
     for (let tick = 0; tick < numTicks; tick++) {
       const frac = tick / (numTicks - 1);

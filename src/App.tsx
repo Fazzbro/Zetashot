@@ -399,7 +399,7 @@ export function App() {
     }
 
     // 3. Auto SFX Triggering during Playback
-    if (isPlayingRef.current && trans.active && (trans.type === 'gradient' || trans.type === 'blocks')) {
+    if (isPlayingRef.current && trans.active && trans.type === 'blocks') {
       const transKey = `${trans.cutTime.toFixed(2)}_${trans.type}`;
       if (!playedTransitionsRef.current.has(transKey) && trans.progress >= 0.15 && trans.progress <= 0.65) {
         playedTransitionsRef.current.add(transKey);

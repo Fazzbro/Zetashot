@@ -52,11 +52,11 @@ describe('blockTransition tests', () => {
     expect(states100.filter((s) => s.visible)).toHaveLength(0);
   });
 
-  it('synthesizes non-empty audio waveforms for gradient and blocks auto SFX', () => {
+  it('synthesizes non-empty audio waveforms for blocks auto SFX and leaves gradient silent', () => {
     const gradAudio = synthesizeTransitionAudioWaveform('gradient', 44100, 0.5);
     expect(gradAudio.length).toBe(22050);
     const maxGrad = Math.max(...Array.from(gradAudio).map(Math.abs));
-    expect(maxGrad).toBeGreaterThan(0.05);
+    expect(maxGrad).toBe(0);
 
     const blockAudio = synthesizeTransitionAudioWaveform('blocks', 44100, 0.5);
     expect(blockAudio.length).toBe(22050);

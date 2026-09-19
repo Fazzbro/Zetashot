@@ -338,7 +338,7 @@ export async function mixAudioTracksToAudioBuffer(
 
     // 2. Mix auto transition SFX at clip transition boundaries
     for (const clip of activeTransitions) {
-      if (!clip.transition || (clip.transition !== 'gradient' && clip.transition !== 'blocks')) continue;
+      if (!clip.transition || clip.transition !== 'blocks') continue;
       try {
         const pcm = synthesizeTransitionAudioWaveform(clip.transition, sampleRate, 0.5);
         const transBuffer = ctx.createBuffer(1, pcm.length, sampleRate);
