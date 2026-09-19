@@ -772,9 +772,28 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           }
         }
 
-        // Shift downstream clips forward/backward by durationDelta
-        for (let k = groupStartIndex + subCount; k < updated.length; k++) {
-          updated[k].startTime = Math.max(0, Number((capturedClips[k].startTime + durationDelta).toFixed(2)));
+        // If immediately adjacent downstream block exists, adjust it so it occupies that position without gap/overlap
+        const nextBlockFirstClip = capturedClips[groupStartIndex + subCount];
+        if (nextBlockFirstClip && Math.abs(nextBlockFirstClip.startTime - (initialStart + initialDuration)) < 0.05) {
+          const newBlockEnd = Number((initialStart + newDuration).toFixed(2));
+          const nextBlockInitialEnd = Number((nextBlockFirstClip.startTime + (nextBlockFirstClip.duration || 1.5)).toFixed(2));
+          const newNextDuration = Math.max(0.3, Number((nextBlockInitialEnd - newBlockEnd).toFixed(2)));
+          updated[groupStartIndex + subCount].startTime = newBlockEnd;
+          updated[groupStartIndex + subCount].duration = newNextDuration;
+        } else {
+          // Shift downstream clips forward/backward by durationDelta
+          for (let k = groupStartIndex + subCount; k < updated.length; k++) {
+            updated[k].startTime = Math.max(0, Number((capturedClips[k].startTime + durationDelta).toFixed(2)));
+          }
+        }
+
+        // If immediately adjacent upstream block exists, adjust it so it occupies that position up to newStart
+        if (groupStartIndex > 0) {
+          const prevBlockLastClip = capturedClips[groupStartIndex - 1];
+          if (prevBlockLastClip && Math.abs((prevBlockLastClip.startTime + (prevBlockLastClip.duration || 1.5)) - initialStart) < 0.05) {
+            const prevNewDuration = Math.max(0.3, Number((newStart - prevBlockLastClip.startTime).toFixed(2)));
+            updated[groupStartIndex - 1].duration = prevNewDuration;
+          }
         }
 
         onClipsChange(updated);
@@ -937,7 +956,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     const leftInitialStart = capturedClips[leftIdx].startTime;
     const leftInitialDur = typeof capturedClips[leftIdx].duration === 'number' ? capturedClips[leftIdx].duration : 1.5;
     const rightInitialDur = typeof capturedClips[rightIdx].duration === 'number' ? capturedClips[rightIdx].duration : 1.5;
-    const combinedDur = leftInitialDur + rightInitialDur;
+    const combinedDur = Number((leftInitialDur + rightInitialDur).toFixed(2));
     const startX = e.clientX;
     const initialRulerDuration = rulerDurationRef.current;
 
@@ -963,7 +982,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         return;
       }
 
-      const newLeftDur = Math.max(minDur, Math.min(combinedDur - minDur, Number((leftInitialDur + deltaSec).toFixed(2))));
+      const maxLeftDur = Math.max(minDur, Number((combinedDur - minDur).toFixed(2)));
+      const newLeftDur = Math.max(minDur, Math.min(maxLeftDur, Number((leftInitialDur + deltaSec).toFixed(2))));
       const newRightDur = Math.max(minDur, Number((combinedDur - newLeftDur).toFixed(2)));
 
       const updated = capturedClips.map((c) => ({ ...c }));
@@ -981,6 +1001,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
@@ -988,6 +1011,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerUp);
   }, [onClipsChange]);
 
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -1039,7 +1065,10 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       : null;
 
     let newStartTime = currentTime;
-    let defaultCamera: Camera3DState = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+    const isVideoClip = activeMediaClip?.type === 'video';
+    let defaultCamera: Camera3DState = isVideoClip
+      ? { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 }
+      : { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
     let mediaClipId: string | undefined = undefined;
     let blockId = `block_${Date.now()}`;
 
@@ -1048,20 +1077,60 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       blockId = `block_${activeMediaClip.id}`;
 
       // Keyframes belonging to this media clip
-      const clipKeyframes = clips.filter((c) => c.mediaClipId === activeMediaClip.id || (!c.mediaClipId && c.startTime >= activeMediaClip.startTime && c.startTime < activeMediaClip.startTime + activeMediaClip.duration));
+      const clipKeyframes = clips.filter((c) => c.mediaClipId === activeMediaClip.id || (!c.mediaClipId && c.startTime >= activeMediaClip.startTime - 0.05 && c.startTime < activeMediaClip.startTime + activeMediaClip.duration));
 
-      if (clipKeyframes.length > 0) {
+      // If the clip has exactly 1 keyframe, split it cleanly into a 2-keyframe block occupying the full clip duration
+      if (clipKeyframes.length === 1) {
+        const firstInClip = clipKeyframes[0];
+        const clipDur = activeMediaClip.duration;
+        const halfDur = Number((clipDur / 2).toFixed(2));
+        const remDur = Number((clipDur - halfDur).toFixed(2));
+
+        const updatedFirst: TimelinePositionClip = {
+          ...firstInClip,
+          duration: halfDur,
+          blockId: firstInClip.blockId || `block_${activeMediaClip.id}`,
+        };
+
+        newStartTime = Number((activeMediaClip.startTime + halfDur).toFixed(2));
+        defaultCamera = { ...firstInClip.camera };
+        blockId = updatedFirst.blockId;
+
+        const newClip: TimelinePositionClip = {
+          id: `P${pad}_${Date.now()}`,
+          name: `P${pad}`,
+          startTime: newStartTime,
+          duration: remDur,
+          camera: defaultCamera,
+          color: 'yellow',
+          transition: 'cut',
+          exitTransition: 'cut',
+          mediaClipId,
+          blockId,
+        };
+
+        const updated = clips.map((c) => (c.id === firstInClip.id ? updatedFirst : c));
+        updated.push(newClip);
+        updated.sort((a, b) => a.startTime - b.startTime);
+        onClipsChange(updated);
+        onSelectClip(newClip.id);
+        onSeek(newStartTime);
+        return;
+      } else if (clipKeyframes.length > 1) {
         const lastInClip = clipKeyframes[clipKeyframes.length - 1];
         newStartTime = Number((lastInClip.startTime + (lastInClip.duration || stepDur)).toFixed(2));
         if (newStartTime >= activeMediaClip.startTime + activeMediaClip.duration) {
-          newStartTime = Number((activeMediaClip.startTime + Math.max(0, activeMediaClip.duration - stepDur)).toFixed(2));
+          const step = Math.max(0.3, Number((activeMediaClip.duration / (clipKeyframes.length + 1)).toFixed(2)));
+          newStartTime = Number((activeMediaClip.startTime + activeMediaClip.duration - step).toFixed(2));
         }
         defaultCamera = { ...lastInClip.camera };
         if (lastInClip.blockId) blockId = lastInClip.blockId;
       } else {
         // First keyframe for this media clip starts at the media clip's start time and uses the clean imported pose!
         newStartTime = Number(activeMediaClip.startTime.toFixed(2));
-        defaultCamera = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+        defaultCamera = isVideoClip
+          ? { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 }
+          : { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
       }
     } else {
       const lastClip = clips[clips.length - 1];

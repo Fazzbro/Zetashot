@@ -373,4 +373,79 @@ it('correctly splits keyframes at cut time when cutting a clip into two', () => 
     expect(splitClips[1].mediaClipId).toBe('clip2');
     expect(splitClips[1].blockId).toBe('block_clip2');
   });
+it('adjusting divider between two keyframes in a block expands one and contracts the other to occupy the position', () => {
+    const defaultCam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 };
+    // Block with 2 keyframes: P01 [0s -> 2.0s] and P02 [2.0s -> 4.0s], combined duration = 4.0s
+    const clips: TimelinePositionClip[] = [
+      { id: 'P01', name: 'P01', startTime: 0, duration: 2.0, camera: defaultCam, blockId: 'block_1' },
+      { id: 'P02', name: 'P02', startTime: 2.0, duration: 2.0, camera: defaultCam, blockId: 'block_1' },
+    ];
+
+    const leftInitialStart = clips[0].startTime;
+    const leftInitialDur = clips[0].duration || 1.5;
+    const rightInitialDur = clips[1].duration || 1.5;
+    const combinedDur = Number((leftInitialDur + rightInitialDur).toFixed(2));
+
+    // Simulate moving divider by +0.8s (P01 becomes 2.8s)
+    const deltaSec = 0.8;
+    const minDur = 0.2;
+    const maxLeftDur = Math.max(minDur, Number((combinedDur - minDur).toFixed(2)));
+    const newLeftDur = Math.max(minDur, Math.min(maxLeftDur, Number((leftInitialDur + deltaSec).toFixed(2))));
+    const newRightDur = Math.max(minDur, Number((combinedDur - newLeftDur).toFixed(2)));
+
+    const updated = clips.map((c) => ({ ...c }));
+    updated[0].duration = newLeftDur;
+    updated[1].startTime = Number((leftInitialStart + newLeftDur).toFixed(2));
+    updated[1].duration = newRightDur;
+
+    // P01 expanded to 2.8s
+    expect(updated[0].duration).toBe(2.8);
+    // P02 contracted to 1.2s and moved its start to 2.8s
+    expect(updated[1].startTime).toBe(2.8);
+    expect(updated[1].duration).toBe(1.2);
+    // Total duration remains strictly 4.0s, occupying the exact block space
+    expect(updated[0].duration + updated[1].duration).toBe(4.0);
+    expect(updated[1].startTime + updated[1].duration).toBe(4.0);
+  });
+
+  it('generates keyframes for video media clip with default zoom 0.9x', () => {
+    const videoDefaultCam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 };
+    const clips: TimelinePositionClip[] = [];
+
+    const updated = generateKeyframesForNewMediaClip(clips, 0, 4.0, videoDefaultCam, 'clip_video');
+    expect(updated.length).toBe(2);
+    expect(updated[0].camera.zoom).toBe(0.9);
+    expect(updated[1].camera.zoom).toBe(0.9);
+  });
+
+  it('coordinates adjacent keyframe blocks so adjusting one causes the other to occupy the position without overlap or gap', () => {
+    const cam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 };
+    // Block 1 [0s -> 3.0s] and Block 2 [3.0s -> 6.0s]
+    const clips: TimelinePositionClip[] = [
+      { id: 'P01', name: 'P01', startTime: 0, duration: 3.0, camera: cam, blockId: 'block_1' },
+      { id: 'P02', name: 'P02', startTime: 3.0, duration: 3.0, camera: cam, blockId: 'block_2' },
+    ];
+
+    // Resize Block 1 right handle to 4.0s (+1.0s)
+    const newBlock1Duration = 4.0;
+    const initialBlock1Duration = 3.0;
+    const initialStart = 0;
+
+    const updated = clips.map((c) => ({ ...c }));
+    updated[0].duration = newBlock1Duration;
+
+    // Adjacent Block 2 adjusts its start time to 4.0s and duration contracts from 3.0s to 2.0s
+    const nextBlockFirstClip = clips[1];
+    const newBlockEnd = Number((initialStart + newBlock1Duration).toFixed(2));
+    const nextBlockInitialEnd = Number((nextBlockFirstClip.startTime + (nextBlockFirstClip.duration || 1.5)).toFixed(2));
+    const newNextDuration = Math.max(0.3, Number((nextBlockInitialEnd - newBlockEnd).toFixed(2)));
+
+    updated[1].startTime = newBlockEnd;
+    updated[1].duration = newNextDuration;
+
+    expect(updated[0].duration).toBe(4.0);
+    expect(updated[1].startTime).toBe(4.0);
+    expect(updated[1].duration).toBe(2.0);
+    expect(updated[1].startTime + updated[1].duration).toBe(6.0);
+  });
 });

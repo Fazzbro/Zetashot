@@ -208,6 +208,16 @@ export function App() {
     perspective: 1000,
   };
 
+  const DEFAULT_VIDEO_STATIC_CAMERA: Camera3DState = {
+    rotX: 0,
+    rotY: 0,
+    rotZ: 0,
+    zoom: 0.9,
+    panX: 0,
+    panY: 0,
+    perspective: 1000,
+  };
+
   const INITIAL_CLIPS: TimelinePositionClip[] = [
     { id: 'P01', name: 'P01', startTime: 0, duration: 1.5, color: 'yellow', camera: { ...DEFAULT_STATIC_CAMERA }, transition: 'cut', blockId: 'block_init', mediaClipId: 'clip_init' },
     { id: 'P02', name: 'P02', startTime: 1.5, duration: 1.5, color: 'yellow', camera: { ...DEFAULT_STATIC_CAMERA }, transition: 'cut', blockId: 'block_init', mediaClipId: 'clip_init' },
@@ -556,15 +566,15 @@ export function App() {
 
   // Helper to update camera and sync with active clip (ensures perspective and angles persist immediately)
   const handleCameraChange = (newCamera: Camera3DState) => {
+    const defaultZoom = activeMediaRef.current?.type === 'video' ? 0.9 : 0.7;
     const cleanedCam: Camera3DState = {
-      ...newCamera,
-      rotX: Math.round(newCamera.rotX),
-      rotY: Math.round(newCamera.rotY),
-      rotZ: Math.round(newCamera.rotZ),
-      zoom: Number(newCamera.zoom.toFixed(2)),
-      panX: Math.round(newCamera.panX || 0),
-      panY: Math.round(newCamera.panY || 0),
-      perspective: Math.round(newCamera.perspective || 1000),
+      rotX: typeof newCamera?.rotX === 'number' && !isNaN(newCamera.rotX) ? Math.round(newCamera.rotX) : 0,
+      rotY: typeof newCamera?.rotY === 'number' && !isNaN(newCamera.rotY) ? Math.round(newCamera.rotY) : 0,
+      rotZ: typeof newCamera?.rotZ === 'number' && !isNaN(newCamera.rotZ) ? Math.round(newCamera.rotZ) : 0,
+      zoom: typeof newCamera?.zoom === 'number' && !isNaN(newCamera.zoom) ? Number(newCamera.zoom.toFixed(2)) : defaultZoom,
+      panX: typeof newCamera?.panX === 'number' && !isNaN(newCamera.panX) ? Math.round(newCamera.panX) : 0,
+      panY: typeof newCamera?.panY === 'number' && !isNaN(newCamera.panY) ? Math.round(newCamera.panY) : 0,
+      perspective: typeof newCamera?.perspective === 'number' && !isNaN(newCamera.perspective) ? Math.round(newCamera.perspective) : 1000,
     };
     setCamera(cleanedCam);
     playGearSound();
@@ -1388,14 +1398,16 @@ export function App() {
       return updated;
     });
 
+    const defaultCam = isVideo ? DEFAULT_VIDEO_STATIC_CAMERA : DEFAULT_STATIC_CAMERA;
     // Generate new keyframes for the newly uploaded media clip
     // positioned DIRECTLY above the new clip on the timeline starting at newClipStartTime
     setClips((prevClips) => {
-      return generateKeyframesForNewMediaClip(prevClips, newClipStartTime, dur, DEFAULT_STATIC_CAMERA, newClipId);
+      return generateKeyframesForNewMediaClip(prevClips, newClipStartTime, dur, defaultCam, newClipId);
     });
 
     if (isVideo) {
       setStudioMode('video');
+      setCamera({ ...DEFAULT_VIDEO_STATIC_CAMERA });
       const tempVid = document.createElement('video');
       tempVid.preload = 'metadata';
       tempVid.src = item.url;
@@ -1458,6 +1470,7 @@ export function App() {
 
     if (isVideo) {
       setStudioMode('video');
+      setCamera({ ...DEFAULT_VIDEO_STATIC_CAMERA });
       const tempVid = document.createElement('video');
       tempVid.preload = 'metadata';
       tempVid.src = url;
@@ -1794,7 +1807,10 @@ export function App() {
           setActiveMedia(item);
           setCropRect({ x: 0, y: 0, width: 100, height: 100 });
           setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
-          if (item.type === 'video') setStudioMode('video');
+          if (item.type === 'video') {
+            setStudioMode('video');
+            setCamera({ ...DEFAULT_VIDEO_STATIC_CAMERA });
+          }
 
           setMediaClips((prev) => {
             const dur = item.type === 'video' ? 4.0 : 3.0;

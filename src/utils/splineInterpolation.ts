@@ -251,6 +251,9 @@ function safeCamera(cam?: Partial<Camera3DState> | null): Camera3DState {
 }
 
 function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
+  if (!spans || spans.length === 0) {
+    return { ...DEFAULT_SPLINE_CAMERA };
+  }
   const lastSpan = spans[spans.length - 1];
   // 3. Find active span
   for (let i = 0; i < spans.length; i++) {
@@ -358,7 +361,7 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
     }
   }
 
-  return safeCamera(lastSpan.endCamera);
+  return safeCamera(lastSpan?.endCamera);
 }
 
 export function interpolateCameraSpline(
@@ -398,7 +401,7 @@ export function interpolateCameraSpline(
 
       const lastSpan = spans[spans.length - 1];
       if (time >= lastSpan.endTime) {
-        return safeCamera(lastSpan.endCamera);
+        return safeCamera(lastSpan?.endCamera);
       }
 
       return evaluateSpans(spans, time);
@@ -418,7 +421,7 @@ export function interpolateCameraSpline(
   // 2. If after last span
   const lastSpan = spans[spans.length - 1];
   if (time >= lastSpan.endTime) {
-    return safeCamera(lastSpan.endCamera);
+    return safeCamera(lastSpan?.endCamera);
   }
 
   return evaluateSpans(spans, time);

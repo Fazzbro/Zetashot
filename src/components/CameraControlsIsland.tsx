@@ -236,8 +236,8 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
             <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
               <RulerSliderStrip
                 label="ZOOM"
-                valueText={`${camera.zoom.toFixed(1)}x`}
-                value={camera.zoom}
+                valueText={`${(typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7).toFixed(1)}x`}
+                value={typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7}
                 min={0.25}
                 max={2.5}
                 step={0.05}
@@ -306,7 +306,7 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
                 title="Zoom level"
                 aria-label="Zoom level"
               >
-                <span className="island-zoom-icon">{camera.zoom.toFixed(1)}x</span>
+                <span className="island-zoom-icon">{(typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7).toFixed(1)}x</span>
               </button>
             </span>
 
