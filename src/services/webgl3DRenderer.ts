@@ -139,24 +139,29 @@ void main() {
   float blurFactor = 0.0;
 
   if (totalTilt > 0.01) {
-    // Intelligent DoF Directive:
-    // - Foreground / points closer to camera than focal plane (zPixel <= 0) remain 100% pin-sharp!
-    // - Distant / points receding behind focal plane (zPixel > 0) smoothly expand into deep cinema bokeh!
-    float zDist = max(0.0, zPixel);
-    float normDist = clamp(zDist / (0.42 * totalTilt + 0.001), 0.0, 1.0);
-    float tiltBlur = smoothstep(0.04, 0.96, normDist);
+    // Intelligent 3D Depth-of-Field:
+    // - Foreground & points near focal plane stay crisp and razor sharp (wide in-focus corridor)
+    // - Receding plane beyond the in-focus corridor smoothly blooms into cinema bokeh
+    float zDist = max(0.0, zPixel - 0.03);
+    float normDist = clamp(zDist / (0.36 * totalTilt + 0.001), 0.0, 1.0);
+    float tiltBlur = smoothstep(0.06, 0.94, normDist);
 
-    // Subtle peripheral lens falloff on receding outer edges
-    float radialAperture = smoothstep(0.35, 1.0, length(v_texCoord - u_focusPoint));
-    blurFactor = max(tiltBlur, radialAperture * 0.35 * tiltBlur);
+    // Subtle peripheral lens aperture falloff on distant edges
+    float radialAperture = smoothstep(0.40, 1.0, length(v_texCoord - u_focusPoint));
+    blurFactor = max(tiltBlur, radialAperture * 0.25 * tiltBlur);
   } else {
-    // Flat 2D View: Optical Center-Weighted Aperture Blur (Center is razor-sharp, edges creamy)
+    // Flat 2D View: Prime Lens Macro Bokeh (Generous 35% focal sweet spot, outer perimeter softens gracefully)
     float radialDist = length(v_texCoord - u_focusPoint);
-    blurFactor = smoothstep(0.18, 0.85, radialDist);
+    blurFactor = smoothstep(0.35, 0.92, radialDist);
   }
 
-  // SaaS-grade Optical Blur Radius with rich cinematic dynamic range (up to 4.5x scale)
-  float blurRadius = u_blurAmount * blurFactor * 2.8;
+  // Optical Aperture Circle of Confusion (CoC):
+  // Non-linear power curve provides subtle, velvety depth at low values
+  // and rich, creamy cinematic bokeh at higher values without destructive noise or over-blurring.
+  float normBlur = clamp(u_blurAmount / 50.0, 0.0, 1.0);
+  float opticalAperture = pow(normBlur, 1.35);
+  float maxBokehRadius = 24.0;
+  float blurRadius = opticalAperture * blurFactor * maxBokehRadius;
 
   vec4 finalColor = vec4(0.0);
 
@@ -168,8 +173,8 @@ void main() {
     const float GOLDEN_ANGLE = 2.39996323;
     const int SAMPLES = 32;
 
-    // Anamorphic chromatic dispersion (subtle optical aberration on deep bokeh)
-    float chromaDisp = min(2.5, blurRadius * 0.07);
+    // Subtle anamorphic chromatic dispersion on bokeh periphery
+    float chromaDisp = min(1.8, blurRadius * 0.05);
 
     for (int i = 0; i < SAMPLES; i++) {
       float fi = float(i) + 0.5;
@@ -189,12 +194,13 @@ void main() {
       float sampleR = texture2D(u_texture, coordR).r;
       float sampleB = texture2D(u_texture, coordB).b;
 
-      // Bokeh highlight expansion (bright out-of-focus areas glow softly)
+      // Bokeh highlight expansion: bright specular elements expand into luminous bokeh discs
       float luma = dot(sampleG.rgb, vec3(0.299, 0.587, 0.114));
-      float highlightWeight = 1.0 + pow(luma, 2.8) * 2.2;
+      float highlightWeight = 1.0 + pow(luma, 3.2) * 2.5;
 
-      // Radial falloff weighting for soft round bokeh discs
-      float w = (1.0 - (r / (blurRadius + 0.001)) * 0.28) * highlightWeight;
+      // Optical Gaussian-Hermite disc weighting (smooth core with soft circular aperture rim)
+      float normalizedR = r / (blurRadius + 0.001);
+      float w = exp(-normalizedR * normalizedR * 2.0) * highlightWeight;
 
       finalColor.r += sampleR * w;
       finalColor.g += sampleG.g * w;

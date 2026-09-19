@@ -158,6 +158,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     const el = trayRef.current;
     if (!el) return;
 
+    let rafId: number;
     const syncHeight = () => {
       const h = el.offsetHeight;
       if (h > 0) {
@@ -168,11 +169,13 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     syncHeight();
 
     const ro = new ResizeObserver(() => {
-      syncHeight();
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(syncHeight);
     });
     ro.observe(el);
 
     return () => {
+      cancelAnimationFrame(rafId);
       ro.disconnect();
       document.documentElement.style.removeProperty('--timeline-height');
     };

@@ -204,7 +204,13 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
             <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
               <RulerSliderStrip
                 label="DEPTH BLUR"
-                valueText={blurAmount > 0 ? `ƒ ${(Math.max(1.2, 22.0 - (blurAmount / 50) * 20.8)).toFixed(1)} (${blurAmount}px)` : 'OFF'}
+                valueText={
+                  blurAmount > 0
+                    ? `ƒ ${(1.4 * Math.pow(2, ((50 - blurAmount) / 50) * 4)).toFixed(1)} · ${
+                        blurAmount > 35 ? 'Cinema Bokeh' : blurAmount > 15 ? 'Optical Depth' : 'Subtle Lens'
+                      }`
+                    : 'OFF'
+                }
                 value={blurAmount}
                 min={0}
                 max={50}

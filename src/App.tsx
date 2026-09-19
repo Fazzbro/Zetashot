@@ -79,14 +79,14 @@ export function getTiltShiftMask(
     const angleRad = Math.atan2(sinY, sinX);
     const angleDeg = ((angleRad * 180) / Math.PI + 360) % 360;
     
-    // Rich multi-stop anamorphic depth ramp:
-    // Close to camera / focus plane is 100% crisp & transparent (unblurred)
-    // Distant depth achieves full deep bokeh
-    return `linear-gradient(${angleDeg.toFixed(1)}deg, transparent 0%, transparent 32%, rgba(0,0,0,0.3) 54%, rgba(0,0,0,0.75) 76%, black 100%)`;
+    // Cinema-grade depth-of-field transition:
+    // Generous in-focus optical corridor (0% to 42%) keeps the focal UI tack-sharp and readable,
+    // then smoothly transitions with a natural Hermite optical curve into creamy background bokeh
+    return `linear-gradient(${angleDeg.toFixed(1)}deg, transparent 0%, transparent 42%, rgba(0,0,0,0.08) 56%, rgba(0,0,0,0.28) 70%, rgba(0,0,0,0.65) 86%, black 100%)`;
   }
 
-  // Flat angle: Photorealistic center-weighted lens aperture bokeh
-  return `radial-gradient(circle at ${fx.toFixed(1)}% ${fy.toFixed(1)}%, transparent 0%, transparent 18%, rgba(0,0,0,0.38) 48%, rgba(0,0,0,0.85) 75%, black 100%)`;
+  // Flat 2D View: Prime lens aperture bokeh (central 38% remains tack-sharp, outer perimeter softens gracefully)
+  return `radial-gradient(circle at ${fx.toFixed(1)}% ${fy.toFixed(1)}%, transparent 0%, transparent 38%, rgba(0,0,0,0.12) 56%, rgba(0,0,0,0.45) 75%, rgba(0,0,0,0.82) 90%, black 100%)`;
 }
 
 export function App() {
@@ -1917,8 +1917,10 @@ export function App() {
                   <div
                     className="edge-tilt-shift-blur-overlay"
                     style={{
-                      backdropFilter: `blur(${(blurAmount * 1.6).toFixed(1)}px)`,
-                      WebkitBackdropFilter: `blur(${(blurAmount * 1.6).toFixed(1)}px)`,
+                      // Optical Circle of Confusion (CoC): non-linear power curve
+                      // Gives subtle, silky f/5.6 depth at low values and luscious f/1.4 cinema bokeh at high values (max 22px)
+                      backdropFilter: `blur(${(Math.pow(blurAmount / 50, 1.35) * 22).toFixed(1)}px)`,
+                      WebkitBackdropFilter: `blur(${(Math.pow(blurAmount / 50, 1.35) * 22).toFixed(1)}px)`,
                       maskImage: getTiltShiftMask(
                         camera.rotX,
                         camera.rotY,
