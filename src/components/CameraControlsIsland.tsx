@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CompassDial } from './CompassDial';
 import { RulerSliderStrip } from './RulerSliderStrip';
 import { BackgroundSelectorPill } from './BackgroundSelectorPill';
@@ -40,6 +40,7 @@ interface CameraControlsIslandProps {
   guidePhase?: 'start' | 'end' | 'compose_operator' | 'compose_draw' | 'compose_action' | 'preview' | 'export' | 'complete';
   selectedClipId?: string;
   onGuideAdvance?: () => void;
+  onRulerActiveChange?: (active: boolean) => void;
 }
 
 export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
@@ -69,10 +70,15 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   guidePhase = 'start',
   selectedClipId = 'P01',
   onGuideAdvance,
+  onRulerActiveChange,
 }) => {
   // activeSlider: null | 'blur' | 'perspective' | 'zoom'
   const [activeSlider, setActiveSlider] = useState<'blur' | 'perspective' | 'zoom' | null>(null);
   const [activePopover, setActivePopover] = useState<string | null>(null);
+
+  useEffect(() => {
+    onRulerActiveChange?.(activeSlider !== null);
+  }, [activeSlider, onRulerActiveChange]);
 
   const togglePopover = (id: string) => {
     setActivePopover(activePopover === id ? null : id);

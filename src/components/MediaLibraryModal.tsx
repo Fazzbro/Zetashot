@@ -21,22 +21,6 @@ export const BUILTIN_MEDIA_ITEMS: MediaItem[] = [
     format: 'PNG',
   },
   {
-    id: 'default-landscape-image',
-    name: 'Nature Horizon',
-    type: 'image',
-    url: '/user-landscape.png',
-    dimensions: '1920 × 1080',
-    format: 'PNG',
-  },
-  {
-    id: 'default-screen-video',
-    name: 'App Demo Reel',
-    type: 'video',
-    url: '/ui-camera-loop.mp4',
-    dimensions: '1920 × 1080',
-    format: 'MP4',
-  },
-  {
     id: 'default-3d-model',
     name: '3D Studio Model',
     type: '3d',

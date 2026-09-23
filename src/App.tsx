@@ -176,6 +176,7 @@ export function App() {
   const directUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isCameraRulerOpen, setIsCameraRulerOpen] = useState(false);
 
   useEffect(() => {
     setGlobalSoundEnabled(soundEnabled);
@@ -2310,92 +2311,108 @@ export function App() {
         </div>
       </div>
 
-      {/* 6.5. 3D MODEL CONTROLS ISLAND (when active media is 3D model) */}
-      {activeMedia.type === '3d' && (
-        <div style={{ position: 'fixed', bottom: studioMode === 'video' ? '185px' : '95px', left: '50%', transform: 'translateX(-50%)', zIndex: 40, width: 'max-content', maxWidth: '95vw' }}>
-          <Model3DControlsIsland
-            transform={
-              interpolateModel3DTransform(
-                getActiveMediaClipAtTime(mediaClips, currentTime)?.modelKeyframes,
-                currentTime,
-                getActiveMediaClipAtTime(mediaClips, currentTime)?.modelTransform || model3DTransform
-              )
-            }
-            onChangeTransform={(newTransform) => {
-              setModel3DTransform(newTransform);
-              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
-              if (activeClip) {
-                setMediaClips((prev) =>
-                  prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: newTransform } : c))
-                );
-              }
-            }}
-            keyframes={getActiveMediaClipAtTime(mediaClips, currentTime)?.modelKeyframes}
-            onAddKeyframe={() => {
-              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
-              if (!activeClip) return;
-              const currentKf = activeClip.modelKeyframes || [];
-              const updatedKf = setOrUpdateModelKeyframe(currentKf, currentTime, model3DTransform);
-              setMediaClips((prev) =>
-                prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
-              );
-            }}
-            onRemoveKeyframe={(time) => {
-              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
-              if (!activeClip || !activeClip.modelKeyframes) return;
-              const updatedKf = removeModelKeyframe(activeClip.modelKeyframes, time);
-              setMediaClips((prev) =>
-                prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
-              );
-            }}
-            currentTime={currentTime}
-            onSeek={handleSeek}
-            onReset={() => {
-              setModel3DTransform(DEFAULT_MODEL_3D_TRANSFORM);
-              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
-              if (activeClip) {
-                setMediaClips((prev) =>
-                  prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: DEFAULT_MODEL_3D_TRANSFORM } : c))
-                );
-              }
-            }}
-          />
-        </div>
-      )}
-
-      {/* 7. BOTTOM CAMERA CONTROLS ISLAND (Rotary Dials & Ruler Sliders) */}
+      {/* 7. BOTTOM CONTROLS STACK (3D Model Controls + Camera Controls Island) */}
       <div 
         className={`bottom-studio-controls-slot ${studioMode === 'video' ? 'has-timeline' : ''}`}
         data-guide="camera-island"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          pointerEvents: 'none',
+        }}
       >
-        <CameraControlsIsland
-          mode={studioMode}
-          onModeChange={setStudioMode}
-          dragMode={dragMode}
-          onDragModeChange={setDragMode}
-          camera={camera}
-          onCameraChange={handleCameraChange}
-          background={background}
-          onBackgroundChange={setBackground}
-          aspectRatio={aspectRatio}
-          onAspectRatioChange={setAspectRatio}
-          shadowDepth={shadowDepth}
-          onShadowDepthChange={setShadowDepth}
-          borderRadius={borderRadius}
-          onBorderRadiusChange={setBorderRadius}
-          blurAmount={blurAmount}
-          onBlurChange={handleBlurChange}
-          autoFocus={autoFocus}
-          onAutoFocusChange={setAutoFocus}
-          showGrid={showGrid}
-          onToggleGrid={() => setShowGrid(!showGrid)}
-          onCapture={() => handleExport(exportFormat)}
-          isProcessing={isProcessing}
-          isGuideOpen={isGuideOpen}
-          guidePhase={guidePhase}
-          selectedClipId={selectedClipId}
-          onGuideAdvance={handleGuideAdvance}
-        />
+        {activeMedia.type === '3d' && (
+          <div
+            style={{
+              pointerEvents: 'auto',
+              width: 'max-content',
+              maxWidth: '95vw',
+              marginBottom: isCameraRulerOpen ? '48px' : '10px',
+              transition: 'margin-bottom 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <Model3DControlsIsland
+              transform={
+                interpolateModel3DTransform(
+                  getActiveMediaClipAtTime(mediaClips, currentTime)?.modelKeyframes,
+                  currentTime,
+                  getActiveMediaClipAtTime(mediaClips, currentTime)?.modelTransform || model3DTransform
+                )
+              }
+              onChangeTransform={(newTransform) => {
+                setModel3DTransform(newTransform);
+                const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+                if (activeClip) {
+                  setMediaClips((prev) =>
+                    prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: newTransform } : c))
+                  );
+                }
+              }}
+              keyframes={getActiveMediaClipAtTime(mediaClips, currentTime)?.modelKeyframes}
+              onAddKeyframe={() => {
+                const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+                if (!activeClip) return;
+                const currentKf = activeClip.modelKeyframes || [];
+                const updatedKf = setOrUpdateModelKeyframe(currentKf, currentTime, model3DTransform);
+                setMediaClips((prev) =>
+                  prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
+                );
+              }}
+              onRemoveKeyframe={(time) => {
+                const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+                if (!activeClip || !activeClip.modelKeyframes) return;
+                const updatedKf = removeModelKeyframe(activeClip.modelKeyframes, time);
+                setMediaClips((prev) =>
+                  prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
+                );
+              }}
+              currentTime={currentTime}
+              onSeek={handleSeek}
+              onReset={() => {
+                setModel3DTransform(DEFAULT_MODEL_3D_TRANSFORM);
+                const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+                if (activeClip) {
+                  setMediaClips((prev) =>
+                    prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: DEFAULT_MODEL_3D_TRANSFORM } : c))
+                  );
+                }
+              }}
+            />
+          </div>
+        )}
+
+        <div style={{ pointerEvents: 'auto' }}>
+          <CameraControlsIsland
+            mode={studioMode}
+            onModeChange={setStudioMode}
+            dragMode={dragMode}
+            onDragModeChange={setDragMode}
+            camera={camera}
+            onCameraChange={handleCameraChange}
+            background={background}
+            onBackgroundChange={setBackground}
+            aspectRatio={aspectRatio}
+            onAspectRatioChange={setAspectRatio}
+            shadowDepth={shadowDepth}
+            onShadowDepthChange={setShadowDepth}
+            borderRadius={borderRadius}
+            onBorderRadiusChange={setBorderRadius}
+            blurAmount={blurAmount}
+            onBlurChange={handleBlurChange}
+            autoFocus={autoFocus}
+            onAutoFocusChange={setAutoFocus}
+            showGrid={showGrid}
+            onToggleGrid={() => setShowGrid(!showGrid)}
+            onCapture={() => handleExport(exportFormat)}
+            isProcessing={isProcessing}
+            isGuideOpen={isGuideOpen}
+            guidePhase={guidePhase}
+            selectedClipId={selectedClipId}
+            onGuideAdvance={handleGuideAdvance}
+            onRulerActiveChange={setIsCameraRulerOpen}
+          />
+        </div>
       </div>
 
       {/* 8. BOTTOM VIDEO TIMELINE TRAY (when in VIDEO mode) */}
