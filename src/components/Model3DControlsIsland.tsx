@@ -5,7 +5,6 @@ import {
   RotateCw,
   Move,
   RotateCcw,
-  Sparkles,
   Key,
   Trash2,
   Play,
@@ -72,31 +71,26 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
     <div
       className="model-3d-controls-island"
       style={{
-        position: 'fixed',
-        bottom: '120px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 90,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: '8px',
-        background: 'rgba(15, 23, 42, 0.88)',
+        background: '#121214',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         border: '1px solid rgba(255, 255, 255, 0.14)',
-        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06)',
-        borderRadius: '16px',
-        padding: '10px 14px',
-        color: '#f8fafc',
-        fontFamily: 'Inter, system-ui, sans-serif',
+        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06)',
+        borderRadius: '14px',
+        padding: '8px 12px',
+        color: '#ffffff',
+        fontFamily: "'Geist', Inter, system-ui, -apple-system, sans-serif",
       }}
     >
       {/* Sub-panel controls based on activeTab */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '320px', justifyContent: 'center' }}>
         {activeTab === 'scale' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Scale:
             </span>
             <input
@@ -106,9 +100,9 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
               step="0.05"
               value={transform.scale}
               onChange={handleScaleChange}
-              style={{ flex: 1, accentColor: '#38bdf8', height: '4px', cursor: 'pointer' }}
+              style={{ flex: 1, accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
             />
-            <span style={{ fontSize: '12px', fontWeight: 700, minWidth: '42px', color: '#38bdf8', textAlign: 'right' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '42px', color: '#ffffff', textAlign: 'right' }}>
               {transform.scale.toFixed(2)}x
             </span>
           </div>
@@ -117,7 +111,7 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
         {activeTab === 'rotate' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 700 }}>X:</span>
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>X:</span>
               <input
                 type="range"
                 min="-180"
@@ -125,13 +119,13 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 step="1"
                 value={Math.round(transform.rotX)}
                 onChange={(e) => handleRotChange('rotX', parseInt(e.target.value, 10))}
-                style={{ width: '65px', accentColor: '#ef4444', height: '4px', cursor: 'pointer' }}
+                style={{ width: '65px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '11px', color: '#94a3b8', minWidth: '28px' }}>{Math.round(transform.rotX)}°</span>
+              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '28px' }}>{Math.round(transform.rotX)}°</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>Y:</span>
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Y:</span>
               <input
                 type="range"
                 min="-180"
@@ -139,13 +133,13 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 step="1"
                 value={Math.round(transform.rotY)}
                 onChange={(e) => handleRotChange('rotY', parseInt(e.target.value, 10))}
-                style={{ width: '65px', accentColor: '#10b981', height: '4px', cursor: 'pointer' }}
+                style={{ width: '65px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '11px', color: '#94a3b8', minWidth: '28px' }}>{Math.round(transform.rotY)}°</span>
+              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '28px' }}>{Math.round(transform.rotY)}°</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>Z:</span>
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Z:</span>
               <input
                 type="range"
                 min="-180"
@@ -153,9 +147,9 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 step="1"
                 value={Math.round(transform.rotZ)}
                 onChange={(e) => handleRotChange('rotZ', parseInt(e.target.value, 10))}
-                style={{ width: '65px', accentColor: '#38bdf8', height: '4px', cursor: 'pointer' }}
+                style={{ width: '65px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '11px', color: '#94a3b8', minWidth: '28px' }}>{Math.round(transform.rotZ)}°</span>
+              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '28px' }}>{Math.round(transform.rotZ)}°</span>
             </div>
           </div>
         )}
@@ -163,7 +157,7 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
         {activeTab === 'position' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>X:</span>
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>X:</span>
               <input
                 type="range"
                 min="-400"
@@ -171,12 +165,12 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 step="5"
                 value={Math.round(transform.posX)}
                 onChange={(e) => handlePosChange('posX', parseInt(e.target.value, 10))}
-                style={{ width: '70px', accentColor: '#38bdf8', height: '4px', cursor: 'pointer' }}
+                style={{ width: '70px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Y:</span>
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Y:</span>
               <input
                 type="range"
                 min="-400"
@@ -184,12 +178,12 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 step="5"
                 value={Math.round(transform.posY)}
                 onChange={(e) => handlePosChange('posY', parseInt(e.target.value, 10))}
-                style={{ width: '70px', accentColor: '#38bdf8', height: '4px', cursor: 'pointer' }}
+                style={{ width: '70px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Depth:</span>
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Depth:</span>
               <input
                 type="range"
                 min="-300"
@@ -197,7 +191,7 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 step="5"
                 value={Math.round(transform.posZ)}
                 onChange={(e) => handlePosChange('posZ', parseInt(e.target.value, 10))}
-                style={{ width: '70px', accentColor: '#a855f7', height: '4px', cursor: 'pointer' }}
+                style={{ width: '70px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
             </div>
           </div>
@@ -206,7 +200,7 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
 
       <div style={{ width: '100%', height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
 
-      {/* Main button bar */}
+      {/* Main button bar in strict Black & White */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         {/* Mode switches */}
         <button
@@ -214,21 +208,21 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           onClick={() => setActiveTab('rotate')}
           title="3D Rotation Controls"
           style={{
-            background: activeTab === 'rotate' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-            border: activeTab === 'rotate' ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid transparent',
-            color: activeTab === 'rotate' ? '#38bdf8' : '#cbd5e1',
+            background: activeTab === 'rotate' ? '#ffffff' : 'transparent',
+            border: activeTab === 'rotate' ? '1px solid #ffffff' : '1px solid transparent',
+            color: activeTab === 'rotate' ? '#000000' : '#a1a1aa',
             borderRadius: '8px',
-            padding: '6px 10px',
+            padding: '5px 10px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
             fontSize: '12px',
-            fontWeight: 500,
+            fontWeight: activeTab === 'rotate' ? 600 : 500,
             transition: 'all 0.15s ease',
           }}
         >
-          <RotateCw size={14} />
+          <RotateCw size={13} />
           Rotate
         </button>
 
@@ -237,21 +231,21 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           onClick={() => setActiveTab('scale')}
           title="Scale / Resize Model"
           style={{
-            background: activeTab === 'scale' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-            border: activeTab === 'scale' ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid transparent',
-            color: activeTab === 'scale' ? '#38bdf8' : '#cbd5e1',
+            background: activeTab === 'scale' ? '#ffffff' : 'transparent',
+            border: activeTab === 'scale' ? '1px solid #ffffff' : '1px solid transparent',
+            color: activeTab === 'scale' ? '#000000' : '#a1a1aa',
             borderRadius: '8px',
-            padding: '6px 10px',
+            padding: '5px 10px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
             fontSize: '12px',
-            fontWeight: 500,
+            fontWeight: activeTab === 'scale' ? 600 : 500,
             transition: 'all 0.15s ease',
           }}
         >
-          <Maximize2 size={14} />
+          <Maximize2 size={13} />
           Resize
         </button>
 
@@ -260,25 +254,25 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           onClick={() => setActiveTab('position')}
           title="Position / Pan Model"
           style={{
-            background: activeTab === 'position' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-            border: activeTab === 'position' ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid transparent',
-            color: activeTab === 'position' ? '#38bdf8' : '#cbd5e1',
+            background: activeTab === 'position' ? '#ffffff' : 'transparent',
+            border: activeTab === 'position' ? '1px solid #ffffff' : '1px solid transparent',
+            color: activeTab === 'position' ? '#000000' : '#a1a1aa',
             borderRadius: '8px',
-            padding: '6px 10px',
+            padding: '5px 10px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
             fontSize: '12px',
-            fontWeight: 500,
+            fontWeight: activeTab === 'position' ? 600 : 500,
             transition: 'all 0.15s ease',
           }}
         >
-          <Move size={14} />
+          <Move size={13} />
           Position
         </button>
 
-        <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.15)', margin: '0 4px' }} />
+        <div style={{ width: '1px', height: '16px', background: 'rgba(255, 255, 255, 0.12)', margin: '0 3px' }} />
 
         {/* Keyframe Jump & Add/Remove */}
         <button
@@ -289,13 +283,15 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           style={{
             background: 'transparent',
             border: 'none',
-            color: prevKf ? '#94a3b8' : '#475569',
+            color: prevKf ? '#ffffff' : 'rgba(255, 255, 255, 0.25)',
             cursor: prevKf ? 'pointer' : 'default',
-            padding: '6px',
+            padding: '5px',
             borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={15} />
         </button>
 
         <button
@@ -303,20 +299,21 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           onClick={currentKf ? () => onRemoveKeyframe(currentKf.time) : onAddKeyframe}
           title={currentKf ? 'Remove Keyframe at Current Time' : 'Add 3D Model Keyframe at Current Time'}
           style={{
-            background: currentKf ? 'rgba(244, 63, 94, 0.25)' : 'rgba(56, 189, 248, 0.25)',
-            border: currentKf ? '1px solid rgba(244, 63, 94, 0.6)' : '1px solid rgba(56, 189, 248, 0.6)',
-            color: currentKf ? '#fb7185' : '#38bdf8',
+            background: currentKf ? '#ffffff' : 'rgba(255, 255, 255, 0.08)',
+            border: currentKf ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.15)',
+            color: currentKf ? '#000000' : '#ffffff',
             borderRadius: '8px',
-            padding: '6px 10px',
+            padding: '5px 10px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
             fontSize: '12px',
             fontWeight: 600,
+            transition: 'all 0.15s ease',
           }}
         >
-          {currentKf ? <Trash2 size={13} /> : <Key size={13} />}
+          {currentKf ? <Trash2 size={12} /> : <Key size={12} />}
           {currentKf ? 'Del Keyframe' : '+ Keyframe'}
         </button>
 
@@ -328,13 +325,15 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           style={{
             background: 'transparent',
             border: 'none',
-            color: nextKf ? '#94a3b8' : '#475569',
+            color: nextKf ? '#ffffff' : 'rgba(255, 255, 255, 0.25)',
             cursor: nextKf ? 'pointer' : 'default',
-            padding: '6px',
+            padding: '5px',
             borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={15} />
         </button>
 
         {hasEmbeddedAnimation && (
@@ -346,13 +345,13 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
                 playAnimation: transform.playAnimation === false ? true : false,
               })
             }
-            title="Toggle Embedded FBX Animation"
+            title="Toggle Embedded 3D Animation"
             style={{
-              background: transform.playAnimation !== false ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
-              border: '1px solid rgba(168, 85, 247, 0.5)',
-              color: '#c084fc',
+              background: transform.playAnimation !== false ? '#ffffff' : 'transparent',
+              border: transform.playAnimation !== false ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.15)',
+              color: transform.playAnimation !== false ? '#000000' : '#a1a1aa',
               borderRadius: '8px',
-              padding: '6px 10px',
+              padding: '5px 10px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -361,7 +360,7 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
               fontWeight: 500,
             }}
           >
-            {transform.playAnimation !== false ? <Pause size={13} /> : <Play size={13} />}
+            {transform.playAnimation !== false ? <Pause size={12} /> : <Play size={12} />}
             Anim
           </button>
         )}
@@ -371,19 +370,28 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           onClick={onReset}
           title="Reset Model Transform"
           style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: '#94a3b8',
+            background: 'transparent',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            color: '#a1a1aa',
             borderRadius: '8px',
-            padding: '6px 10px',
+            padding: '5px 10px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
             fontSize: '12px',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#ffffff';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#a1a1aa';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
           }}
         >
-          <RotateCcw size={13} />
+          <RotateCcw size={12} />
           Reset
         </button>
       </div>

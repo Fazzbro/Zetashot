@@ -37,6 +37,7 @@ import { calculateTimelineDuration } from './utils/timelineDurationEngine';
 import { isCropActive, calculateCroppedDimensions, calculateMediaCropOffset } from './utils/cropMath';
 import {
   Plus,
+  Upload,
   RotateCcw,
   Volume2,
   VolumeX,
@@ -170,6 +171,9 @@ export function App() {
   }, [mediaDuration]);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [mediaLibraryMode, setMediaLibraryMode] = useState<'select' | 'add'>('select');
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragCounterRef = useRef(0);
+  const directUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -1474,25 +1478,37 @@ export function App() {
       tempVid.preload = 'metadata';
       tempVid.src = item.url;
     } else if (is3D) {
-      setStudioMode('photo');
+      setStudioMode('video');
       setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
     }
   }, []);
 
   // Upload user file
-  const handleUploadFile = (file: File) => {
-    const isFBX = file.name.toLowerCase().endsWith('.fbx');
-    const isVideo = !isFBX && file.type.startsWith('video');
-    const is3D = isFBX;
+  const handleUploadFile = async (file: File) => {
+    const fileName = file.name.toLowerCase();
+    const isFBX = fileName.endsWith('.fbx');
+    const is3D = isFBX || fileName.endsWith('.obj') || fileName.endsWith('.gltf') || fileName.endsWith('.glb');
+    const isVideo = !is3D && (file.type.startsWith('video') || fileName.endsWith('.mp4') || fileName.endsWith('.webm') || fileName.endsWith('.mov') || fileName.endsWith('.mkv'));
     const url = URL.createObjectURL(file);
     const newItem: MediaItem = {
       id: `upload_${Date.now()}`,
       name: file.name,
       type: is3D ? '3d' : isVideo ? 'video' : 'image',
       url,
-      dimensions: is3D ? '3D Mesh' : 'Custom Media',
+      dimensions: is3D ? '3D Mesh' : isVideo ? '1920 × 1080' : 'Custom Image',
       format: file.name.split('.').pop()?.toUpperCase() || (is3D ? 'FBX' : 'FILE'),
     };
+
+    if (isFBX) {
+      try {
+        const buffer = await file.arrayBuffer();
+        if (model3DRendererRef.current) {
+          await model3DRendererRef.current.loadFBX(buffer);
+        }
+      } catch (err) {
+        console.warn('[Zetashot] Error reading 3D file buffer:', err);
+      }
+    }
 
     setMediaList((prev) => [newItem, ...prev.filter((item) => item.id !== 'blank-media')]);
 
@@ -1557,7 +1573,7 @@ export function App() {
       tempVid.preload = 'metadata';
       tempVid.src = url;
     } else if (is3D) {
-      setStudioMode('photo');
+      setStudioMode('video');
       setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
     }
     setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
@@ -1728,7 +1744,77 @@ export function App() {
   const cropOffset = calculateMediaCropOffset(baseMockupDims, cropRect, stageScale);
 
   return (
-    <div className={`studio-root ${theme === 'dark' ? 'dark-theme' : ''}`}>
+    <div
+      className={`studio-root ${theme === 'dark' ? 'dark-theme' : ''}`}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current += 1;
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+          setIsDraggingFile(true);
+        }
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current -= 1;
+        if (dragCounterRef.current <= 0) {
+          dragCounterRef.current = 0;
+          setIsDraggingFile(false);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current = 0;
+        setIsDraggingFile(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+          handleUploadFile(file);
+        }
+      }}
+    >
+      {/* Drag & Drop Fullscreen Visual Indicator */}
+      {isDraggingFile && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              padding: '36px 48px',
+              borderRadius: 24,
+              border: '2px dashed rgba(255, 255, 255, 0.4)',
+              background: 'rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              color: '#ffffff',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            }}
+          >
+            <Upload size={44} style={{ color: '#38bdf8', marginBottom: 12 }} />
+            <h3 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 700 }}>Drop file to import</h3>
+            <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>
+              Directly load 3D FBX meshes, MP4/WebM videos, or images into Zetashot
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP-LEFT TOOLBAR */}
       <div className="top-left-toolbar">
         <button
@@ -1743,6 +1829,30 @@ export function App() {
           <Plus size={14} />
           <span>Add media</span>
         </button>
+
+        <button
+          type="button"
+          className="top-pill-btn"
+          title="Direct file import (.fbx, videos, images)"
+          onClick={() => directUploadInputRef.current?.click()}
+        >
+          <Upload size={14} />
+          <span>Upload</span>
+        </button>
+
+        <input
+          ref={directUploadInputRef}
+          type="file"
+          accept=".fbx,.obj,.gltf,.glb,video/*,image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleUploadFile(file);
+            }
+            e.target.value = '';
+          }}
+        />
       </div>
 
       {/* 2. TOP CENTER MODE ISLAND (Unified Operator & Compose matching Screenshot 1) */}
@@ -1894,7 +2004,7 @@ export function App() {
           setCropRect({ x: 0, y: 0, width: 100, height: 100 });
           setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
           if (item.type === '3d') {
-            setStudioMode('photo');
+            setStudioMode('video');
             setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
           } else if (item.type === 'video') {
             setStudioMode('video');

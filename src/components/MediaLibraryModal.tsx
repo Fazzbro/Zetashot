@@ -77,6 +77,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       onUploadFile(file);
+      e.target.value = '';
       onClose();
     }
   };
@@ -97,7 +98,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
       <div className="source-library-heading">
         <div>
           <strong>{mode === 'add' ? 'Add Clip to Sequence' : 'Media Library / Demos'}</strong>
-          <small>{mode === 'add' ? 'Select or upload a clip to append to your video sequence' : 'Select a scene or upload your own video / image'}</small>
+          <small>{mode === 'add' ? 'Select or upload a clip to append to your video sequence' : 'Select a scene or upload your own video, image, or 3D asset'}</small>
         </div>
         <button type="button" className="screens-library-close" onClick={onClose} title="Close">
           <X size={14} />
@@ -125,6 +126,55 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
       )}
 
       <div className="source-library-grid">
+        {/* 1. Quick Upload Card right at the top */}
+        <div
+          className="source-library-item"
+          onClick={() => fileInputRef.current?.click()}
+          title="Upload your own Video, Image, or 3D Model"
+          style={{ cursor: 'pointer' }}
+        >
+          <div
+            className="source-library-card"
+            style={{
+              border: '1.5px dashed rgba(255, 255, 255, 0.28)',
+              background: 'rgba(255, 255, 255, 0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '16px 8px',
+            }}
+          >
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                background: '#ffffff',
+                color: '#000000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+              }}
+            >
+              <Upload size={18} />
+            </div>
+            <strong style={{ fontSize: '13px', color: '#ffffff' }}>Upload Your Asset</strong>
+            <small style={{ fontSize: '11px', color: '#a1a1aa', textAlign: 'center' }}>
+              MP4, MOV, PNG, JPG, FBX
+            </small>
+          </div>
+          <div className="source-library-meta">
+            <div className="source-library-meta-copy">
+              <strong>Your Custom File</strong>
+              <small>Click to browse computer</small>
+            </div>
+          </div>
+        </div>
+
+        {/* Existing Presets */}
         {displayList.map((item) => {
           const isSelected = item.id === activeMediaId;
           return (
@@ -170,13 +220,13 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                   style={{ display: item.type === 'demo' || item.type === '3d' || !item.url ? 'flex' : 'none' }}
                 >
                   {item.type === 'video' ? (
-                    <Film size={28} color="#f43f5e" />
+                    <Film size={28} color="#ffffff" />
                   ) : item.type === 'demo' ? (
-                    <Sparkles size={28} color="#f59e0b" />
+                    <Sparkles size={28} color="#ffffff" />
                   ) : item.type === '3d' ? (
-                    <Box size={28} color="#38bdf8" />
+                    <Box size={28} color="#ffffff" />
                   ) : (
-                    <ImageIcon size={28} color="#6366f1" />
+                    <ImageIcon size={28} color="#ffffff" />
                   )}
                 </div>
 
@@ -222,14 +272,14 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
           <Upload size={18} />
           <div>
             <strong>{mode === 'add' ? 'Upload & Add to Sequence' : 'Upload Video, Image, or 3D Model'}</strong>
-            <small>MP4, MOV, WebM, PNG, JPG, WebP, FBX</small>
+            <small>MP4, MOV, WebM, PNG, JPG, WebP, FBX, OBJ, GLB</small>
           </div>
         </button>
         <input
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}
-          accept=".fbx,video/*,image/*"
+          accept=".fbx,.obj,.gltf,.glb,video/*,image/*"
           onChange={handleFileChange}
         />
       </div>
