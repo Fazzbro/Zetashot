@@ -13,7 +13,7 @@ interface CropModalProps {
   onClose: () => void;
   mediaName: string;
   mediaUrl: string;
-  mediaType: 'demo' | 'video' | 'image';
+  mediaType: 'demo' | 'video' | 'image' | '3d';
   currentCrop: CropRect;
   onApplyCrop: (crop: CropRect) => void;
 }

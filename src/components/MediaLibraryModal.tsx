@@ -1,10 +1,10 @@
 import React, { useRef } from 'react';
-import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus } from 'lucide-react';
+import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus, Box } from 'lucide-react';
 
 export interface MediaItem {
   id: string;
   name: string;
-  type: 'demo' | 'video' | 'image';
+  type: 'demo' | 'video' | 'image' | '3d';
   url: string;
   dimensions: string;
   format: string;
@@ -35,6 +35,14 @@ export const BUILTIN_MEDIA_ITEMS: MediaItem[] = [
     url: '/ui-camera-loop.mp4',
     dimensions: '1920 × 1080',
     format: 'MP4',
+  },
+  {
+    id: 'default-3d-model',
+    name: '3D Studio Model',
+    type: '3d',
+    url: 'default-3d',
+    dimensions: '3D Mesh',
+    format: 'FBX',
   },
 ];
 
@@ -159,12 +167,14 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 {/* Fallback shell icon */}
                 <div
                   className="source-library-preview-shell"
-                  style={{ display: item.type === 'demo' || !item.url ? 'flex' : 'none' }}
+                  style={{ display: item.type === 'demo' || item.type === '3d' || !item.url ? 'flex' : 'none' }}
                 >
                   {item.type === 'video' ? (
                     <Film size={28} color="#f43f5e" />
                   ) : item.type === 'demo' ? (
                     <Sparkles size={28} color="#f59e0b" />
+                  ) : item.type === '3d' ? (
+                    <Box size={28} color="#38bdf8" />
                   ) : (
                     <ImageIcon size={28} color="#6366f1" />
                   )}
@@ -211,15 +221,15 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
         >
           <Upload size={18} />
           <div>
-            <strong>{mode === 'add' ? 'Upload & Add to Sequence' : 'Upload Video or Screenshot'}</strong>
-            <small>MP4, MOV, WebM, PNG, JPG, WebP, AVIF</small>
+            <strong>{mode === 'add' ? 'Upload & Add to Sequence' : 'Upload Video, Image, or 3D Model'}</strong>
+            <small>MP4, MOV, WebM, PNG, JPG, WebP, FBX</small>
           </div>
         </button>
         <input
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}
-          accept="video/*,image/*"
+          accept=".fbx,video/*,image/*"
           onChange={handleFileChange}
         />
       </div>

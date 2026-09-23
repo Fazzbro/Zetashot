@@ -31,13 +31,16 @@ import {
   isAudioEncoderSupported,
   WebCodecsMP4Session,
 } from './webcodecsExporter';
-
+import { FBX3DRenderer } from './fbx3DRenderer';
+import { interpolateModel3DTransform } from '../utils/model3DInterpolation';
+import { DEFAULT_MODEL_3D_TRANSFORM } from '../types/model3D';
 
 export interface VideoExportOptions {
   mediaName?: string;
   projectName?: string;
-  mediaType: 'image' | 'video' | 'demo';
-  mediaElement?: HTMLVideoElement | HTMLImageElement | null;
+  mediaType: 'image' | 'video' | 'demo' | '3d';
+  mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | null;
+  mediaUrl?: string;
   mediaClips?: MediaTimelineClip[];
   audioTracks?: AudioTrackItem[];
   audioBlob?: Blob | null;
@@ -245,6 +248,21 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   const imageElem = (options.mediaElement as HTMLImageElement) || (document.getElementById('mockup-image-player') as HTMLImageElement | null);
   const mediaClipElements = new Map<string, HTMLImageElement | HTMLVideoElement>();
 
+  let fbxRenderer: FBX3DRenderer | null = null;
+  const has3DClip = options.mediaType === '3d' || (options.mediaClips && options.mediaClips.some((c) => c.type === '3d'));
+  if (has3DClip) {
+    fbxRenderer = new FBX3DRenderer();
+    const clip3D = options.mediaClips?.find((c) => c.type === '3d');
+    const modelUrl = clip3D?.url || options.mediaUrl;
+    if (modelUrl && modelUrl !== 'default-3d') {
+      try {
+        await fbxRenderer.loadFBX(modelUrl);
+      } catch (err) {
+        console.warn('[videoExportEngine] Failed to load FBX for export:', err);
+      }
+    }
+  }
+
   if (options.mediaClips && options.mediaClips.length > 0) {
     for (const c of options.mediaClips) {
       if (c.type === 'video') {
@@ -259,6 +277,8 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           setTimeout(resolve, 800);
         });
         mediaClipElements.set(c.id, v);
+      } else if (c.type === '3d') {
+        // Handled via fbxRenderer
       } else {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -332,8 +352,8 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       const mediaTrans = getMediaTransitionAtTime(options.mediaClips || [], time);
 
       // Determine active media element and type (multi-clip vs single media)
-      let activeElement: HTMLImageElement | HTMLVideoElement | null = null;
-      let activeType: 'video' | 'image' | 'demo' = options.mediaType;
+      let activeElement: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | null = null;
+      let activeType: 'video' | 'image' | 'demo' | '3d' = options.mediaType;
 
       if (options.mediaClips && options.mediaClips.length > 0) {
         const currentClip = getActiveMediaClipAtTime(options.mediaClips, time);
@@ -437,6 +457,22 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
             frameW,
             frameH
           );
+        }
+      } else if (activeType === '3d') {
+        if (fbxRenderer) {
+          const mClip = getActiveMediaClipAtTime(options.mediaClips || [], time);
+          const currentTransform = interpolateModel3DTransform(
+            mClip?.modelKeyframes,
+            time,
+            mClip?.modelTransform || DEFAULT_MODEL_3D_TRANSFORM
+          );
+          const modelCanvas = fbxRenderer.render(frameW, frameH, currentTransform, time);
+          frameCtx.drawImage(modelCanvas, 0, 0, frameW, frameH);
+        } else {
+          const canvasElem = (options.mediaElement as HTMLCanvasElement) || (document.getElementById('mockup-3d-model-canvas') as HTMLCanvasElement | null);
+          if (canvasElem && canvasElem.width > 0) {
+            frameCtx.drawImage(canvasElem, 0, 0, frameW, frameH);
+          }
         }
       } else {
         frameCtx.fillStyle = '#0f172a';
@@ -694,6 +730,12 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
   // 11. Post-Export Validation Pass
   await validateExportedBlob(finalBlob, targetFormat, totalDuration);
+
+  if (fbxRenderer) {
+    try {
+      fbxRenderer.dispose();
+    } catch {}
+  }
 
   const url = URL.createObjectURL(finalBlob);
 

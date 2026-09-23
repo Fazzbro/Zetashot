@@ -23,6 +23,7 @@ import {
   Scissors,
   Image as ImageIcon,
   Zap,
+  Box,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
@@ -2281,11 +2282,50 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                         >
                           {mClip.type === 'video' ? (
                             <Video size={10} color="#94a3b8" />
+                          ) : mClip.type === '3d' ? (
+                            <Box size={10} color="#38bdf8" />
                           ) : (
                             <ImageIcon size={10} color="#94a3b8" />
                           )}
                         </div>
-                        <span className="multiclip-card-name">{mClip.name}</span>
+                        <span className="multiclip-card-name">
+                          {mClip.type === '3d' && <span style={{ color: '#38bdf8', fontSize: '9px', fontWeight: 700, marginRight: '4px' }}>3D</span>}
+                          {mClip.name}
+                        </span>
+                        {/* 3D Model Keyframe Dots */}
+                        {mClip.modelKeyframes && mClip.modelKeyframes.length > 0 && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: '3px',
+                              left: '6px',
+                              right: '6px',
+                              height: '4px',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            {mClip.modelKeyframes.map((kf) => {
+                              const kfRel = (kf.time - mClip.startTime) / Math.max(0.1, mClip.duration);
+                              if (kfRel < 0 || kfRel > 1) return null;
+                              return (
+                                <div
+                                  key={kf.id}
+                                  style={{
+                                    position: 'absolute',
+                                    left: `${kfRel * 100}%`,
+                                    top: '0',
+                                    width: '4px',
+                                    height: '4px',
+                                    borderRadius: '50%',
+                                    background: '#38bdf8',
+                                    boxShadow: '0 0 4px #38bdf8',
+                                    transform: 'translateX(-50%)',
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
                         {idx > 0 && (
                           <button
                             type="button"

@@ -1,3 +1,5 @@
+import { Model3DTransform, Model3DKeyframe } from './model3D';
+
 export type TransitionType = 'cut' | 'gradient' | 'blocks' | 'fade' | 'push' | 'zoom';
 export type TransitionScope = 'clip' | 'canvas';
 
@@ -5,7 +7,7 @@ export interface MediaTimelineClip {
   id: string;
   mediaId: string;
   name: string;
-  type: 'video' | 'image' | 'demo';
+  type: 'video' | 'image' | 'demo' | '3d';
   url: string;
   startTime: number; // in seconds on master timeline
   duration: number; // in seconds
@@ -19,6 +21,8 @@ export interface MediaTimelineClip {
   transition?: TransitionType;
   transitionDuration?: number;
   transitionScope?: TransitionScope;
+  modelTransform?: Model3DTransform;
+  modelKeyframes?: Model3DKeyframe[];
 }
 
 /**

@@ -50,6 +50,11 @@ import {
   RotateCw,
 } from 'lucide-react';
 
+import { FBX3DRenderer } from './services/fbx3DRenderer';
+import { Model3DTransform, Model3DKeyframe, DEFAULT_MODEL_3D_TRANSFORM } from './types/model3D';
+import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyframe } from './utils/model3DInterpolation';
+import { Model3DControlsIsland } from './components/Model3DControlsIsland';
+
 import './styles/index.css';
 import './styles/uicamera.css';
 
@@ -468,6 +473,13 @@ export function App() {
   // 12. Dynamic Stage Reference Scale for 100% Identical Preview-to-Export Framing
   const [stageScale, setStageScale] = useState<number>(1.0);
   const stageScaleRef = useRef<number>(1.0);
+
+  // 13. 3D Model (FBX) Stage Rendering & Transforms
+  const [model3DTransform, setModel3DTransform] = useState<Model3DTransform>(DEFAULT_MODEL_3D_TRANSFORM);
+  const model3DRendererRef = useRef<FBX3DRenderer | null>(null);
+  const model3DCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const loadedFBXUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
     stageScaleRef.current = stageScale;
   }, [stageScale]);
@@ -492,6 +504,54 @@ export function App() {
       window.removeEventListener('resize', updateScale);
     };
   }, [aspectRatio]);
+
+  // 3D FBX Model Loading Effect
+  useEffect(() => {
+    if (activeMedia.type !== '3d') return;
+    if (!model3DRendererRef.current) {
+      model3DRendererRef.current = new FBX3DRenderer();
+    }
+    if (activeMedia.url !== loadedFBXUrlRef.current) {
+      loadedFBXUrlRef.current = activeMedia.url;
+      if (activeMedia.url !== 'default-3d') {
+        model3DRendererRef.current.loadFBX(activeMedia.url).catch((err) => {
+          console.warn('[Zetashot] Failed to load FBX model:', err);
+        });
+      }
+    }
+  }, [activeMedia.type, activeMedia.url]);
+
+  // 3D Model Canvas Rendering Effect
+  useEffect(() => {
+    if (activeMedia.type !== '3d' || !model3DCanvasRef.current) return;
+    if (!model3DRendererRef.current) {
+      model3DRendererRef.current = new FBX3DRenderer();
+    }
+    const canvas = model3DCanvasRef.current;
+    const baseDims = getMockupDimensions(aspectRatio);
+    const mDims = calculateCroppedDimensions(baseDims, cropRect);
+    const w = Math.max(10, Math.round(mDims.width * stageScale));
+    const h = Math.max(10, Math.round(mDims.height * stageScale));
+
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+
+    const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+    const interpolated = interpolateModel3DTransform(
+      activeClip?.modelKeyframes,
+      currentTime,
+      activeClip?.modelTransform || model3DTransform
+    );
+
+    const renderedCanvas = model3DRendererRef.current.render(w, h, interpolated, currentTime);
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(renderedCanvas, 0, 0, w, h);
+    }
+  }, [activeMedia.type, currentTime, aspectRatio, cropRect, stageScale, model3DTransform]);
 
   // 13. Shareable Hosted Link State
   const [isCopiedLink, setIsCopiedLink] = useState(false);
@@ -1357,7 +1417,8 @@ export function App() {
   // Append a new media item to the multi-clip sequence
   const handleAddMediaClip = useCallback((item: MediaItem) => {
     const isVideo = item.type === 'video';
-    const dur = isVideo ? 4.0 : 3.0;
+    const is3D = item.type === '3d';
+    const dur = isVideo || is3D ? 4.0 : 3.0;
 
     // Ensure item is registered in library list
     setMediaList((prev) => {
@@ -1384,6 +1445,7 @@ export function App() {
         startTime: nextStart,
         duration: dur,
         transition: prev.length > 0 ? 'gradient' : undefined,
+        modelTransform: is3D ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
       };
       const updated = [...prev, newClip];
       mediaClipsRef.current = updated;
@@ -1411,20 +1473,25 @@ export function App() {
       const tempVid = document.createElement('video');
       tempVid.preload = 'metadata';
       tempVid.src = item.url;
+    } else if (is3D) {
+      setStudioMode('photo');
+      setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
     }
   }, []);
 
   // Upload user file
   const handleUploadFile = (file: File) => {
-    const isVideo = file.type.startsWith('video');
+    const isFBX = file.name.toLowerCase().endsWith('.fbx');
+    const isVideo = !isFBX && file.type.startsWith('video');
+    const is3D = isFBX;
     const url = URL.createObjectURL(file);
     const newItem: MediaItem = {
       id: `upload_${Date.now()}`,
       name: file.name,
-      type: isVideo ? 'video' : 'image',
+      type: is3D ? '3d' : isVideo ? 'video' : 'image',
       url,
-      dimensions: 'Custom Media',
-      format: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+      dimensions: is3D ? '3D Mesh' : 'Custom Media',
+      format: file.name.split('.').pop()?.toUpperCase() || (is3D ? 'FBX' : 'FILE'),
     };
 
     setMediaList((prev) => [newItem, ...prev.filter((item) => item.id !== 'blank-media')]);
@@ -1439,7 +1506,7 @@ export function App() {
       setCropRect({ x: 0, y: 0, width: 100, height: 100 });
 
       setMediaClips((prev) => {
-        const dur = isVideo ? 4.0 : 3.0;
+        const dur = isVideo || is3D ? 4.0 : 3.0;
         if (prev.length === 0) {
           return [
             {
@@ -1450,19 +1517,34 @@ export function App() {
               url: newItem.url,
               startTime: 0,
               duration: dur,
+              modelTransform: is3D ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
             },
           ];
         }
         if (selectedMediaClipId) {
           return prev.map((c) =>
             c.id === selectedMediaClipId
-              ? { ...c, mediaId: newItem.id, name: newItem.name, type: newItem.type, url: newItem.url }
+              ? {
+                  ...c,
+                  mediaId: newItem.id,
+                  name: newItem.name,
+                  type: newItem.type,
+                  url: newItem.url,
+                  modelTransform: is3D ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
+                }
               : c
           );
         }
         return prev.map((c, idx) =>
           idx === 0
-            ? { ...c, mediaId: newItem.id, name: newItem.name, type: newItem.type, url: newItem.url }
+            ? {
+                ...c,
+                mediaId: newItem.id,
+                name: newItem.name,
+                type: newItem.type,
+                url: newItem.url,
+                modelTransform: is3D ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
+              }
             : c
         );
       });
@@ -1474,6 +1556,9 @@ export function App() {
       const tempVid = document.createElement('video');
       tempVid.preload = 'metadata';
       tempVid.src = url;
+    } else if (is3D) {
+      setStudioMode('photo');
+      setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
     }
     setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
   };
@@ -1517,7 +1602,7 @@ export function App() {
           borderRadius,
           blurAmount,
           shadowDepth,
-          mediaElement: activeMedia.type === 'video' ? videoRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
+          mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
           mediaType: activeMedia.type,
           cropRect,
           textLayers,
@@ -1563,7 +1648,8 @@ export function App() {
           width: stageDims.width,
           height: stageDims.height,
           background,
-          mediaElement: videoRef.current,
+          mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
+          mediaUrl: activeMedia.url,
           mediaType: activeMedia.type,
           mediaClips,
           audioTracks,
@@ -1807,13 +1893,16 @@ export function App() {
           setActiveMedia(item);
           setCropRect({ x: 0, y: 0, width: 100, height: 100 });
           setGuideStepIndex((prev) => (prev === 0 ? 1 : prev));
-          if (item.type === 'video') {
+          if (item.type === '3d') {
+            setStudioMode('photo');
+            setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
+          } else if (item.type === 'video') {
             setStudioMode('video');
             setCamera({ ...DEFAULT_VIDEO_STATIC_CAMERA });
           }
 
           setMediaClips((prev) => {
-            const dur = item.type === 'video' ? 4.0 : 3.0;
+            const dur = item.type === 'video' || item.type === '3d' ? 4.0 : 3.0;
             if (prev.length === 0) {
               return [
                 {
@@ -1824,19 +1913,34 @@ export function App() {
                   url: item.url,
                   startTime: 0,
                   duration: dur,
+                  modelTransform: item.type === '3d' ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
                 },
               ];
             }
             if (selectedMediaClipId) {
               return prev.map((c) =>
                 c.id === selectedMediaClipId
-                  ? { ...c, mediaId: item.id, name: item.name, type: item.type, url: item.url }
+                  ? {
+                      ...c,
+                      mediaId: item.id,
+                      name: item.name,
+                      type: item.type,
+                      url: item.url,
+                      modelTransform: item.type === '3d' ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
+                    }
                   : c
               );
             }
             return prev.map((c, idx) =>
               idx === 0
-                ? { ...c, mediaId: item.id, name: item.name, type: item.type, url: item.url }
+                ? {
+                    ...c,
+                    mediaId: item.id,
+                    name: item.name,
+                    type: item.type,
+                    url: item.url,
+                    modelTransform: item.type === '3d' ? { ...DEFAULT_MODEL_3D_TRANSFORM } : undefined,
+                  }
                 : c
             );
           });
@@ -1977,6 +2081,17 @@ export function App() {
                       }}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
+                  ) : activeMedia.type === '3d' ? (
+                    <canvas
+                      id="mockup-3d-model-canvas"
+                      ref={model3DCanvasRef}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'block',
+                        background: 'radial-gradient(ellipse at center, #1e293b 0%, #0f172a 60%, #090d16 100%)',
+                      }}
+                    />
                   ) : (
                     <img
                       id="mockup-image-player"
@@ -2084,6 +2199,59 @@ export function App() {
           />
         </div>
       </div>
+
+      {/* 6.5. 3D MODEL CONTROLS ISLAND (when active media is 3D model) */}
+      {activeMedia.type === '3d' && (
+        <div style={{ position: 'fixed', bottom: studioMode === 'video' ? '185px' : '95px', left: '50%', transform: 'translateX(-50%)', zIndex: 40, width: 'max-content', maxWidth: '95vw' }}>
+          <Model3DControlsIsland
+            transform={
+              interpolateModel3DTransform(
+                getActiveMediaClipAtTime(mediaClips, currentTime)?.modelKeyframes,
+                currentTime,
+                getActiveMediaClipAtTime(mediaClips, currentTime)?.modelTransform || model3DTransform
+              )
+            }
+            onChangeTransform={(newTransform) => {
+              setModel3DTransform(newTransform);
+              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+              if (activeClip) {
+                setMediaClips((prev) =>
+                  prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: newTransform } : c))
+                );
+              }
+            }}
+            keyframes={getActiveMediaClipAtTime(mediaClips, currentTime)?.modelKeyframes}
+            onAddKeyframe={() => {
+              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+              if (!activeClip) return;
+              const currentKf = activeClip.modelKeyframes || [];
+              const updatedKf = setOrUpdateModelKeyframe(currentKf, currentTime, model3DTransform);
+              setMediaClips((prev) =>
+                prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
+              );
+            }}
+            onRemoveKeyframe={(time) => {
+              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+              if (!activeClip || !activeClip.modelKeyframes) return;
+              const updatedKf = removeModelKeyframe(activeClip.modelKeyframes, time);
+              setMediaClips((prev) =>
+                prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
+              );
+            }}
+            currentTime={currentTime}
+            onSeek={handleSeek}
+            onReset={() => {
+              setModel3DTransform(DEFAULT_MODEL_3D_TRANSFORM);
+              const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
+              if (activeClip) {
+                setMediaClips((prev) =>
+                  prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: DEFAULT_MODEL_3D_TRANSFORM } : c))
+                );
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* 7. BOTTOM CAMERA CONTROLS ISLAND (Rotary Dials & Ruler Sliders) */}
       <div 

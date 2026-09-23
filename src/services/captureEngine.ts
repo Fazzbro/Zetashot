@@ -29,8 +29,8 @@ export interface PhotoMockupOptions {
   borderRadius?: number;
   blurAmount?: number;
   shadowDepth?: 'none' | 'small' | 'medium' | 'large';
-  mediaElement?: HTMLVideoElement | HTMLImageElement | null;
-  mediaType?: 'video' | 'image' | 'demo';
+  mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | null;
+  mediaType?: 'video' | 'image' | 'demo' | '3d';
   cropRect?: { x: number; y: number; width: number; height: number };
   projectName?: string;
   stageElement?: HTMLElement | null;
@@ -159,9 +159,12 @@ export class CaptureEngine {
     frameCtx.fillRect(0, 0, frameW, frameH);
 
     const videoElem = (options.mediaElement as HTMLVideoElement) || (document.getElementById('mockup-video-player') as HTMLVideoElement | null);
+    const canvasElem = (options.mediaElement as HTMLCanvasElement) || (document.getElementById('mockup-3d-model-canvas') as HTMLCanvasElement | null);
     const imageElem = (options.mediaElement as HTMLImageElement) || (document.getElementById('mockup-image-player') as HTMLImageElement | null);
 
-    if (videoElem && options.mediaType === 'video' && videoElem.videoWidth > 0) {
+    if (options.mediaType === '3d' && canvasElem && canvasElem.width > 0) {
+      frameCtx.drawImage(canvasElem, 0, 0, frameW, frameH);
+    } else if (videoElem && options.mediaType === 'video' && videoElem.videoWidth > 0) {
       const vidW = videoElem.videoWidth;
       const vidH = videoElem.videoHeight;
       const coords = calculateObjectFitCover(vidW, vidH, baseFrameW, baseFrameH);
