@@ -80,7 +80,7 @@ export function interpolateModel3DTransform(
         rotZ: lerpAngleDeg(tA.rotZ, tB.rotZ, smoothT),
         scale: Math.max(0.01, lerp(tA.scale, tB.scale, smoothT)),
         animationSpeed: lerp(tA.animationSpeed ?? 1.0, tB.animationSpeed ?? 1.0, smoothT),
-        playAnimation: tB.playAnimation ?? tA.playAnimation ?? true,
+        playAnimation: (smoothT >= 0.5 ? tB.playAnimation : tA.playAnimation) ?? tB.playAnimation ?? tA.playAnimation ?? true,
       };
     }
   }
@@ -95,7 +95,7 @@ export function setOrUpdateModelKeyframe(
   keyframes: Model3DKeyframe[] = [],
   time: number,
   transform: Model3DTransform,
-  tolerance = 0.05
+  tolerance = 0.12
 ): Model3DKeyframe[] {
   const roundedTime = Number(time.toFixed(2));
   const existingIdx = keyframes.findIndex((k) => Math.abs(k.time - roundedTime) <= tolerance);
@@ -124,10 +124,11 @@ export function setOrUpdateModelKeyframe(
  */
 export function removeModelKeyframe(
   keyframes: Model3DKeyframe[],
-  idOrTime: string | number
+  idOrTime: string | number,
+  tolerance = 0.1
 ): Model3DKeyframe[] {
   if (typeof idOrTime === 'string') {
     return keyframes.filter((k) => k.id !== idOrTime);
   }
-  return keyframes.filter((k) => Math.abs(k.time - idOrTime) > 0.05);
+  return keyframes.filter((k) => Math.abs(k.time - idOrTime) > tolerance);
 }

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { Model3DTransform } from '../types/model3D';
 
 export class FBX3DRenderer {
@@ -12,6 +14,8 @@ export class FBX3DRenderer {
   private animationDuration = 0;
   private currentModelUrl: string | null = null;
   private loader: FBXLoader;
+  private gltfLoader: GLTFLoader;
+  private objLoader: OBJLoader;
   private isDisposed = false;
 
   constructor() {
@@ -46,8 +50,10 @@ export class FBX3DRenderer {
     this.scene.add(this.modelRoot);
 
     this.loader = new FBXLoader();
+    this.gltfLoader = new GLTFLoader();
+    this.objLoader = new OBJLoader();
 
-    // Initialize with a sleek procedural 3D model until an external FBX is loaded
+    // Initialize with a sleek procedural 3D model until an external 3D file is loaded
     this.buildDefaultProceduralModel();
   }
 
@@ -198,12 +204,19 @@ export class FBX3DRenderer {
   }
 
   /**
-   * Loads an FBX model from a File blob, ArrayBuffer, or URL.
+   * Check if current loaded 3D model has active skeletal or clip animations
    */
-  public async loadFBX(source: string | ArrayBuffer): Promise<void> {
+  public hasAnimation(): boolean {
+    return this.mixer !== null && this.animationDuration > 0;
+  }
+
+  /**
+   * Loads a 3D model (FBX, GLTF, GLB, OBJ) from a File blob, ArrayBuffer, or URL.
+   */
+  public async loadModel(source: string | ArrayBuffer, fileNameOrFormat?: string): Promise<void> {
     return new Promise((resolve) => {
       try {
-        const onLoaded = (object: THREE.Group) => {
+        const onLoaded = (object: THREE.Object3D, animations?: THREE.AnimationClip[]) => {
           this.clearModel();
 
           // Auto-normalize bounding box scale and center
@@ -224,7 +237,7 @@ export class FBX3DRenderer {
           const pivot = new THREE.Group();
           pivot.add(object);
 
-          // Setup materials if missing or unlit
+          // Setup materials and shadows safely
           object.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
               const mesh = child as THREE.Mesh;
@@ -243,11 +256,12 @@ export class FBX3DRenderer {
           });
 
           // Animation Mixer setup
-          if (object.animations && object.animations.length > 0) {
+          const activeAnims = animations || object.animations;
+          if (activeAnims && activeAnims.length > 0) {
             this.mixer = new THREE.AnimationMixer(object);
-            const action = this.mixer.clipAction(object.animations[0]);
+            const action = this.mixer.clipAction(activeAnims[0]);
             action.play();
-            this.animationDuration = object.animations[0].duration;
+            this.animationDuration = activeAnims[0].duration;
           } else {
             this.mixer = null;
             this.animationDuration = 0;
@@ -257,23 +271,58 @@ export class FBX3DRenderer {
           resolve();
         };
 
+        const fallback = (err: unknown) => {
+          console.warn('[3DRenderer] Error loading 3D file, falling back to default procedural model:', err);
+          this.buildDefaultProceduralModel();
+          resolve();
+        };
+
         if (typeof source === 'string') {
           this.currentModelUrl = source;
-          this.loader.load(source, onLoaded, undefined, (err) => {
-            console.warn('[FBX3DRenderer] Failed to load URL, falling back to default model:', err);
-            this.buildDefaultProceduralModel();
-            resolve();
-          });
+          const lower = source.toLowerCase();
+          if (lower.endsWith('.glb') || lower.endsWith('.gltf')) {
+            this.gltfLoader.load(source, (gltf) => onLoaded(gltf.scene, gltf.animations), undefined, fallback);
+          } else if (lower.endsWith('.obj')) {
+            this.objLoader.load(source, (obj) => onLoaded(obj), undefined, fallback);
+          } else {
+            this.loader.load(source, (obj) => onLoaded(obj, obj.animations), undefined, fallback);
+          }
         } else {
-          const parsed = this.loader.parse(source, '');
-          onLoaded(parsed);
+          // Detect format from buffer or filename hint
+          const fn = (fileNameOrFormat || '').toLowerCase();
+          const bytes = new Uint8Array(source.slice(0, 4));
+          const isGlb = bytes[0] === 0x67 && bytes[1] === 0x6c && bytes[2] === 0x54 && bytes[3] === 0x46; // 'glTF'
+
+          if (isGlb || fn.endsWith('.glb') || fn.endsWith('.gltf')) {
+            this.gltfLoader.parse(
+              source,
+              '',
+              (gltf) => onLoaded(gltf.scene, gltf.animations),
+              fallback
+            );
+          } else if (fn.endsWith('.obj')) {
+            const text = new TextDecoder().decode(source);
+            const obj = this.objLoader.parse(text);
+            onLoaded(obj);
+          } else {
+            // Default to FBX parsing
+            const parsed = this.loader.parse(source, '');
+            onLoaded(parsed, parsed.animations);
+          }
         }
       } catch (err) {
-        console.warn('[FBX3DRenderer] Error parsing FBX:', err);
+        console.warn('[3DRenderer] Error parsing 3D file:', err);
         this.buildDefaultProceduralModel();
         resolve();
       }
     });
+  }
+
+  /**
+   * Backwards-compatible alias for loadModel
+   */
+  public async loadFBX(source: string | ArrayBuffer, fileNameOrFormat?: string): Promise<void> {
+    return this.loadModel(source, fileNameOrFormat);
   }
 
   private clearModel() {

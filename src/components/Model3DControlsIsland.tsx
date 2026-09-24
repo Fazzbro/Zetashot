@@ -38,18 +38,26 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'scale' | 'rotate' | 'position'>('rotate');
 
-  // Check if there is an existing keyframe within 0.05s of currentTime
-  const currentKf = keyframes.find((k) => Math.abs(k.time - currentTime) <= 0.05);
+  // Check if there is an existing keyframe within 0.12s snap tolerance of currentTime
+  const currentKf = keyframes.find((k) => Math.abs(k.time - currentTime) <= 0.12);
 
   // Find previous and next keyframes for jumping
   const sorted = [...keyframes].sort((a, b) => a.time - b.time);
-  const prevKf = [...sorted].reverse().find((k) => k.time < currentTime - 0.05);
-  const nextKf = sorted.find((k) => k.time > currentTime + 0.05);
+  const prevKf = [...sorted].reverse().find((k) => k.time < currentTime - 0.08);
+  const nextKf = sorted.find((k) => k.time > currentTime + 0.08);
 
-  const handleScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const safeScale = typeof transform?.scale === 'number' && !isNaN(transform.scale) ? transform.scale : 1.0;
+  const safeRotX = typeof transform?.rotX === 'number' && !isNaN(transform.rotX) ? Math.round(transform.rotX) : 0;
+  const safeRotY = typeof transform?.rotY === 'number' && !isNaN(transform.rotY) ? Math.round(transform.rotY) : 0;
+  const safeRotZ = typeof transform?.rotZ === 'number' && !isNaN(transform.rotZ) ? Math.round(transform.rotZ) : 0;
+  const safePosX = typeof transform?.posX === 'number' && !isNaN(transform.posX) ? Math.round(transform.posX) : 0;
+  const safePosY = typeof transform?.posY === 'number' && !isNaN(transform.posY) ? Math.round(transform.posY) : 0;
+  const safePosZ = typeof transform?.posZ === 'number' && !isNaN(transform.posZ) ? Math.round(transform.posZ) : 0;
+
+  const handleScaleChange = (val: number) => {
     onChangeTransform({
       ...transform,
-      scale: parseFloat(e.target.value),
+      scale: Math.max(0.1, Math.min(5.0, Number(val.toFixed(2)))),
     });
   };
 
@@ -87,9 +95,9 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
       }}
     >
       {/* Sub-panel controls based on activeTab */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '320px', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '340px', justifyContent: 'center' }}>
         {activeTab === 'scale' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Scale:
             </span>
@@ -98,102 +106,160 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
               min="0.2"
               max="3.5"
               step="0.05"
-              value={transform.scale}
-              onChange={handleScaleChange}
+              value={safeScale}
+              onChange={(e) => handleScaleChange(parseFloat(e.target.value))}
               style={{ flex: 1, accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
             />
-            <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '42px', color: '#ffffff', textAlign: 'right' }}>
-              {transform.scale.toFixed(2)}x
+            <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '40px', color: '#ffffff', textAlign: 'right' }}>
+              {safeScale.toFixed(2)}x
             </span>
+            {/* Quick scale preset pills */}
+            <div style={{ display: 'flex', gap: '4px', marginLeft: '6px' }}>
+              {[0.5, 1.0, 1.5, 2.0].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handleScaleChange(preset)}
+                  style={{
+                    background: Math.abs(safeScale - preset) < 0.06 ? '#ffffff' : 'rgba(255, 255, 255, 0.08)',
+                    color: Math.abs(safeScale - preset) < 0.06 ? '#000000' : '#d4d4d8',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '4px',
+                    padding: '2px 5px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {preset}x
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {activeTab === 'rotate' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>X:</span>
               <input
                 type="range"
                 min="-180"
                 max="180"
                 step="1"
-                value={Math.round(transform.rotX)}
+                value={safeRotX}
                 onChange={(e) => handleRotChange('rotX', parseInt(e.target.value, 10))}
-                style={{ width: '65px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
+                style={{ width: '55px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '28px' }}>{Math.round(transform.rotX)}°</span>
+              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '26px' }}>{safeRotX}°</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Y:</span>
               <input
                 type="range"
                 min="-180"
                 max="180"
                 step="1"
-                value={Math.round(transform.rotY)}
+                value={safeRotY}
                 onChange={(e) => handleRotChange('rotY', parseInt(e.target.value, 10))}
-                style={{ width: '65px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
+                style={{ width: '55px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '28px' }}>{Math.round(transform.rotY)}°</span>
+              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '26px' }}>{safeRotY}°</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Z:</span>
               <input
                 type="range"
                 min="-180"
                 max="180"
                 step="1"
-                value={Math.round(transform.rotZ)}
+                value={safeRotZ}
                 onChange={(e) => handleRotChange('rotZ', parseInt(e.target.value, 10))}
-                style={{ width: '65px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
+                style={{ width: '55px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '28px' }}>{Math.round(transform.rotZ)}°</span>
+              <span style={{ fontSize: '11px', color: '#ffffff', minWidth: '26px' }}>{safeRotZ}°</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => onChangeTransform({ ...transform, rotX: 0, rotY: 0, rotZ: 0 })}
+              title="Reset rotation to 0°"
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: '#d4d4d8',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '4px',
+                padding: '2px 5px',
+                fontSize: '10px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              0°
+            </button>
           </div>
         )}
 
         {activeTab === 'position' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>X:</span>
               <input
                 type="range"
                 min="-400"
                 max="400"
                 step="5"
-                value={Math.round(transform.posX)}
+                value={safePosX}
                 onChange={(e) => handlePosChange('posX', parseInt(e.target.value, 10))}
-                style={{ width: '70px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
+                style={{ width: '60px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Y:</span>
               <input
                 type="range"
                 min="-400"
                 max="400"
                 step="5"
-                value={Math.round(transform.posY)}
+                value={safePosY}
                 onChange={(e) => handlePosChange('posY', parseInt(e.target.value, 10))}
-                style={{ width: '70px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
+                style={{ width: '60px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontWeight: 600 }}>Depth:</span>
               <input
                 type="range"
                 min="-300"
                 max="300"
                 step="5"
-                value={Math.round(transform.posZ)}
+                value={safePosZ}
                 onChange={(e) => handlePosChange('posZ', parseInt(e.target.value, 10))}
-                style={{ width: '70px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
+                style={{ width: '60px', accentColor: '#ffffff', height: '4px', cursor: 'pointer' }}
               />
             </div>
+
+            <button
+              type="button"
+              onClick={() => onChangeTransform({ ...transform, posX: 0, posY: 0, posZ: 0 })}
+              title="Center position"
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: '#d4d4d8',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '4px',
+                padding: '2px 5px',
+                fontSize: '10px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Center
+            </button>
           </div>
         )}
       </div>
@@ -336,34 +402,38 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
           <ChevronRight size={15} />
         </button>
 
-        {hasEmbeddedAnimation && (
-          <button
-            type="button"
-            onClick={() =>
-              onChangeTransform({
-                ...transform,
-                playAnimation: transform.playAnimation === false ? true : false,
-              })
-            }
-            title="Toggle Embedded 3D Animation"
-            style={{
-              background: transform.playAnimation !== false ? '#ffffff' : 'transparent',
-              border: transform.playAnimation !== false ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.15)',
-              color: transform.playAnimation !== false ? '#000000' : '#a1a1aa',
-              borderRadius: '8px',
-              padding: '5px 10px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontSize: '12px',
-              fontWeight: 500,
-            }}
-          >
-            {transform.playAnimation !== false ? <Pause size={12} /> : <Play size={12} />}
-            Anim
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() =>
+            onChangeTransform({
+              ...transform,
+              playAnimation: transform.playAnimation === false ? true : false,
+            })
+          }
+          title={
+            hasEmbeddedAnimation
+              ? transform.playAnimation !== false
+                ? 'Pause 3D Model Animation'
+                : 'Play 3D Model Animation'
+              : 'Toggle 3D Animation'
+          }
+          style={{
+            background: transform.playAnimation !== false ? '#ffffff' : 'transparent',
+            border: transform.playAnimation !== false ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.15)',
+            color: transform.playAnimation !== false ? '#000000' : '#a1a1aa',
+            borderRadius: '8px',
+            padding: '5px 10px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            fontSize: '12px',
+            fontWeight: 500,
+          }}
+        >
+          {transform.playAnimation !== false ? <Pause size={12} /> : <Play size={12} />}
+          Anim
+        </button>
 
         <button
           type="button"

@@ -53,9 +53,9 @@ describe('interestRegionEngine (Intelligent Auto-Zoom & Framing)', () => {
     const r1 = sampleRegions[0];
     const cam = calculateCameraForRegion(r1, stageDims, baseCamera, 1000);
 
-    // Zoom pushes in cleanly to make the 200x150 region readable and highlighted (e.g. 1.8x - 2.5x)
-    expect(cam.zoom).toBeGreaterThanOrEqual(1.40);
-    expect(cam.zoom).toBeLessThanOrEqual(2.50);
+    // Zoom pushes in cleanly to make the 200x150 region readable and highlighted with comfortable context
+    expect(cam.zoom).toBeGreaterThanOrEqual(1.10);
+    expect(cam.zoom).toBeLessThanOrEqual(1.35);
     // Pan centers the region accurately
     expect(Math.abs(cam.panX)).toBeLessThan(stageDims.width * cam.zoom);
     expect(Math.abs(cam.panY)).toBeLessThan(stageDims.height * cam.zoom);
@@ -102,9 +102,9 @@ describe('interestRegionEngine (Intelligent Auto-Zoom & Framing)', () => {
     const r1 = sampleRegions[0];
     const cam = calculateCameraForRegion(r1, stageDims, customUserCamera, 1000);
 
-    // When user had 1.20x zoom, it pushes into readable focus (>= 1.40x)
-    expect(cam.zoom).toBeGreaterThanOrEqual(1.40);
-    expect(cam.zoom).toBeLessThanOrEqual(2.50);
+    // When user had 1.20x zoom, it pushes into readable focus
+    expect(cam.zoom).toBeGreaterThanOrEqual(1.25);
+    expect(cam.zoom).toBeLessThanOrEqual(1.40);
   });
 
   it('returns empty array when 0 interest points exist (causing ZERO keyframes and zero camera movement)', () => {

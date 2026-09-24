@@ -231,7 +231,7 @@ export const DEFAULT_SPLINE_CAMERA: Camera3DState = {
   rotX: 0,
   rotY: 0,
   rotZ: 0,
-  zoom: 0.7,
+  zoom: 0.9,
   panX: 0,
   panY: 0,
   perspective: 1000,
@@ -298,13 +298,13 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
         panY: 0,
         perspective: 0,
       } : {
-        rotX: (p2.rotX - prevCam.rotX) * 0.5,
-        rotY: (p2.rotY - prevCam.rotY) * 0.5,
-        rotZ: (p2.rotZ - prevCam.rotZ) * 0.5,
-        zoom: (p2.zoom - prevCam.zoom) * 0.5,
-        panX: (p2.panX - prevCam.panX) * 0.5,
-        panY: (p2.panY - prevCam.panY) * 0.5,
-        perspective: (p2.perspective - prevCam.perspective) * 0.5,
+        rotX: (p2.rotX - prevCam.rotX) * 0.35,
+        rotY: (p2.rotY - prevCam.rotY) * 0.35,
+        rotZ: (p2.rotZ - prevCam.rotZ) * 0.35,
+        zoom: (p2.zoom - prevCam.zoom) * 0.35,
+        panX: (p2.panX - prevCam.panX) * 0.35,
+        panY: (p2.panY - prevCam.panY) * 0.35,
+        perspective: (p2.perspective - prevCam.perspective) * 0.35,
       };
 
       // End tangent M1 for this segment:
@@ -319,13 +319,13 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
         panY: 0,
         perspective: 0,
       } : {
-        rotX: (nextCam.rotX - p1.rotX) * 0.5,
-        rotY: (nextCam.rotY - p1.rotY) * 0.5,
-        rotZ: (nextCam.rotZ - p1.rotZ) * 0.5,
-        zoom: (nextCam.zoom - p1.zoom) * 0.5,
-        panX: (nextCam.panX - p1.panX) * 0.5,
-        panY: (nextCam.panY - p1.panY) * 0.5,
-        perspective: (nextCam.perspective - p1.perspective) * 0.5,
+        rotX: (nextCam.rotX - p1.rotX) * 0.35,
+        rotY: (nextCam.rotY - p1.rotY) * 0.35,
+        rotZ: (nextCam.rotZ - p1.rotZ) * 0.35,
+        zoom: (nextCam.zoom - p1.zoom) * 0.35,
+        panX: (nextCam.panX - p1.panX) * 0.35,
+        panY: (nextCam.panY - p1.panY) * 0.35,
+        perspective: (nextCam.perspective - p1.perspective) * 0.35,
       };
 
       const u2 = u * u;

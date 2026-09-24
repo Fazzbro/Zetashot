@@ -20,6 +20,8 @@ export const STAGE_BASE_DIMS = { width: 960, height: 540 };
  * Adapts seamlessly between micro-details (e.g. buttons, icons, avatars)
  * and larger cards/sections with sigmoidal soft-knee damping.
  */
+export const DEFAULT_COMPOSE_STEP_DURATION = 1.0; // 1.0s per interest region by default
+
 export function solveIntelligentFramingZoom(
   region: { width: number; height: number },
   stageDims: { width: number; height: number } = STAGE_BASE_DIMS,
@@ -29,19 +31,21 @@ export function solveIntelligentFramingZoom(
   const safeW = Math.max(40, region.width);
   const safeH = Math.max(30, region.height);
 
-  // Target viewport occupancy for readable, cinematic SaaS framing (~55% - 72%)
-  const targetOccupancyW = style === 'macro' ? 0.72 : style === 'showcase' ? 0.58 : 0.65;
-  const targetOccupancyH = style === 'macro' ? 0.70 : style === 'showcase' ? 0.56 : 0.62;
+  // Target viewport occupancy for readable, balanced SaaS framing (~32% - 44%)
+  // Generous breathing room so the mockup frame and UI context remain comfortably visible
+  const targetOccupancyW = style === 'macro' ? 0.44 : style === 'showcase' ? 0.32 : 0.38;
+  const targetOccupancyH = style === 'macro' ? 0.40 : style === 'showcase' ? 0.30 : 0.35;
 
   const fitScaleW = (stageDims.width * targetOccupancyW) / safeW;
   const fitScaleH = (stageDims.height * targetOccupancyH) / safeH;
 
-  // Primary bounding-box fit: ensures content fills the frame comfortably while being large and readable
+  // Primary bounding-box fit: ensures content fills the frame comfortably while keeping surroundings in context
   const boundingFit = Math.min(fitScaleW, fitScaleH);
 
-  // High-end SaaS target zoom: micro elements zoom up to 2.2x-2.6x; large cards zoom 1.35x-1.75x
-  const minFocusZoom = Math.max(1.30, (baseZoom || 0.72) + 0.35);
-  const maxFocusZoom = style === 'macro' ? 2.80 : style === 'showcase' ? 2.20 : 2.50;
+  // High-end SaaS target zoom: micro elements zoom up to 1.20x-1.30x; large cards zoom 0.85x-1.10x
+  const minFocusZoom = Math.max(0.85, (baseZoom || 0.72) + 0.12);
+  const baseStyleMax = style === 'macro' ? 1.38 : style === 'showcase' ? 1.15 : 1.25;
+  const maxFocusZoom = Math.max(minFocusZoom, Math.min(1.45, Math.max(baseStyleMax, minFocusZoom + 0.10)));
 
   // Soft clamp boundingFit
   const targetZoom = Math.max(minFocusZoom, Math.min(maxFocusZoom, boundingFit));
@@ -73,7 +77,7 @@ export function calculateCameraForRegion(
   const normY = Math.max(-1.0, Math.min(1.0, offsetY / (stageDims.height / 2)));
 
   // 1. Intelligent Context-Aware Zoom (Crisp, readable, prominent framing)
-  const baseZoom = baseCamera?.zoom && baseCamera.zoom > 0 ? baseCamera.zoom : 0.72;
+  const baseZoom = baseCamera?.zoom && baseCamera.zoom > 0 ? baseCamera.zoom : 0.90;
   const targetZoom = solveIntelligentFramingZoom(region, stageDims, baseZoom, style);
 
   // 2. Exact Centering Pan with Momentum Damping
@@ -143,14 +147,14 @@ export function generateClipsFromInterestRegions(
 
   const sortedRegions = [...regions].sort((a, b) => a.index - b.index);
   const K = sortedRegions.length;
-  const stepDuration = totalDuration / K;
+  const stepDuration = (totalDuration && totalDuration > 0 ? totalDuration : K * DEFAULT_COMPOSE_STEP_DURATION) / K;
   const blockGroupId = options?.blockId || `compose_block_${Date.now()}`;
   const startIdx = options?.startKeyframeIndex ?? 1;
 
   const clips: TimelinePositionClip[] = [];
 
   // 1. Initial Overview Keyframe (e.g. P01) - Cinematic floating 3D wide overview
-  const baseZoom = baseCamera?.zoom && baseCamera.zoom > 0 ? baseCamera.zoom : 0.72;
+  const baseZoom = baseCamera?.zoom && baseCamera.zoom > 0 ? baseCamera.zoom : 0.90;
   const firstRegion = sortedRegions[0];
   const firstRegionCenterX = firstRegion.x + firstRegion.width / 2;
   const isFirstOnLeft = firstRegionCenterX < stageDims.width / 2;

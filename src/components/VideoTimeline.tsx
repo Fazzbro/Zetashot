@@ -1068,9 +1068,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
     let newStartTime = currentTime;
     const isVideoClip = activeMediaClip?.type === 'video';
-    let defaultCamera: Camera3DState = isVideoClip
-      ? { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 }
-      : { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+    let defaultCamera: Camera3DState = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 };
     let mediaClipId: string | undefined = undefined;
     let blockId = `block_${Date.now()}`;
 
@@ -1130,9 +1128,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
       } else {
         // First keyframe for this media clip starts at the media clip's start time and uses the clean imported pose!
         newStartTime = Number(activeMediaClip.startTime.toFixed(2));
-        defaultCamera = isVideoClip
-          ? { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 }
-          : { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.7, panX: 0, panY: 0, perspective: 1000 };
+        defaultCamera = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 };
       }
     } else {
       const lastClip = clips[clips.length - 1];

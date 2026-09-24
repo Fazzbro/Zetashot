@@ -32,6 +32,7 @@ import {
   generateClipsFromInterestRegions,
   calculateCameraForRegion,
   STAGE_BASE_DIMS,
+  DEFAULT_COMPOSE_STEP_DURATION,
 } from './utils/interestRegionEngine';
 import { calculateTimelineDuration } from './utils/timelineDurationEngine';
 import { isCropActive, calculateCroppedDimensions, calculateMediaCropOffset } from './utils/cropMath';
@@ -212,7 +213,7 @@ export function App() {
     rotX: 0,
     rotY: 0,
     rotZ: 0,
-    zoom: 0.7,
+    zoom: 0.9,
     panX: 0,
     panY: 0,
     perspective: 1000,
@@ -556,7 +557,7 @@ export function App() {
       ctx.clearRect(0, 0, w, h);
       ctx.drawImage(renderedCanvas, 0, 0, w, h);
     }
-  }, [activeMedia.type, currentTime, aspectRatio, cropRect, stageScale, model3DTransform]);
+  }, [activeMedia.type, currentTime, aspectRatio, cropRect, stageScale, model3DTransform, mediaClips]);
 
   // 13. Shareable Hosted Link State
   const [isCopiedLink, setIsCopiedLink] = useState(false);
@@ -631,7 +632,7 @@ export function App() {
 
   // Helper to update camera and sync with active clip (ensures perspective and angles persist immediately)
   const handleCameraChange = (newCamera: Camera3DState) => {
-    const defaultZoom = activeMediaRef.current?.type === 'video' ? 0.9 : 0.7;
+    const defaultZoom = 0.9;
     const cleanedCam: Camera3DState = {
       rotX: typeof newCamera?.rotX === 'number' && !isNaN(newCamera.rotX) ? Math.round(newCamera.rotX) : 0,
       rotY: typeof newCamera?.rotY === 'number' && !isNaN(newCamera.rotY) ? Math.round(newCamera.rotY) : 0,
@@ -748,22 +749,26 @@ export function App() {
   }, []);
 
   // Auto-compose macro generator: transforms into choreographed sequence from interest regions
-  // Core Rule: Compose = Synchronize media duration to Number of Interest Points * 1.0s, master timeline stays 12s
+  // Core Rule: Compose = Synchronize media duration to Number of Interest Points * 2.5s (or natural video duration), master timeline stays 12s
   // If 0 Interest Points exist: DO NOT create zoom keyframes, DO NOT change camera, DO NOT modify timeline.
   const handleCompose = () => {
     if (interestRegions.length > 0) {
       setIsComposed(true);
       isComposedRef.current = true;
-      const composedDuration = Number((interestRegions.length * 1.0).toFixed(2));
-      // Visual timeline ruler stays 12.0s
-      setTotalDuration(12.0);
-      totalDurationRef.current = 12.0;
 
+      const defaultDurationPerRegion = DEFAULT_COMPOSE_STEP_DURATION;
       const targetClipIdx = selectedMediaClipId
         ? mediaClipsRef.current.findIndex((c) => c.id === selectedMediaClipId)
         : 0;
       const actualClipIdx = targetClipIdx !== -1 ? targetClipIdx : 0;
       const targetClip = mediaClipsRef.current[actualClipIdx] || mediaClipsRef.current[0];
+
+      const composedDuration = Number((interestRegions.length * defaultDurationPerRegion).toFixed(2));
+
+      // Visual timeline ruler stays 12.0s
+      setTotalDuration(12.0);
+      totalDurationRef.current = 12.0;
+
       const clipStart = mediaClipsRef.current
         .slice(0, actualClipIdx)
         .reduce((sum, c) => sum + c.duration, 0);
@@ -877,13 +882,16 @@ export function App() {
     if (interestRegions.length > 0) {
       setIsComposed(true);
       isComposedRef.current = true;
-      const composedDuration = Number((interestRegions.length * 1.0).toFixed(2));
 
+      const defaultDurationPerRegion = DEFAULT_COMPOSE_STEP_DURATION;
       const targetClipIdx = selectedMediaClipId
         ? mediaClipsRef.current.findIndex((c) => c.id === selectedMediaClipId)
         : 0;
       const actualClipIdx = targetClipIdx !== -1 ? targetClipIdx : 0;
       const targetClip = mediaClipsRef.current[actualClipIdx] || mediaClipsRef.current[0];
+
+      const composedDuration = Number((interestRegions.length * defaultDurationPerRegion).toFixed(2));
+
       const clipStart = mediaClipsRef.current
         .slice(0, actualClipIdx)
         .reduce((sum, c) => sum + c.duration, 0);
@@ -986,6 +994,12 @@ export function App() {
       audioPlayersMapRef.current.forEach((player) => player.pause());
       document.querySelectorAll('video').forEach((v) => v.pause());
     } else {
+      const activeProjectDuration = calculateTimelineDuration(clipsRef.current, mediaDurationRef.current);
+      if (currentTimeRef.current >= activeProjectDuration - 0.05) {
+        currentTimeRef.current = 0;
+        setCurrentTime(0);
+        updateGradientTransitionVisuals(0);
+      }
       isPlayingRef.current = true;
       setIsPlaying(true);
       if (videoRef.current) {
@@ -1001,7 +1015,9 @@ export function App() {
             naturalDur - 0.03,
             Math.max(0, (currentTimeRef.current - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0))
           );
-          videoRef.current.currentTime = targetVidTime;
+          if (Math.abs(videoRef.current.currentTime - targetVidTime) > 0.05) {
+            videoRef.current.currentTime = targetVidTime;
+          }
         } else if (isComposedRef.current) {
           const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
           videoRef.current.playbackRate = calculatePlaybackRate(naturalDur, medDur);
@@ -1009,11 +1025,16 @@ export function App() {
             naturalDur,
             (currentTimeRef.current / medDur) * naturalDur
           );
-          videoRef.current.currentTime = targetVidTime;
+          if (Math.abs(videoRef.current.currentTime - targetVidTime) > 0.05) {
+            videoRef.current.currentTime = targetVidTime;
+          }
         } else {
           // Normal un-composed playback at 1.0x normal speed throughout full video length
           videoRef.current.playbackRate = 1.0;
-          videoRef.current.currentTime = Math.min(naturalDur, currentTimeRef.current);
+          const targetVidTime = Math.min(naturalDur, currentTimeRef.current);
+          if (Math.abs(videoRef.current.currentTime - targetVidTime) > 0.05) {
+            videoRef.current.currentTime = targetVidTime;
+          }
         }
 
         const playPromise = videoRef.current.play();
@@ -1169,11 +1190,36 @@ export function App() {
       const video = videoRef.current;
       const media = activeMediaRef.current;
       const activeProjectDuration = calculateTimelineDuration(clipsRef.current, mediaDurationRef.current);
-      const deltaSec = (now - lastTimestamp) / 1000;
-      const nextTime = currentTimeRef.current + deltaSec;
+      const isVideoMedia = media.type === 'video' && !!video && (video.duration > 0 || !isNaN(video.duration));
+
+      let nextTime: number;
+      if (isVideoMedia && !video.paused && !video.seeking) {
+        // Direct synchronization with the hardware video decoder clock:
+        // Deriving timeline progression directly from video.currentTime eliminates clock drift,
+        // decoder stall latency, and stuttering entirely.
+        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, currentTimeRef.current) : null;
+        if (activeClip && activeClip.type === 'video') {
+          const clipSpeed = activeClip.speed || (isComposedRef.current ? calculatePlaybackRate(video.duration, mediaDurationRef.current || 3.0) : 1.0);
+          if (video.playbackRate !== clipSpeed) {
+            video.playbackRate = clipSpeed;
+          }
+          nextTime = activeClip.startTime + Math.max(0, (video.currentTime - (activeClip.sourceStartTime || 0))) / (clipSpeed || 1.0);
+        } else if (isComposedRef.current) {
+          const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
+          nextTime = (video.currentTime / (video.duration || 1)) * medDur;
+        } else {
+          nextTime = video.currentTime;
+        }
+      } else if (isVideoMedia && video.seeking) {
+        // Hold timeline steady while the video seeks so the playhead never races ahead of the decoder
+        nextTime = currentTimeRef.current;
+      } else {
+        const deltaSec = (now - lastTimestamp) / 1000;
+        nextTime = currentTimeRef.current + deltaSec;
+      }
       lastTimestamp = now;
 
-      if (nextTime >= activeProjectDuration) {
+      if (nextTime >= activeProjectDuration || (isVideoMedia && video.ended)) {
         isPlayingRef.current = false;
         setIsPlaying(false);
         if (video) {
@@ -1253,33 +1299,6 @@ export function App() {
       }
       if (frameSceneRef.current) {
         frameSceneRef.current.style.transform = calculate3DTransform(interpolated, stageScaleRef.current);
-      }
-
-      // Sync video drift gently if needed without stuttering decoder
-      if (video && media.type === 'video' && video.duration && !video.seeking) {
-        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, nextTime) : null;
-        if (activeClip && activeClip.type === 'video') {
-          const clipSpeed = activeClip.speed || (isComposedRef.current ? calculatePlaybackRate(video.duration, mediaDurationRef.current || 3.0) : 1.0);
-          if (video.playbackRate !== clipSpeed) {
-            video.playbackRate = clipSpeed;
-          }
-          const targetVidTime = (nextTime - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0);
-          if (Math.abs(video.currentTime - targetVidTime) > 0.6) {
-            video.currentTime = Math.min(video.duration - 0.03, Math.max(0, targetVidTime));
-          }
-        } else if (isComposedRef.current) {
-          const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
-          if (nextTime <= medDur) {
-            const targetVidTime = (nextTime / medDur) * video.duration;
-            if (Math.abs(video.currentTime - targetVidTime) > 0.8) {
-              video.currentTime = Math.min(video.duration - 0.03, targetVidTime);
-            }
-          }
-        } else {
-          if (Math.abs(video.currentTime - nextTime) > 0.8) {
-            video.currentTime = Math.min(video.duration - 0.03, nextTime);
-          }
-        }
       }
 
       if (isPlayingRef.current) {
@@ -1482,6 +1501,9 @@ export function App() {
       setStudioMode('video');
       setModel3DTransform({ ...DEFAULT_MODEL_3D_TRANSFORM });
     }
+    setActiveMedia(item);
+    currentTimeRef.current = newClipStartTime;
+    setCurrentTime(newClipStartTime);
   }, []);
 
   // Upload user file
@@ -1497,15 +1519,17 @@ export function App() {
       type: is3D ? '3d' : isVideo ? 'video' : 'image',
       url,
       dimensions: is3D ? '3D Mesh' : isVideo ? '1920 × 1080' : 'Custom Image',
-      format: file.name.split('.').pop()?.toUpperCase() || (is3D ? 'FBX' : 'FILE'),
+      format: file.name.split('.').pop()?.toUpperCase() || (is3D ? '3D' : 'FILE'),
     };
 
-    if (isFBX) {
+    if (is3D) {
       try {
         const buffer = await file.arrayBuffer();
-        if (model3DRendererRef.current) {
-          await model3DRendererRef.current.loadFBX(buffer);
+        if (!model3DRendererRef.current) {
+          model3DRendererRef.current = new FBX3DRenderer();
         }
+        loadedFBXUrlRef.current = url;
+        await model3DRendererRef.current.loadModel(buffer, file.name);
       } catch (err) {
         console.warn('[Zetashot] Error reading 3D file buffer:', err);
       }
@@ -1589,7 +1613,7 @@ export function App() {
       rotX: 0,
       rotY: 0,
       rotZ: 0,
-      zoom: 0.7,
+      zoom: 0.9,
       panX: 0,
       panY: 0,
       perspective: 1000,
@@ -2168,6 +2192,8 @@ export function App() {
                         const vid = e.currentTarget;
                         if (!isPlayingRef.current && !isProcessingRef.current) {
                           vid.pause();
+                        } else if (isPlayingRef.current) {
+                          vid.play().catch(() => {});
                         }
                         if (!isComposedRef.current) {
                           // Standard normal mode: normal 1.0x playback speed, keyframes stay 3.0s (two 1.5s clips)
@@ -2175,11 +2201,24 @@ export function App() {
                           setMediaDuration(3.0);
                           mediaDurationRef.current = 3.0;
                         }
-                        vid.currentTime = currentTimeRef.current;
+                        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, currentTimeRef.current) : null;
+                        if (activeClip && activeClip.type === 'video') {
+                          const clipSpeed = activeClip.speed || 1.0;
+                          vid.playbackRate = clipSpeed;
+                          const targetVidTime = Math.min(
+                            (vid.duration || 1000) - 0.03,
+                            Math.max(0, (currentTimeRef.current - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0))
+                          );
+                          vid.currentTime = targetVidTime;
+                        } else {
+                          vid.currentTime = currentTimeRef.current;
+                        }
                       }}
                       onCanPlay={(e) => {
                         if (!isPlayingRef.current && !isProcessingRef.current) {
                           e.currentTarget.pause();
+                        } else if (isPlayingRef.current && e.currentTarget.paused) {
+                          e.currentTarget.play().catch(() => {});
                         }
                       }}
                       onPause={() => {
@@ -2322,7 +2361,7 @@ export function App() {
           pointerEvents: 'none',
         }}
       >
-        {activeMedia.type === '3d' && (
+        {(activeMedia.type === '3d' || getActiveMediaClipAtTime(mediaClips, currentTime)?.type === '3d') && (
           <div
             style={{
               pointerEvents: 'auto',
@@ -2344,8 +2383,21 @@ export function App() {
                 setModel3DTransform(newTransform);
                 const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
                 if (activeClip) {
+                  const existingKf = activeClip.modelKeyframes || [];
+                  let nextKf = activeClip.modelKeyframes;
+                  if (existingKf.length > 0) {
+                    nextKf = setOrUpdateModelKeyframe(existingKf, currentTime, newTransform, 0.12);
+                  }
                   setMediaClips((prev) =>
-                    prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: newTransform } : c))
+                    prev.map((c) =>
+                      c.id === activeClip.id
+                        ? {
+                            ...c,
+                            modelTransform: newTransform,
+                            modelKeyframes: nextKf,
+                          }
+                        : c
+                    )
                   );
                 }
               }}
@@ -2354,7 +2406,12 @@ export function App() {
                 const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
                 if (!activeClip) return;
                 const currentKf = activeClip.modelKeyframes || [];
-                const updatedKf = setOrUpdateModelKeyframe(currentKf, currentTime, model3DTransform);
+                const currentT = interpolateModel3DTransform(
+                  currentKf,
+                  currentTime,
+                  activeClip.modelTransform || model3DTransform
+                );
+                const updatedKf = setOrUpdateModelKeyframe(currentKf, currentTime, currentT, 0.12);
                 setMediaClips((prev) =>
                   prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
                 );
@@ -2362,7 +2419,7 @@ export function App() {
               onRemoveKeyframe={(time) => {
                 const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
                 if (!activeClip || !activeClip.modelKeyframes) return;
-                const updatedKf = removeModelKeyframe(activeClip.modelKeyframes, time);
+                const updatedKf = removeModelKeyframe(activeClip.modelKeyframes, time, 0.1);
                 setMediaClips((prev) =>
                   prev.map((c) => (c.id === activeClip.id ? { ...c, modelKeyframes: updatedKf } : c))
                 );
@@ -2374,10 +2431,19 @@ export function App() {
                 const activeClip = getActiveMediaClipAtTime(mediaClipsRef.current, currentTime);
                 if (activeClip) {
                   setMediaClips((prev) =>
-                    prev.map((c) => (c.id === activeClip.id ? { ...c, modelTransform: DEFAULT_MODEL_3D_TRANSFORM } : c))
+                    prev.map((c) =>
+                      c.id === activeClip.id
+                        ? {
+                            ...c,
+                            modelTransform: DEFAULT_MODEL_3D_TRANSFORM,
+                            modelKeyframes: undefined,
+                          }
+                        : c
+                    )
                   );
                 }
               }}
+              hasEmbeddedAnimation={model3DRendererRef.current?.hasAnimation() ?? false}
             />
           </div>
         )}

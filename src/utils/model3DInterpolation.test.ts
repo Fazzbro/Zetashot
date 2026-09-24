@@ -96,4 +96,42 @@ describe('model3DInterpolation', () => {
     expect(keyframes).toHaveLength(1);
     expect(keyframes[0].time).toBe(3.0);
   });
+
+  it('updates existing keyframe within 0.12s snap tolerance without creating duplicates', () => {
+    let keyframes: Model3DKeyframe[] = [
+      { id: 'kf1', time: 0.0, transform: { ...DEFAULT_MODEL_3D_TRANSFORM, scale: 1.0 } },
+      { id: 'kf2', time: 2.0, transform: { ...DEFAULT_MODEL_3D_TRANSFORM, scale: 2.0 } },
+    ];
+
+    // User is at playhead 0.08s and modifies scale to 1.75x
+    keyframes = setOrUpdateModelKeyframe(keyframes, 0.08, { ...DEFAULT_MODEL_3D_TRANSFORM, scale: 1.75 }, 0.12);
+    expect(keyframes).toHaveLength(2);
+    expect(keyframes[0].transform.scale).toBe(1.75);
+
+    // Verify interpolation at 0s now immediately reflects the updated scale
+    const atZero = interpolateModel3DTransform(keyframes, 0.0);
+    expect(atZero.scale).toBe(1.75);
+  });
+
+  it('removes keyframe with tolerance for slight floating-point differences', () => {
+    let keyframes: Model3DKeyframe[] = [
+      { id: 'kf1', time: 1.5, transform: { ...DEFAULT_MODEL_3D_TRANSFORM } },
+    ];
+    // Remove with slight float drift (e.g., 1.54)
+    keyframes = removeModelKeyframe(keyframes, 1.54, 0.1);
+    expect(keyframes).toHaveLength(0);
+  });
+
+  it('interpolates playAnimation toggle accurately across keyframes', () => {
+    const keyframes: Model3DKeyframe[] = [
+      { id: 'kf1', time: 0.0, transform: { ...DEFAULT_MODEL_3D_TRANSFORM, playAnimation: true } },
+      { id: 'kf2', time: 2.0, transform: { ...DEFAULT_MODEL_3D_TRANSFORM, playAnimation: false } },
+    ];
+
+    const early = interpolateModel3DTransform(keyframes, 0.5);
+    expect(early.playAnimation).toBe(true);
+
+    const late = interpolateModel3DTransform(keyframes, 1.6);
+    expect(late.playAnimation).toBe(false);
+  });
 });

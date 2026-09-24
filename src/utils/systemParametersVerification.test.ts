@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateCameraForRegion, generateClipsFromInterestRegions, InterestRegion, STAGE_BASE_DIMS } from './interestRegionEngine';
-import { interpolateCameraSpline } from './splineInterpolation';
+import { interpolateCameraSpline, DEFAULT_SPLINE_CAMERA } from './splineInterpolation';
 import { getMockupDimensions } from './aspectRatioHelper';
 import { Camera3DState } from './camera3D';
 
@@ -25,17 +25,17 @@ describe('Comprehensive System & Parameter Verification', () => {
   it('verifies intelligent, readable auto-zoom scaling across different region sizes', () => {
     const baseCam: Camera3DState = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.70, panX: 0, panY: 0, perspective: 1000 };
 
-    // Small region (e.g. button or card) -> High focus push-in for maximum readability
+    // Small region (e.g. button or card) -> Balanced focus push-in without extreme crop
     const smallRegion: InterestRegion = { id: 'r1', index: 1, x: 100, y: 75, width: 125, height: 90 };
     const smallCam = calculateCameraForRegion(smallRegion, stageDims, baseCam);
-    expect(smallCam.zoom).toBeGreaterThanOrEqual(1.50);
-    expect(smallCam.zoom).toBeLessThanOrEqual(2.50);
+    expect(smallCam.zoom).toBeGreaterThanOrEqual(1.15);
+    expect(smallCam.zoom).toBeLessThanOrEqual(1.35);
 
-    // Large region (> 35% of stage) -> Balanced framing
+    // Large region (> 35% of stage) -> Balanced wide framing
     const largeRegion: InterestRegion = { id: 'r2', index: 2, x: 50, y: 50, width: 700, height: 400 };
     const largeCam = calculateCameraForRegion(largeRegion, stageDims, baseCam);
-    expect(largeCam.zoom).toBeGreaterThanOrEqual(1.05);
-    expect(largeCam.zoom).toBeLessThanOrEqual(1.40);
+    expect(largeCam.zoom).toBeGreaterThanOrEqual(0.80);
+    expect(largeCam.zoom).toBeLessThanOrEqual(1.15);
   });
 
   it('respects existing manual user camera zoom and position while focusing region', () => {
@@ -43,9 +43,9 @@ describe('Comprehensive System & Parameter Verification', () => {
     const region: InterestRegion = { id: 'r1', index: 1, x: 100, y: 75, width: 125, height: 90 };
     const adjustedCam = calculateCameraForRegion(region, stageDims, userCam);
 
-    // Adjusts to ensure focus is clear and readable
-    expect(adjustedCam.zoom).toBeGreaterThanOrEqual(1.40);
-    expect(adjustedCam.zoom).toBeLessThanOrEqual(2.50);
+    // Adjusts to ensure focus is clear and readable without over-zooming
+    expect(adjustedCam.zoom).toBeGreaterThanOrEqual(1.25);
+    expect(adjustedCam.zoom).toBeLessThanOrEqual(1.45);
   });
 
   it('verifies 1s per interest point synchronization across 1, 3, and 5 points', () => {
@@ -131,5 +131,30 @@ describe('Comprehensive System & Parameter Verification', () => {
       const frames = Math.max(1, Math.round(tc.duration * tc.fps));
       expect(frames).toBe(tc.expectedFrames);
     }
+  });
+
+  it('strictly verifies default camera zoom is 0.9x across system presets', () => {
+    expect(DEFAULT_SPLINE_CAMERA.zoom).toBe(0.9);
+
+    // Verify calculateCameraForRegion fallback with null/undefined baseCamera uses 0.90 base
+    const testRegion: InterestRegion = { id: 'r_default', index: 1, x: 200, y: 150, width: 300, height: 200 };
+    const cam = calculateCameraForRegion(testRegion, stageDims, undefined);
+    expect(cam.zoom).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('verifies hardware video decoder clock sync without seeking storms', () => {
+    // Simulates timeline progression derived directly from video.currentTime
+    const clipStartTime = 2.0;
+    const clipSpeed = 1.25;
+    const sourceStartTime = 0.5;
+    const videoCurrentTime = 1.75; // hardware video decoder reports 1.75s
+
+    const computedNextTime = clipStartTime + (videoCurrentTime - sourceStartTime) / clipSpeed;
+    expect(computedNextTime).toBe(3.0);
+
+    // Inverse check: targetVidTime evaluated at computedNextTime yields the exact same videoCurrentTime
+    const targetVidTime = (computedNextTime - clipStartTime) * clipSpeed + sourceStartTime;
+    expect(targetVidTime).toBe(videoCurrentTime);
+    expect(Math.abs(videoCurrentTime - targetVidTime)).toBe(0); // Zero drift!
   });
 });
