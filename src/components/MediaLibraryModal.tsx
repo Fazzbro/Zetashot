@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus, Box } from 'lucide-react';
+import { Model3DTextureConfig } from '../types/model3D';
 
 export interface MediaItem {
   id: string;
@@ -9,6 +10,7 @@ export interface MediaItem {
   dimensions: string;
   format: string;
   poster?: string;
+  modelTextures?: Model3DTextureConfig;
 }
 
 export const BUILTIN_MEDIA_ITEMS: MediaItem[] = [

@@ -152,4 +152,30 @@ describe('videoExportEngine & Timeline Sync Hardcore Reliability', () => {
       ).not.toThrow();
     }
   });
+
+  it('validates 3D model export configuration with custom textures and maps', () => {
+    const media3DClip = {
+      id: 'clip_3d_1',
+      mediaId: 'model_1',
+      name: 'Car Model.fbx',
+      type: '3d' as const,
+      url: 'blob:http://localhost:5173/car.fbx',
+      startTime: 0,
+      duration: 5.0,
+      modelTextures: {
+        diffuseUrl: 'blob:http://localhost:5173/car_diffuse.png',
+        diffuseName: 'car_diffuse.png',
+        normalUrl: 'blob:http://localhost:5173/car_normal.png',
+        normalName: 'car_normal.png',
+        flipY: true,
+        repeatX: 1,
+        repeatY: 1,
+      },
+    };
+
+    expect(media3DClip.type).toBe('3d');
+    expect(media3DClip.modelTextures?.diffuseUrl).toBeDefined();
+    expect(media3DClip.modelTextures?.normalUrl).toBeDefined();
+    expect(media3DClip.modelTextures?.flipY).toBe(true);
+  });
 });

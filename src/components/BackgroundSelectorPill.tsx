@@ -2,6 +2,22 @@ import React, { useRef } from 'react';
 import { BackgroundConfig } from '../utils/gradientUtils';
 import { ImagePlus } from 'lucide-react';
 
+export interface BackgroundPresetImage {
+  id: string;
+  name: string;
+  url: string;
+  position?: { x: number; y: number };
+  imageScale?: number;
+}
+
+export const PRESET_BACKGROUND_IMAGES: BackgroundPresetImage[] = [
+  { id: 'hills', name: 'Green Hills', url: '/backgrounds/bg-green-hills.jpg', position: { x: 50, y: 50 }, imageScale: 1.0 },
+  { id: 'sunflowers', name: 'Sunflower Meadow', url: '/backgrounds/bg-sunflowers.png', position: { x: 50, y: 100 }, imageScale: 1.0 },
+  { id: 'purple-wave', name: 'Purple Wave', url: '/backgrounds/bg-purple-wave.jpg', position: { x: 50, y: 50 }, imageScale: 1.0 },
+  { id: 'tulips', name: 'Digital Tulips', url: '/backgrounds/bg-tulips.jpg', position: { x: 50, y: 50 }, imageScale: 1.0 },
+  { id: 'clouds', name: 'Halftone Clouds', url: '/backgrounds/bg-halftone-clouds.jpg', position: { x: 50, y: 50 }, imageScale: 1.0 },
+];
+
 interface BackgroundSelectorPillProps {
   background: BackgroundConfig;
   onBackgroundChange: (bg: BackgroundConfig) => void;
@@ -25,12 +41,23 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
   const isLight = background.type === 'solid' && background.color?.toLowerCase() === COLOR_LIGHT;
   const isBlack = background.type === 'solid' && (background.color?.toLowerCase() === COLOR_BLACK || background.color?.toLowerCase() === '#000000');
   const isCustomSolid = background.type === 'solid' && !isWhite && !isLight && !isBlack;
-  const isImage = background.type === 'image';
+  const isPresetImage = background.type === 'image' && PRESET_BACKGROUND_IMAGES.some(p => p.url === background.imageUrl);
+  const isCustomImage = background.type === 'image' && !isPresetImage;
 
   const handleSelectSolid = (color: string) => {
     onBackgroundChange({
       type: 'solid',
       color,
+    });
+  };
+
+  const handleSelectPreset = (preset: BackgroundPresetImage) => {
+    onBackgroundChange({
+      type: 'image',
+      imageUrl: preset.url,
+      imageFit: background.imageFit || 'cover',
+      position: preset.position || { x: 50, y: 50 },
+      imageScale: background.imageScale ?? 1.0,
     });
   };
 
@@ -110,7 +137,7 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
           />
         </div>
 
-        {/* 4. Color Wheel (3rd option requested) */}
+        {/* 4. Color Wheel (Custom solid color) */}
         <div className={`bg-pill-slot ${isCustomSolid ? 'is-active' : ''}`}>
           <button
             type="button"
@@ -134,16 +161,42 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
           />
         </div>
 
-        {/* 5. Custom Background Image (4th option requested) */}
-        <div className={`bg-pill-slot ${isImage ? 'is-active' : ''}`}>
+        {/* Divider separating colors and background image gallery */}
+        <div className="bg-pill-divider" role="separator" />
+
+        {/* 5 Preset Background Images Gallery */}
+        {PRESET_BACKGROUND_IMAGES.map((preset) => {
+          const isSelected = background.type === 'image' && background.imageUrl === preset.url;
+          return (
+            <div key={preset.id} className={`bg-pill-slot ${isSelected ? 'is-active' : ''}`}>
+              <button
+                type="button"
+                className="bg-preset-thumb-btn"
+                onClick={() => handleSelectPreset(preset)}
+                title={preset.name}
+                aria-label={preset.name}
+              >
+                <img
+                  src={preset.url}
+                  alt={preset.name}
+                  className="bg-preset-thumb-img"
+                  loading="lazy"
+                />
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Custom Background Image Upload */}
+        <div className={`bg-pill-slot ${isCustomImage ? 'is-active' : ''}`}>
           <button
             type="button"
             className="bg-image-upload-btn"
             onClick={handleImageUploadClick}
-            title={isImage ? 'Change custom background image' : 'Upload custom background image'}
+            title={isCustomImage ? 'Change custom background image' : 'Upload custom background image'}
             aria-label="Upload custom background image"
           >
-            {isImage && background.imageUrl ? (
+            {isCustomImage && background.imageUrl ? (
               <img src={background.imageUrl} alt="Custom background" className="bg-image-mini-thumb" />
             ) : (
               <ImagePlus className="bg-image-icon" />
@@ -159,6 +212,79 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
           />
         </div>
       </div>
+
+      {/* Secondary Adjustment Strip: Fit, Alignment & Zoom Slider */}
+      {background.type === 'image' && (
+        <div className="backdrop-image-adjust-strip" role="group" aria-label="Wallpaper adjustments">
+          {/* Fit Mode Toggle */}
+          <div className="bg-adjust-group">
+            <button
+              type="button"
+              className={`bg-adjust-btn ${(background.imageFit || 'cover') === 'cover' ? 'is-active' : ''}`}
+              onClick={() => onBackgroundChange({ ...background, imageFit: 'cover' })}
+              title="Cover (Fill entire stage)"
+            >
+              Cover
+            </button>
+            <button
+              type="button"
+              className={`bg-adjust-btn ${background.imageFit === 'contain' ? 'is-active' : ''}`}
+              onClick={() => onBackgroundChange({ ...background, imageFit: 'contain' })}
+              title="Fit (Show entire image without cropping)"
+            >
+              Fit
+            </button>
+          </div>
+
+          <div className="bg-adjust-divider" />
+
+          {/* Position Selector: Top, Center, Bottom */}
+          <div className="bg-adjust-group">
+            <button
+              type="button"
+              className={`bg-adjust-btn ${(background.position?.y ?? 50) === 0 ? 'is-active' : ''}`}
+              onClick={() => onBackgroundChange({ ...background, position: { x: background.position?.x ?? 50, y: 0 } })}
+              title="Align Top"
+            >
+              Top
+            </button>
+            <button
+              type="button"
+              className={`bg-adjust-btn ${(background.position?.y ?? 50) === 50 ? 'is-active' : ''}`}
+              onClick={() => onBackgroundChange({ ...background, position: { x: background.position?.x ?? 50, y: 50 } })}
+              title="Align Center"
+            >
+              Center
+            </button>
+            <button
+              type="button"
+              className={`bg-adjust-btn ${(background.position?.y ?? 50) === 100 ? 'is-active' : ''}`}
+              onClick={() => onBackgroundChange({ ...background, position: { x: background.position?.x ?? 50, y: 100 } })}
+              title="Align Bottom"
+            >
+              Bottom
+            </button>
+          </div>
+
+          <div className="bg-adjust-divider" />
+
+          {/* Zoom / Scale Slider */}
+          <div className="bg-adjust-zoom">
+            <span className="bg-adjust-zoom-label">Zoom</span>
+            <input
+              type="range"
+              min="0.5"
+              max="1.5"
+              step="0.05"
+              value={background.imageScale ?? 1.0}
+              onChange={(e) => onBackgroundChange({ ...background, imageScale: parseFloat(e.target.value) })}
+              className="bg-adjust-zoom-slider"
+              title="Adjust Wallpaper Zoom"
+            />
+            <span className="bg-adjust-zoom-val">{Math.round((background.imageScale ?? 1.0) * 100)}%</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

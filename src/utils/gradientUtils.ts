@@ -16,6 +16,7 @@ export interface BackgroundConfig {
   imageBlur?: number;
   opacity?: number;
   position?: { x: number; y: number };
+  imageScale?: number;
 }
 
 export function hexToRgba(hex: string, alpha: number = 1): string {

@@ -53,7 +53,14 @@ import {
 } from 'lucide-react';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
-import { Model3DTransform, Model3DKeyframe, DEFAULT_MODEL_3D_TRANSFORM } from './types/model3D';
+import {
+  Model3DTransform,
+  Model3DKeyframe,
+  Model3DTextureConfig,
+  Model3DTextureMapType,
+  DEFAULT_MODEL_3D_TRANSFORM,
+  DEFAULT_MODEL_3D_TEXTURES,
+} from './types/model3D';
 import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyframe } from './utils/model3DInterpolation';
 import { Model3DControlsIsland } from './components/Model3DControlsIsland';
 
@@ -482,6 +489,7 @@ export function App() {
 
   // 13. 3D Model (FBX) Stage Rendering & Transforms
   const [model3DTransform, setModel3DTransform] = useState<Model3DTransform>(DEFAULT_MODEL_3D_TRANSFORM);
+  const [model3DTextures, setModel3DTextures] = useState<Model3DTextureConfig>(DEFAULT_MODEL_3D_TEXTURES);
   const model3DRendererRef = useRef<FBX3DRenderer | null>(null);
   const model3DCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const loadedFBXUrlRef = useRef<string | null>(null);
@@ -520,12 +528,83 @@ export function App() {
     if (activeMedia.url !== loadedFBXUrlRef.current) {
       loadedFBXUrlRef.current = activeMedia.url;
       if (activeMedia.url !== 'default-3d') {
-        model3DRendererRef.current.loadFBX(activeMedia.url).catch((err) => {
-          console.warn('[Zetashot] Failed to load FBX model:', err);
-        });
+        model3DRendererRef.current
+          .loadFBX(activeMedia.url)
+          .then(() => {
+            if (activeMedia.modelTextures) {
+              setModel3DTextures(activeMedia.modelTextures);
+              if (activeMedia.modelTextures.diffuseUrl) {
+                model3DRendererRef.current?.loadTexture(
+                  activeMedia.modelTextures.diffuseUrl,
+                  'diffuse',
+                  activeMedia.modelTextures.diffuseName,
+                  activeMedia.modelTextures
+                );
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn('[Zetashot] Failed to load FBX model:', err);
+          });
       }
     }
   }, [activeMedia.type, activeMedia.url]);
+
+  const handleUploadModelTexture = async (file: File, type: Model3DTextureMapType) => {
+    try {
+      const url = URL.createObjectURL(file);
+      if (!model3DRendererRef.current) {
+        model3DRendererRef.current = new FBX3DRenderer();
+      }
+      await model3DRendererRef.current.loadTexture(url, type, file.name, model3DTextures);
+      const updated: Model3DTextureConfig = {
+        ...model3DTextures,
+        [`${type}Url`]: url,
+        [`${type}Name`]: file.name,
+      };
+      setModel3DTextures(updated);
+      setActiveMedia((prev) => ({
+        ...prev,
+        modelTextures: updated,
+      }));
+      setMediaClips((prev) => {
+        const curActive = getActiveMediaClipAtTime(prev, currentTimeRef.current);
+        return prev.map((c) => (c.id === curActive?.id ? { ...c, modelTextures: updated } : c));
+      });
+    } catch (err) {
+      console.warn('[Zetashot] Error uploading 3D texture:', err);
+    }
+  };
+
+  const handleRemoveModelTexture = (type: Model3DTextureMapType) => {
+    model3DRendererRef.current?.removeTexture(type);
+    const updated: Model3DTextureConfig = { ...model3DTextures };
+    delete updated[`${type}Url` as keyof Model3DTextureConfig];
+    delete updated[`${type}Name` as keyof Model3DTextureConfig];
+    setModel3DTextures(updated);
+    setActiveMedia((prev) => ({
+      ...prev,
+      modelTextures: updated,
+    }));
+    setMediaClips((prev) => {
+      const curActive = getActiveMediaClipAtTime(prev, currentTimeRef.current);
+      return prev.map((c) => (c.id === curActive?.id ? { ...c, modelTextures: updated } : c));
+    });
+  };
+
+  const handleUpdateModelTextureConfig = (updates: Partial<Model3DTextureConfig>) => {
+    model3DRendererRef.current?.updateTextureConfig(updates);
+    const updated: Model3DTextureConfig = { ...model3DTextures, ...updates };
+    setModel3DTextures(updated);
+    setActiveMedia((prev) => ({
+      ...prev,
+      modelTextures: updated,
+    }));
+    setMediaClips((prev) => {
+      const curActive = getActiveMediaClipAtTime(prev, currentTimeRef.current);
+      return prev.map((c) => (c.id === curActive?.id ? { ...c, modelTextures: updated } : c));
+    });
+  };
 
   // 3D Model Canvas Rendering Effect
   useEffect(() => {
@@ -1512,6 +1591,14 @@ export function App() {
     const isFBX = fileName.endsWith('.fbx');
     const is3D = isFBX || fileName.endsWith('.obj') || fileName.endsWith('.gltf') || fileName.endsWith('.glb');
     const isVideo = !is3D && (file.type.startsWith('video') || fileName.endsWith('.mp4') || fileName.endsWith('.webm') || fileName.endsWith('.mov') || fileName.endsWith('.mkv'));
+    const isImage = !is3D && !isVideo && (file.type.startsWith('image') || fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.webp'));
+
+    // If currently viewing a 3D model and user drops/uploads an image, apply it as a diffuse texture
+    if (activeMedia.type === '3d' && isImage && mediaLibraryMode !== 'add') {
+      await handleUploadModelTexture(file, 'diffuse');
+      return;
+    }
+
     const url = URL.createObjectURL(file);
     const newItem: MediaItem = {
       id: `upload_${Date.now()}`,
@@ -1529,6 +1616,7 @@ export function App() {
           model3DRendererRef.current = new FBX3DRenderer();
         }
         loadedFBXUrlRef.current = url;
+        setModel3DTextures({ ...DEFAULT_MODEL_3D_TEXTURES });
         await model3DRendererRef.current.loadModel(buffer, file.name);
       } catch (err) {
         console.warn('[Zetashot] Error reading 3D file buffer:', err);
@@ -1692,6 +1780,7 @@ export function App() {
           mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
           mediaUrl: activeMedia.url,
           mediaType: activeMedia.type,
+          modelTextures: getActiveMediaClipAtTime(mediaClips, currentTime)?.modelTextures || model3DTextures,
           mediaClips,
           audioTracks,
           cropRect,
@@ -1792,12 +1881,30 @@ export function App() {
           setIsDraggingFile(false);
         }
       }}
-      onDrop={(e) => {
+      onDrop={async (e) => {
         e.preventDefault();
         e.stopPropagation();
         dragCounterRef.current = 0;
         setIsDraggingFile(false);
-        const file = e.dataTransfer.files?.[0];
+        const files = Array.from(e.dataTransfer.files || []);
+        if (files.length > 1) {
+          const modelFile = files.find((f) => {
+            const n = f.name.toLowerCase();
+            return n.endsWith('.fbx') || n.endsWith('.obj') || n.endsWith('.gltf') || n.endsWith('.glb');
+          });
+          const textureFile = files.find((f) => {
+            const n = f.name.toLowerCase();
+            return f.type.startsWith('image') || n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.webp');
+          });
+          if (modelFile) {
+            await handleUploadFile(modelFile);
+            if (textureFile) {
+              await handleUploadModelTexture(textureFile, 'diffuse');
+            }
+            return;
+          }
+        }
+        const file = files[0];
         if (file) {
           handleUploadFile(file);
         }
@@ -2104,7 +2211,19 @@ export function App() {
           ref={stageRef}
           className="capture-stage"
           style={{
-            background: background.type === 'transparent' ? undefined : bgStyle,
+            backgroundColor: background.type === 'solid' ? (background.color || '#ffffff') : undefined,
+            backgroundImage: background.type === 'image' && background.imageUrl
+              ? `url("${background.imageUrl}")`
+              : background.type === 'gradient'
+              ? bgStyle
+              : undefined,
+            backgroundSize: background.imageUrl
+              ? (background.imageFit === 'contain' ? 'contain' : (background.imageScale && background.imageScale !== 1 ? `${Math.round(background.imageScale * 100)}%` : 'cover'))
+              : undefined,
+            backgroundPosition: background.imageUrl
+              ? (background.position ? `${background.position.x}% ${background.position.y}%` : 'center')
+              : undefined,
+            backgroundRepeat: 'no-repeat',
             aspectRatio: getAspectRatioCss(aspectRatio),
           }}
         >
@@ -2134,13 +2253,16 @@ export function App() {
               ref={frameSceneRef}
               className={`frame-scene shadow-${shadowDepth} ${
                 isPlaying || isDraggingScene ? 'is-moving' : ''
-              }`}
+              } ${activeMedia.type === '3d' ? 'is-3d' : ''}`}
               style={{
                 transform: transform3D,
                 borderRadius: `${borderRadius * stageScale}px`,
                 opacity: frameOpacity,
                 width: `${mockupDims.width * stageScale}px`,
                 height: `${mockupDims.height * stageScale}px`,
+                background: activeMedia.type === '3d' ? 'transparent' : undefined,
+                border: activeMedia.type === '3d' ? 'none' : undefined,
+                boxShadow: activeMedia.type === '3d' ? 'none' : undefined,
               }}
             >
               {/* Depth of field / Laser red focus overlay */}
@@ -2239,7 +2361,7 @@ export function App() {
                         width: '100%',
                         height: '100%',
                         display: 'block',
-                        background: 'radial-gradient(ellipse at center, #1e293b 0%, #0f172a 60%, #090d16 100%)',
+                        background: 'transparent',
                       }}
                     />
                   ) : (
@@ -2444,6 +2566,10 @@ export function App() {
                 }
               }}
               hasEmbeddedAnimation={model3DRendererRef.current?.hasAnimation() ?? false}
+              textureConfig={getActiveMediaClipAtTime(mediaClips, currentTime)?.modelTextures || model3DTextures}
+              onUploadTexture={handleUploadModelTexture}
+              onRemoveTexture={handleRemoveModelTexture}
+              onUpdateTextureConfig={handleUpdateModelTextureConfig}
             />
           </div>
         )}

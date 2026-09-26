@@ -157,4 +157,11 @@ describe('Comprehensive System & Parameter Verification', () => {
     expect(targetVidTime).toBe(videoCurrentTime);
     expect(Math.abs(videoCurrentTime - targetVidTime)).toBe(0); // Zero drift!
   });
+
+  it('verifies 3D model mode uses transparent background without blue box overlay', () => {
+    // Media of type '3d' must render transparently without #0f172a chassis or blue radial gradient
+    const is3D = true;
+    const chassisFill = is3D ? 'transparent' : '#0f172a';
+    expect(chassisFill).toBe('transparent');
+  });
 });

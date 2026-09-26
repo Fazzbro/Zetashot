@@ -1,4 +1,4 @@
-import { Model3DTransform, Model3DKeyframe } from './model3D';
+import { Model3DTransform, Model3DKeyframe, Model3DTextureConfig } from './model3D';
 
 export type TransitionType = 'cut' | 'gradient' | 'blocks' | 'fade' | 'push' | 'zoom';
 export type TransitionScope = 'clip' | 'canvas';
@@ -23,6 +23,7 @@ export interface MediaTimelineClip {
   transitionScope?: TransitionScope;
   modelTransform?: Model3DTransform;
   modelKeyframes?: Model3DKeyframe[];
+  modelTextures?: Model3DTextureConfig;
 }
 
 /**

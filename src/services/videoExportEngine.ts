@@ -33,7 +33,7 @@ import {
 } from './webcodecsExporter';
 import { FBX3DRenderer } from './fbx3DRenderer';
 import { interpolateModel3DTransform } from '../utils/model3DInterpolation';
-import { DEFAULT_MODEL_3D_TRANSFORM } from '../types/model3D';
+import { DEFAULT_MODEL_3D_TRANSFORM, Model3DTextureConfig } from '../types/model3D';
 
 export interface VideoExportOptions {
   mediaName?: string;
@@ -41,6 +41,7 @@ export interface VideoExportOptions {
   mediaType: 'image' | 'video' | 'demo' | '3d';
   mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | null;
   mediaUrl?: string;
+  modelTextures?: Model3DTextureConfig;
   mediaClips?: MediaTimelineClip[];
   audioTracks?: AudioTrackItem[];
   audioBlob?: Blob | null;
@@ -119,19 +120,45 @@ function drawBackground(
   if (bg.type === 'image' && bgImgElem && bgImgElem.complete && bgImgElem.naturalWidth > 0) {
     const srcRatio = bgImgElem.naturalWidth / bgImgElem.naturalHeight;
     const dstRatio = width / height;
-    let sw = bgImgElem.naturalWidth;
-    let sh = bgImgElem.naturalHeight;
-    let sx = 0;
-    let sy = 0;
+    const isContain = bg.imageFit === 'contain';
+    const scale = bg.imageScale ?? 1.0;
+    const posX = (bg.position?.x ?? 50) / 100;
+    const posY = (bg.position?.y ?? 50) / 100;
 
-    if (srcRatio > dstRatio) {
-      sw = bgImgElem.naturalHeight * dstRatio;
-      sx = (bgImgElem.naturalWidth - sw) / 2;
+    if (isContain) {
+      let dw = width;
+      let dh = height;
+      if (srcRatio > dstRatio) {
+        dh = width / srcRatio;
+      } else {
+        dw = height * srcRatio;
+      }
+      dw *= scale;
+      dh *= scale;
+      const dx = (width - dw) * posX;
+      const dy = (height - dh) * posY;
+      ctx.drawImage(bgImgElem, 0, 0, bgImgElem.naturalWidth, bgImgElem.naturalHeight, dx, dy, dw, dh);
     } else {
-      sh = bgImgElem.naturalWidth / dstRatio;
-      sy = (bgImgElem.naturalHeight - sh) / 2;
+      let sw = bgImgElem.naturalWidth;
+      let sh = bgImgElem.naturalHeight;
+
+      if (srcRatio > dstRatio) {
+        sw = bgImgElem.naturalHeight * dstRatio;
+      } else {
+        sh = bgImgElem.naturalWidth / dstRatio;
+      }
+
+      const effectiveScale = Math.max(0.2, scale);
+      sw = Math.min(bgImgElem.naturalWidth, sw / effectiveScale);
+      sh = Math.min(bgImgElem.naturalHeight, sh / effectiveScale);
+
+      const maxSx = Math.max(0, bgImgElem.naturalWidth - sw);
+      const maxSy = Math.max(0, bgImgElem.naturalHeight - sh);
+      const sx = maxSx * posX;
+      const sy = maxSy * posY;
+
+      ctx.drawImage(bgImgElem, sx, sy, sw, sh, 0, 0, width, height);
     }
-    ctx.drawImage(bgImgElem, sx, sy, sw, sh, 0, 0, width, height);
   } else if ((bg.type as string) === 'solid' || (bg.type as string) === 'color') {
     ctx.fillStyle = (bg as any).color || (bg as any).value || '#ffffff';
     ctx.fillRect(0, 0, width, height);
@@ -259,6 +286,33 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         await fbxRenderer.loadFBX(modelUrl);
       } catch (err) {
         console.warn('[videoExportEngine] Failed to load FBX for export:', err);
+      }
+    }
+    const texConfig = clip3D?.modelTextures || options.modelTextures;
+    if (texConfig) {
+      if (texConfig.diffuseUrl) {
+        try {
+          await fbxRenderer.loadTexture(texConfig.diffuseUrl, 'diffuse', texConfig.diffuseName, texConfig);
+        } catch (err) {
+          console.warn('[videoExportEngine] Failed to load diffuse texture for export:', err);
+        }
+      }
+      if (texConfig.normalUrl) {
+        try {
+          await fbxRenderer.loadTexture(texConfig.normalUrl, 'normal', texConfig.normalName, texConfig);
+        } catch (err) {
+          console.warn('[videoExportEngine] Failed to load normal texture for export:', err);
+        }
+      }
+      if (texConfig.roughnessUrl) {
+        try {
+          await fbxRenderer.loadTexture(texConfig.roughnessUrl, 'roughness', texConfig.roughnessName, texConfig);
+        } catch (err) {
+          console.warn('[videoExportEngine] Failed to load roughness texture for export:', err);
+        }
+      }
+      if (texConfig.colorTint) {
+        fbxRenderer.applyColorTint(texConfig.colorTint);
       }
     }
   }
@@ -404,8 +458,10 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       frameCtx.clip();
 
       // Background chassis fill
-      frameCtx.fillStyle = '#0f172a';
-      frameCtx.fillRect(0, 0, frameW, frameH);
+      if (activeType !== '3d') {
+        frameCtx.fillStyle = '#0f172a';
+        frameCtx.fillRect(0, 0, frameW, frameH);
+      }
 
       // Media rendering with object-fit: cover & cropping
       if (activeElement && activeType === 'video') {
@@ -522,39 +578,41 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       // 2) Crisp 1px inner specular highlight border
       // 3) Inset depth shadow
       // 4) Diagonal physical glass reflection
-      frameCtx.save();
-      
-      // Outer chassis border
-      frameCtx.beginPath();
-      frameCtx.roundRect(0.5, 0.5, frameW - 1, frameH - 1, cornerRadius);
-      frameCtx.lineWidth = Math.max(1, Math.round(1.5 * baseScale));
-      frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-      frameCtx.stroke();
+      if (activeType !== '3d') {
+        frameCtx.save();
+        
+        // Outer chassis border
+        frameCtx.beginPath();
+        frameCtx.roundRect(0.5, 0.5, frameW - 1, frameH - 1, cornerRadius);
+        frameCtx.lineWidth = Math.max(1, Math.round(1.5 * baseScale));
+        frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        frameCtx.stroke();
 
-      // Deep dark border rim
-      frameCtx.beginPath();
-      frameCtx.roundRect(1.5, 1.5, frameW - 3, frameH - 3, Math.max(0, cornerRadius - 1));
-      frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
-      frameCtx.strokeStyle = 'rgba(0, 0, 0, 0.50)';
-      frameCtx.stroke();
+        // Deep dark border rim
+        frameCtx.beginPath();
+        frameCtx.roundRect(1.5, 1.5, frameW - 3, frameH - 3, Math.max(0, cornerRadius - 1));
+        frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
+        frameCtx.strokeStyle = 'rgba(0, 0, 0, 0.50)';
+        frameCtx.stroke();
 
-      // Inset bevel highlight & shadow
-      frameCtx.beginPath();
-      frameCtx.roundRect(2.5, 2.5, frameW - 5, frameH - 5, Math.max(0, cornerRadius - 2));
-      frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
-      frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-      frameCtx.stroke();
+        // Inset bevel highlight & shadow
+        frameCtx.beginPath();
+        frameCtx.roundRect(2.5, 2.5, frameW - 5, frameH - 5, Math.max(0, cornerRadius - 2));
+        frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
+        frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        frameCtx.stroke();
 
-      // Subtle diagonal glass reflection (matching .frame-scene::after)
-      const glassGrad = frameCtx.createLinearGradient(0, 0, frameW, frameH);
-      glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
-      glassGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.03)');
-      glassGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.0)');
-      glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
-      frameCtx.fillStyle = glassGrad;
-      frameCtx.fill();
+        // Subtle diagonal glass reflection (matching .frame-scene::after)
+        const glassGrad = frameCtx.createLinearGradient(0, 0, frameW, frameH);
+        glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+        glassGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.03)');
+        glassGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.0)');
+        glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+        frameCtx.fillStyle = glassGrad;
+        frameCtx.fill();
 
-      frameCtx.restore();
+        frameCtx.restore();
+      }
 
       frameCtx.restore();
 

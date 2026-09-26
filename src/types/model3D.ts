@@ -27,3 +27,26 @@ export interface Model3DKeyframe {
   time: number;
   transform: Model3DTransform;
 }
+
+export type Model3DTextureMapType = 'diffuse' | 'normal' | 'roughness';
+
+export interface Model3DTextureConfig {
+  diffuseUrl?: string;
+  diffuseName?: string;
+  normalUrl?: string;
+  normalName?: string;
+  roughnessUrl?: string;
+  roughnessName?: string;
+  flipY?: boolean; // Flip texture along Y axis (crucial for OpenGL vs DirectX UVs in FBX)
+  repeatX?: number; // Horizontal UV tiling
+  repeatY?: number; // Vertical UV tiling
+  colorTint?: string; // Optional hex color tint override (e.g. #ffffff)
+}
+
+export const DEFAULT_MODEL_3D_TEXTURES: Model3DTextureConfig = {
+  flipY: true,
+  repeatX: 1,
+  repeatY: 1,
+  colorTint: '#ffffff',
+};
+

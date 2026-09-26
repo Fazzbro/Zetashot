@@ -48,19 +48,45 @@ function drawBackground(
   if (bg.type === 'image' && bgImgElem && bgImgElem.complete && bgImgElem.naturalWidth > 0) {
     const srcRatio = bgImgElem.naturalWidth / bgImgElem.naturalHeight;
     const dstRatio = width / height;
-    let sw = bgImgElem.naturalWidth;
-    let sh = bgImgElem.naturalHeight;
-    let sx = 0;
-    let sy = 0;
+    const isContain = bg.imageFit === 'contain';
+    const scale = bg.imageScale ?? 1.0;
+    const posX = (bg.position?.x ?? 50) / 100;
+    const posY = (bg.position?.y ?? 50) / 100;
 
-    if (srcRatio > dstRatio) {
-      sw = bgImgElem.naturalHeight * dstRatio;
-      sx = (bgImgElem.naturalWidth - sw) / 2;
+    if (isContain) {
+      let dw = width;
+      let dh = height;
+      if (srcRatio > dstRatio) {
+        dh = width / srcRatio;
+      } else {
+        dw = height * srcRatio;
+      }
+      dw *= scale;
+      dh *= scale;
+      const dx = (width - dw) * posX;
+      const dy = (height - dh) * posY;
+      ctx.drawImage(bgImgElem, 0, 0, bgImgElem.naturalWidth, bgImgElem.naturalHeight, dx, dy, dw, dh);
     } else {
-      sh = bgImgElem.naturalWidth / dstRatio;
-      sy = (bgImgElem.naturalHeight - sh) / 2;
+      let sw = bgImgElem.naturalWidth;
+      let sh = bgImgElem.naturalHeight;
+
+      if (srcRatio > dstRatio) {
+        sw = bgImgElem.naturalHeight * dstRatio;
+      } else {
+        sh = bgImgElem.naturalWidth / dstRatio;
+      }
+
+      const effectiveScale = Math.max(0.2, scale);
+      sw = Math.min(bgImgElem.naturalWidth, sw / effectiveScale);
+      sh = Math.min(bgImgElem.naturalHeight, sh / effectiveScale);
+
+      const maxSx = Math.max(0, bgImgElem.naturalWidth - sw);
+      const maxSy = Math.max(0, bgImgElem.naturalHeight - sh);
+      const sx = maxSx * posX;
+      const sy = maxSy * posY;
+
+      ctx.drawImage(bgImgElem, sx, sy, sw, sh, 0, 0, width, height);
     }
-    ctx.drawImage(bgImgElem, sx, sy, sw, sh, 0, 0, width, height);
   } else if ((bg.type as string) === 'solid' || (bg.type as string) === 'color') {
     ctx.fillStyle = (bg as any).color || (bg as any).value || '#ffffff';
     ctx.fillRect(0, 0, width, height);
@@ -155,8 +181,10 @@ export class CaptureEngine {
     frameCtx.roundRect(0, 0, frameW, frameH, cornerRadius);
     frameCtx.clip();
 
-    frameCtx.fillStyle = '#0f172a';
-    frameCtx.fillRect(0, 0, frameW, frameH);
+    if (options.mediaType !== '3d') {
+      frameCtx.fillStyle = '#0f172a';
+      frameCtx.fillRect(0, 0, frameW, frameH);
+    }
 
     const videoElem = (options.mediaElement as HTMLVideoElement) || (document.getElementById('mockup-video-player') as HTMLVideoElement | null);
     const canvasElem = (options.mediaElement as HTMLCanvasElement) || (document.getElementById('mockup-3d-model-canvas') as HTMLCanvasElement | null);
@@ -203,33 +231,35 @@ export class CaptureEngine {
     }
 
     // --- High-End SaaS Black Border Frame & Glass Sheen Overlay ---
-    frameCtx.save();
-    frameCtx.beginPath();
-    frameCtx.roundRect(0.5, 0.5, frameW - 1, frameH - 1, cornerRadius);
-    frameCtx.lineWidth = Math.max(1, Math.round(1.5 * baseScale));
-    frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-    frameCtx.stroke();
+    if (options.mediaType !== '3d') {
+      frameCtx.save();
+      frameCtx.beginPath();
+      frameCtx.roundRect(0.5, 0.5, frameW - 1, frameH - 1, cornerRadius);
+      frameCtx.lineWidth = Math.max(1, Math.round(1.5 * baseScale));
+      frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      frameCtx.stroke();
 
-    frameCtx.beginPath();
-    frameCtx.roundRect(1.5, 1.5, frameW - 3, frameH - 3, Math.max(0, cornerRadius - 1));
-    frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
-    frameCtx.strokeStyle = 'rgba(0, 0, 0, 0.50)';
-    frameCtx.stroke();
+      frameCtx.beginPath();
+      frameCtx.roundRect(1.5, 1.5, frameW - 3, frameH - 3, Math.max(0, cornerRadius - 1));
+      frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
+      frameCtx.strokeStyle = 'rgba(0, 0, 0, 0.50)';
+      frameCtx.stroke();
 
-    frameCtx.beginPath();
-    frameCtx.roundRect(2.5, 2.5, frameW - 5, frameH - 5, Math.max(0, cornerRadius - 2));
-    frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
-    frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-    frameCtx.stroke();
+      frameCtx.beginPath();
+      frameCtx.roundRect(2.5, 2.5, frameW - 5, frameH - 5, Math.max(0, cornerRadius - 2));
+      frameCtx.lineWidth = Math.max(1, Math.round(1.0 * baseScale));
+      frameCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      frameCtx.stroke();
 
-    const glassGrad = frameCtx.createLinearGradient(0, 0, frameW, frameH);
-    glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
-    glassGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.03)');
-    glassGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.0)');
-    glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
-    frameCtx.fillStyle = glassGrad;
-    frameCtx.fill();
-    frameCtx.restore();
+      const glassGrad = frameCtx.createLinearGradient(0, 0, frameW, frameH);
+      glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+      glassGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.03)');
+      glassGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.0)');
+      glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+      frameCtx.fillStyle = glassGrad;
+      frameCtx.fill();
+      frameCtx.restore();
+    }
 
     frameCtx.restore();
 

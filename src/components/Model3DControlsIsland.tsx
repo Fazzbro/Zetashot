@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
-import { Model3DTransform, Model3DKeyframe } from '../types/model3D';
+import React, { useState, useRef } from 'react';
+import {
+  Model3DTransform,
+  Model3DKeyframe,
+  Model3DTextureConfig,
+  Model3DTextureMapType,
+} from '../types/model3D';
 import {
   Maximize2,
   RotateCw,
@@ -11,6 +16,8 @@ import {
   Pause,
   ChevronLeft,
   ChevronRight,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface Model3DControlsIslandProps {
@@ -23,6 +30,10 @@ interface Model3DControlsIslandProps {
   onSeek: (time: number) => void;
   onReset: () => void;
   hasEmbeddedAnimation?: boolean;
+  textureConfig?: Model3DTextureConfig;
+  onUploadTexture?: (file: File, type: Model3DTextureMapType) => void;
+  onRemoveTexture?: (type: Model3DTextureMapType) => void;
+  onUpdateTextureConfig?: (updates: Partial<Model3DTextureConfig>) => void;
 }
 
 export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
@@ -35,8 +46,14 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
   onSeek,
   onReset,
   hasEmbeddedAnimation = false,
+  textureConfig,
+  onUploadTexture,
+  onRemoveTexture,
+  onUpdateTextureConfig,
 }) => {
-  const [activeTab, setActiveTab] = useState<'scale' | 'rotate' | 'position'>('rotate');
+  const [activeTab, setActiveTab] = useState<'scale' | 'rotate' | 'position' | 'texture'>('rotate');
+  const [selectedMapType, setSelectedMapType] = useState<Model3DTextureMapType>('diffuse');
+  const textureFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Check if there is an existing keyframe within 0.12s snap tolerance of currentTime
   const currentKf = keyframes.find((k) => Math.abs(k.time - currentTime) <= 0.12);
@@ -262,6 +279,277 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
             </button>
           </div>
         )}
+
+        {activeTab === 'texture' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', minWidth: '380px' }}>
+            {/* Map Type Switcher: Diffuse / Normal / Roughness */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {(['diffuse', 'normal', 'roughness'] as Model3DTextureMapType[]).map((mType) => {
+                  const isSelected = selectedMapType === mType;
+                  const hasMap =
+                    mType === 'diffuse'
+                      ? !!textureConfig?.diffuseUrl
+                      : mType === 'normal'
+                      ? !!textureConfig?.normalUrl
+                      : !!textureConfig?.roughnessUrl;
+                  return (
+                    <button
+                      key={mType}
+                      type="button"
+                      onClick={() => setSelectedMapType(mType)}
+                      style={{
+                        background: isSelected ? 'rgba(255, 255, 255, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                        color: isSelected ? '#ffffff' : '#a1a1aa',
+                        border: isSelected ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid transparent',
+                        borderRadius: '6px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: isSelected ? 600 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {mType === 'diffuse' ? 'Diffuse (Color)' : mType === 'normal' ? 'Normal' : 'Roughness'}
+                      {hasMap && (
+                        <span
+                          style={{
+                            width: '5px',
+                            height: '5px',
+                            borderRadius: '50%',
+                            backgroundColor: '#10b981',
+                            display: 'inline-block',
+                          }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Hidden File Input for Texture Upload */}
+              <input
+                type="file"
+                ref={textureFileInputRef}
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && onUploadTexture) {
+                    onUploadTexture(file, selectedMapType);
+                  }
+                  if (e.target) e.target.value = '';
+                }}
+              />
+            </div>
+
+            {/* Current Map Controls */}
+            {(() => {
+              const activeMapUrl =
+                selectedMapType === 'diffuse'
+                  ? textureConfig?.diffuseUrl
+                  : selectedMapType === 'normal'
+                  ? textureConfig?.normalUrl
+                  : textureConfig?.roughnessUrl;
+              const activeMapName =
+                selectedMapType === 'diffuse'
+                  ? textureConfig?.diffuseName
+                  : selectedMapType === 'normal'
+                  ? textureConfig?.normalName
+                  : textureConfig?.roughnessName;
+              const isFlipY = textureConfig?.flipY ?? true;
+              const currentRepeat = textureConfig?.repeatX ?? 1;
+
+              if (activeMapUrl) {
+                return (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      padding: '5px 8px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <img
+                        src={activeMapUrl}
+                        alt="Texture preview"
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '4px',
+                          objectFit: 'cover',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: '#ffffff',
+                          fontWeight: 500,
+                          maxWidth: '100px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={activeMapName || 'Custom Texture'}
+                      >
+                        {activeMapName || 'Active Texture'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {/* Flip Y Button */}
+                      <button
+                        type="button"
+                        onClick={() => onUpdateTextureConfig?.({ flipY: !isFlipY })}
+                        title="Invert Vertical UV Coordinates (Toggle between DirectX and OpenGL FBX mapping)"
+                        style={{
+                          background: isFlipY ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.06)',
+                          color: isFlipY ? '#ffffff' : '#a1a1aa',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          borderRadius: '4px',
+                          padding: '3px 6px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Flip Y: {isFlipY ? 'ON' : 'OFF'}
+                      </button>
+
+                      {/* Tiling Repeat Pills */}
+                      {[1, 2, 3].map((rep) => (
+                        <button
+                          key={rep}
+                          type="button"
+                          onClick={() => onUpdateTextureConfig?.({ repeatX: rep, repeatY: rep })}
+                          title={`Texture Tiling ${rep}x`}
+                          style={{
+                            background: currentRepeat === rep ? '#ffffff' : 'rgba(255, 255, 255, 0.06)',
+                            color: currentRepeat === rep ? '#000000' : '#d4d4d8',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '4px',
+                            padding: '3px 6px',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {rep}x
+                        </button>
+                      ))}
+
+                      {/* Replace Button */}
+                      <button
+                        type="button"
+                        onClick={() => textureFileInputRef.current?.click()}
+                        title="Replace with new texture image"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          color: '#ffffff',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          borderRadius: '4px',
+                          padding: '3px 7px',
+                          fontSize: '10px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Replace
+                      </button>
+
+                      {/* Remove Button */}
+                      <button
+                        type="button"
+                        onClick={() => onRemoveTexture?.(selectedMapType)}
+                        title="Remove this texture map"
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '4px',
+                          padding: '3px 6px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Empty State: Upload Texture CTA + Color Tint Swatches
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => textureFileInputRef.current?.click()}
+                    style={{
+                      background: '#ffffff',
+                      color: '#000000',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '5px 12px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Upload size={12} />
+                    Upload {selectedMapType === 'diffuse' ? 'Diffuse' : selectedMapType === 'normal' ? 'Normal' : 'Roughness'} Texture
+                  </button>
+
+                  {/* Color Tint Presets */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ fontSize: '10px', color: '#71717a', fontWeight: 600 }}>TINT:</span>
+                    {[
+                      { label: 'White', color: '#ffffff' },
+                      { label: 'Graphite', color: '#27272a' },
+                      { label: 'Silver', color: '#94a3b8' },
+                      { label: 'Gold', color: '#f59e0b' },
+                      { label: 'Blue', color: '#3b82f6' },
+                    ].map((swatch) => (
+                      <button
+                        key={swatch.color}
+                        type="button"
+                        onClick={() => onUpdateTextureConfig?.({ colorTint: swatch.color })}
+                        title={`Tint ${swatch.label}`}
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          backgroundColor: swatch.color,
+                          border:
+                            (textureConfig?.colorTint || '#ffffff') === swatch.color
+                              ? '2px solid #ffffff'
+                              : '1px solid rgba(255, 255, 255, 0.3)',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       <div style={{ width: '100%', height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
@@ -336,6 +624,41 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
         >
           <Move size={13} />
           Position
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('texture')}
+          title="3D Model Textures & Materials"
+          style={{
+            background: activeTab === 'texture' ? '#ffffff' : 'transparent',
+            border: activeTab === 'texture' ? '1px solid #ffffff' : '1px solid transparent',
+            color: activeTab === 'texture' ? '#000000' : '#a1a1aa',
+            borderRadius: '8px',
+            padding: '5px 10px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            fontSize: '12px',
+            fontWeight: activeTab === 'texture' ? 600 : 500,
+            transition: 'all 0.15s ease',
+            position: 'relative',
+          }}
+        >
+          <ImageIcon size={13} />
+          Texture
+          {textureConfig?.diffuseUrl && (
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: activeTab === 'texture' ? '#000000' : '#10b981',
+                marginLeft: '1px',
+              }}
+            />
+          )}
         </button>
 
         <div style={{ width: '1px', height: '16px', background: 'rgba(255, 255, 255, 0.12)', margin: '0 3px' }} />
