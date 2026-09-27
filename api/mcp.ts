@@ -444,17 +444,322 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
   }
 }
 
+function buildLayoutAwareKeyframes(layoutType: string, duration: number, focalPoints?: string[]): TimelinePositionClip[] {
+  const dur = Math.max(2.0, Math.min(30.0, duration || 4.0));
+  const t1 = Number((dur * 0.33).toFixed(2));
+  const t2 = Number((dur * 0.66).toFixed(2));
+  const d1 = t1;
+  const d2 = Number((t2 - t1).toFixed(2));
+  const d3 = Number((dur - t2).toFixed(2));
+  const baseProps = { color: 'yellow', blockId: 'block_main', mediaClipId: 'clip_init', transition: 'cut' };
+
+  switch (layoutType) {
+    case 'desktop_dashboard':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Establishing Dashboard Overview',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 22, rotY: -32, rotZ: -8, zoom: 0.82, panX: -22, panY: -10, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Deep Swoop to Analytics & Metrics',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -8, rotY: 18, rotZ: 6, zoom: 1.45, panX: 18, panY: 15, perspective: 780 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Glide Across Sidebar & Data Rows',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 12, rotY: -14, rotZ: -4, zoom: 1.22, panX: -14, panY: -4, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Authoritative Hero Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'mobile_app':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. High-Angle Mobile Teaser',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 26, rotY: -30, rotZ: -10, zoom: 0.88, panX: -18, panY: -15, perspective: 750 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Macro Focus on Main Content Feed',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -12, rotY: 24, rotZ: 8, zoom: 1.48, panX: 20, panY: 12, perspective: 720 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Smooth Pan to Interactive Action & Tabs',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 14, rotY: -10, rotZ: -3, zoom: 1.25, panX: -8, panY: 22, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Crisp Upright Center Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.06, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'landing_page':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Dramatic Low Sweep on Header',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: -14, rotY: 36, rotZ: 12, zoom: 0.88, panX: 24, panY: -18, perspective: 800 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Hero Headline & Value Proposition Zoom',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 6, rotY: -16, rotZ: -5, zoom: 1.38, panX: -12, panY: -10, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Glide Down to Call-to-Action',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: -8, rotY: 14, rotZ: 4, zoom: 1.24, panX: 10, panY: 18, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Settle on Final Center Presentation',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.02, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'chat_feed':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Angled Conversation Overview',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 28, rotY: -25, rotZ: -6, zoom: 0.86, panX: -15, panY: -20, perspective: 750 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Close-up on Response Stream',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -6, rotY: 16, rotZ: 5, zoom: 1.40, panX: 12, panY: 5, perspective: 800 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Pan Down to Prompt Bar & Action',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 10, rotY: -8, rotZ: -2, zoom: 1.30, panX: -6, panY: 25, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Clean Centered Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'code_editor':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Developer Workstation Overview',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 20, rotY: -35, rotZ: -10, zoom: 0.84, panX: -25, panY: -8, perspective: 800 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Macro Focus on Code Block',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -4, rotY: 14, rotZ: 4, zoom: 1.50, panX: 15, panY: 0, perspective: 750 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Sweep Across Terminal Output',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 8, rotY: -12, rotZ: -3, zoom: 1.25, panX: -10, panY: 20, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Crisp Hero Finish',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.04, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'product_card':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Specular Low Dutch Entry',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: -16, rotY: 38, rotZ: 14, zoom: 0.84, panX: 26, panY: 15, perspective: 800 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Hero Image Inspection',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 8, rotY: -20, rotZ: -6, zoom: 1.42, panX: -16, panY: -12, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Price Badge & CTA Purchase Glide',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: -10, rotY: 16, rotZ: 5, zoom: 1.28, panX: 14, panY: 18, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Centered Commercial Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    default:
+      return buildCameraClips('storytelling_product_walkthrough', dur);
+  }
+}
+
+function handleChoreographMotion(args: Record<string, unknown>) {
+  const layoutType = (args.layoutType as string) || 'desktop_dashboard';
+  const duration = Math.max(2.0, Math.min(15.0, Number(args.duration) || 4.0));
+  const focalPoints = (args.focalPoints as string[]) || [];
+  const keyframes = buildLayoutAwareKeyframes(layoutType, duration, focalPoints);
+
+  let recommendedFrame = 'macbook-pro';
+  let recommendedWallpaper = 'bg-purple-wave';
+  let recommendedRatio: '16:9' | '9:16' = '16:9';
+
+  if (layoutType === 'mobile_app') {
+    recommendedFrame = '3d-phone';
+    recommendedWallpaper = 'bg-purple-wave';
+    recommendedRatio = '9:16';
+  } else if (layoutType === 'landing_page') {
+    recommendedFrame = 'mac-safari';
+    recommendedWallpaper = 'bg-green-hills';
+    recommendedRatio = '16:9';
+  } else if (layoutType === 'code_editor') {
+    recommendedFrame = 'macbook-pro';
+    recommendedWallpaper = '#09090b';
+    recommendedRatio = '16:9';
+  } else if (layoutType === 'product_card') {
+    recommendedFrame = 'frameless';
+    recommendedWallpaper = 'bg-sunflowers';
+    recommendedRatio = '16:9';
+  }
+
+  const resultText = `### 🎯 Bespoke Camera Choreography for \`${layoutType}\`
+
+- **Recommended Frame**: \`${recommendedFrame}\`
+- **Recommended Aspect Ratio**: \`${recommendedRatio}\`
+- **Recommended Wallpaper**: \`${recommendedWallpaper}\`
+- **Duration**: \`${duration}s\`
+- **Focal Landmarks**: ${focalPoints.length > 0 ? focalPoints.map((f) => `\`${f}\``).join(', ') : 'Sequential Narrative Flow'}
+
+#### 🎬 Generated 3D Waypoint Keyframes:
+${keyframes
+  .map(
+    (kf) =>
+      `1. **${kf.name}** (@${kf.startTime}s):\n   - \`rotX: ${kf.camera.rotX}°, rotY: ${kf.camera.rotY}°, rotZ: ${kf.camera.rotZ}°\`\n   - \`zoom: ${kf.camera.zoom}x, panX: ${kf.camera.panX}%, panY: ${kf.camera.panY}%\``
+  )
+  .join('\n')}
+
+*Pass \`layoutType: "${layoutType}"\` or the \`customKeyframes\` above directly to \`create_mockup_project\` to generate your instant 4K 60FPS video!*`;
+
+  return {
+    content: [{ type: 'text', text: resultText }],
+    keyframes: keyframes.map((k) => ({
+      name: k.name,
+      startTime: k.startTime,
+      duration: k.duration,
+      camera: k.camera,
+    })),
+    recommendedFrame,
+    recommendedWallpaper,
+    recommendedRatio,
+  };
+}
+
 // Tool definitions for MCP tools/list
 const TOOLS = [
   {
     name: 'create_mockup_project',
-    description: 'Creates a custom 3D device mockup scene in Zetashot Studio and returns a direct 1-click live link to preview at 60 FPS or export to 4K MP4. FIRST analyze the reference media or content to identify key focal points (e.g. hero title, chart metrics, mobile action, CTA), then choreograph customKeyframes or select a cinematic trajectory relevant to that movement.',
+    description: `Creates a bespoke 3D device mockup in Zetashot Studio and returns a 1-click live link to preview at 60 FPS or export to 4K MP4.
+CRITICAL INSTRUCTIONS FOR AI:
+1. ALWAYS ANALYZE MEDIA FIRST: Inspect the screenshot/video provided by the user. Determine the interface layout (e.g. desktop web dashboard, mobile app screen, landing page, chat feed, code editor, product card) and identify key visual landmarks (hero headline, analytics chart, table, CTA button, etc.).
+2. BESPOKE CAMERA CHOREOGRAPHY: Never output random or disconnected motion. Provide customKeyframes targeting the landmarks you observed, or set 'layoutType' and 'focalPoints' to generate layout-aware cinematic motions automatically.
+3. MATCH DEVICE FRAME & WALLPAPER: Select a frame ('macbook-pro', '3d-phone', 'mac-safari') and wallpaper that elevates the content colors.`,
     inputSchema: {
       type: 'object',
       properties: {
         title: {
           type: 'string',
           description: 'Project title (e.g. "SaaS Product Showcase", "Mobile App Teaser")',
+        },
+        layoutType: {
+          type: 'string',
+          enum: ['desktop_dashboard', 'mobile_app', 'landing_page', 'chat_feed', 'code_editor', 'product_card'],
+          description: 'Detected layout structure of the reference media. Automatically generates bespoke cinematic keyframes targeting that UI structure when customKeyframes is omitted.',
+        },
+        focalPoints: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Visual landmarks to spotlight (e.g. ["hero_headline", "revenue_chart", "action_button"]).',
         },
         aspectRatio: {
           type: 'string',
@@ -547,6 +852,31 @@ const TOOLS = [
     },
   },
   {
+    name: 'choreograph_cinematic_motion',
+    description: 'Analyzes the reference media layout and returns tailored 3D camera keyframes with recommended device frame, wallpaper, and timing designed to spotlight key UI landmarks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        layoutType: {
+          type: 'string',
+          enum: ['desktop_dashboard', 'mobile_app', 'landing_page', 'chat_feed', 'code_editor', 'product_card'],
+          description: 'Detected layout structure',
+        },
+        duration: {
+          type: 'number',
+          default: 4.0,
+          description: 'Duration in seconds',
+        },
+        focalPoints: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Focal points to spotlight',
+        },
+      },
+      required: ['layoutType'],
+    },
+  },
+  {
     name: 'list_available_presets',
     description: 'Lists all available wallpapers, 3D device frames, aspect ratios, and camera movement presets supported by Zetashot.',
     inputSchema: {
@@ -600,6 +930,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
       };
 
   let cameraClips: TimelinePositionClip[];
+  let choreographyDescription = `\`${cameraPreset}\``;
   if (Array.isArray(args.customKeyframes) && args.customKeyframes.length > 0) {
     cameraClips = (args.customKeyframes as any[]).map((kf, i) => ({
       id: `kf_custom_${i + 1}`,
@@ -620,6 +951,10 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
         perspective: Number(kf.camera?.perspective) || 1000,
       },
     }));
+    choreographyDescription = `Custom AI Choreography (${cameraClips.length} waypoints)`;
+  } else if (args.layoutType) {
+    cameraClips = buildLayoutAwareKeyframes(args.layoutType as string, duration, args.focalPoints as string[]);
+    choreographyDescription = `Layout-Aware (\`${args.layoutType}\`, ${cameraClips.length} waypoints)`;
   } else {
     cameraClips = buildCameraClips(cameraPreset, duration);
   }
@@ -687,7 +1022,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
 - **Aspect Ratio**: \`${aspectRatio}\`
 - **Device Frame**: \`${deviceMockup}\`
 - **Background**: ${matchedWallpaper ? matchedWallpaper.name : `\`${bgInput}\``}
-- **Camera Choreography**: \`${cameraPreset}\` (${duration}s duration, ${cameraClips.length} keyframes with 3D Dutch tilt & swoop)
+- **Camera Choreography**: ${choreographyDescription} (${duration}s duration, ${cameraClips.length} keyframes with 3D Dutch tilt & swoop)
 ${payload.mediaUrl ? `- **Screen Media**: \`${payload.mediaUrl}\`` : ''}
 ${args.textTitle ? `- **Text Title**: "${args.textTitle}"` : ''}
 - **MP4 Auto-Export**: \`${autoExport ? 'Enabled (Instant 4K 60FPS MP4 render & download)' : 'Manual'}\`
@@ -901,6 +1236,22 @@ ${CAMERA_PRESETS.map((c) => `- **\`${c.id}\`**: ${c.name} — *${c.description}*
               id,
               result: {
                 content: [{ type: 'text', text: summary }],
+              },
+            })
+          );
+          return;
+        }
+
+        if (toolName === 'choreograph_cinematic_motion' || toolName === 'analyze_media_and_choreograph') {
+          const result = handleChoreographMotion(toolArgs);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: result.content,
               },
             })
           );

@@ -250,8 +250,14 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D context not supported');
 
-  // 4. WebGL 3D Perspective Renderer
-  const webglRenderer = new WebGL3DRenderer(width, height);
+  // 4. WebGL 3D Perspective Renderer with zero-crash fallback
+  let webglRenderer: WebGL3DRenderer;
+  try {
+    webglRenderer = new WebGL3DRenderer(width, height);
+  } catch (err) {
+    console.warn('[Export Engine] WebGL3DRenderer initial creation error, recovering gracefully:', err);
+    webglRenderer = new WebGL3DRenderer(width, height);
+  }
 
   // 5. 2D Frame Content Offscreen Canvas with proportional unscaled cropping
   const aspectDims = getMockupDimensions(options.aspectRatio || '16:9');

@@ -310,6 +310,7 @@ export function App() {
   const activeMediaRef = useRef<MediaItem>(activeMedia);
   const totalDurationRef = useRef<number>(totalDuration);
   const selectedClipIdRef = useRef<string>(selectedClipId);
+  const lastInterpolatedCameraRef = useRef<Camera3DState>(camera);
 
   useEffect(() => {
     selectedClipIdRef.current = selectedClipId;
@@ -1237,6 +1238,12 @@ export function App() {
       }
       audioPlayersMapRef.current.forEach((player) => player.pause());
       document.querySelectorAll('video').forEach((v) => v.pause());
+      // Synchronize exact camera and currentTime to React UI upon pause
+      const currentClips = clipsRef.current;
+      const pausedCamera = interpolateCameraSpline(currentClips, currentTimeRef.current, mediaClipsRef.current);
+      lastInterpolatedCameraRef.current = pausedCamera;
+      setCamera(pausedCamera);
+      setCurrentTime(currentTimeRef.current);
     } else {
       const activeProjectDuration = calculateTimelineDuration(clipsRef.current, mediaDurationRef.current);
       if (currentTimeRef.current >= activeProjectDuration - 0.05) {
@@ -1427,6 +1434,7 @@ export function App() {
 
     let animFrame: number;
     let lastTimestamp = performance.now();
+    let lastReactUpdateTime = 0;
 
     const loop = (now: number) => {
       if (!isPlayingRef.current) return;
@@ -1477,12 +1485,22 @@ export function App() {
         playedTransitionsRef.current.clear();
         currentTimeRef.current = 0;
         setCurrentTime(0);
+        const finalClips = clipsRef.current;
+        const resetCamera = interpolateCameraSpline(finalClips, 0, mediaClipsRef.current);
+        lastInterpolatedCameraRef.current = resetCamera;
+        setCamera(resetCamera);
         updateGradientTransitionVisuals(0);
         return;
       }
 
       currentTimeRef.current = nextTime;
-      setCurrentTime(nextTime);
+
+      // Throttle React setCurrentTime state updates to ~25 FPS to eliminate 60Hz main-thread diffing stalls
+      if (now - lastReactUpdateTime >= 40) {
+        setCurrentTime(nextTime);
+        lastReactUpdateTime = now;
+      }
+
       updateGradientTransitionVisuals(nextTime);
 
       // Multi-Clip active switch on stage
@@ -1534,8 +1552,7 @@ export function App() {
       // Canonical camera evaluation matching export 1:1 with Catmull-Rom spline
       const currentClips = clipsRef.current;
       const interpolated = interpolateCameraSpline(currentClips, nextTime, mediaClipsRef.current);
-      setCamera(interpolated);
-      setFrameOpacity(1.0);
+      lastInterpolatedCameraRef.current = interpolated;
 
       // Direct GPU transform update for instantaneous, buttery smooth 60fps response
       if (frameAnchorRef.current) {

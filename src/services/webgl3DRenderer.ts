@@ -240,88 +240,119 @@ void main() {
 
 export class WebGL3DRenderer {
   private canvas: HTMLCanvasElement;
-  private gl: WebGLRenderingContext | WebGL2RenderingContext;
-  private program: WebGLProgram;
-  private positionBuffer: WebGLBuffer;
-  private texCoordBuffer: WebGLBuffer;
-  private texture: WebGLTexture;
-  private uMatrixLocation: WebGLUniformLocation;
-  private uOpacityLocation: WebGLUniformLocation;
-  private uRotationLocation: WebGLUniformLocation;
-  private uBlurAmountLocation: WebGLUniformLocation;
-  private uResolutionLocation: WebGLUniformLocation;
-  private uFocusPointLocation: WebGLUniformLocation;
-  private uCornerRadiusLocation: WebGLUniformLocation;
+  private gl: WebGLRenderingContext | WebGL2RenderingContext | null = null;
+  private program: WebGLProgram | null = null;
+  private positionBuffer: WebGLBuffer | null = null;
+  private texCoordBuffer: WebGLBuffer | null = null;
+  private texture: WebGLTexture | null = null;
+  private uMatrixLocation: WebGLUniformLocation | null = null;
+  private uOpacityLocation: WebGLUniformLocation | null = null;
+  private uRotationLocation: WebGLUniformLocation | null = null;
+  private uBlurAmountLocation: WebGLUniformLocation | null = null;
+  private uResolutionLocation: WebGLUniformLocation | null = null;
+  private uFocusPointLocation: WebGLUniformLocation | null = null;
+  private uCornerRadiusLocation: WebGLUniformLocation | null = null;
+  private isFallback2D: boolean = false;
+  private ctx2d: CanvasRenderingContext2D | null = null;
 
   constructor(width: number, height: number) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = width;
     this.canvas.height = height;
 
-    const gl =
-      this.canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true, preserveDrawingBuffer: true }) ||
-      this.canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: true, preserveDrawingBuffer: true });
+    // Multi-tier WebGL context acquisition (strict -> standard -> lenient -> experimental)
+    const contextOptionsList: WebGLContextAttributes[] = [
+      { alpha: true, premultipliedAlpha: true, antialias: true, preserveDrawingBuffer: true },
+      { alpha: true, preserveDrawingBuffer: true },
+      { alpha: true },
+      {},
+    ];
+
+    let gl: WebGLRenderingContext | WebGL2RenderingContext | null = null;
+    for (const opts of contextOptionsList) {
+      try {
+        gl = (this.canvas.getContext('webgl2', opts) ||
+          this.canvas.getContext('webgl', opts) ||
+          this.canvas.getContext('experimental-webgl', opts)) as WebGLRenderingContext | WebGL2RenderingContext | null;
+        if (gl) break;
+      } catch {}
+    }
+
+    if (gl) {
+      try {
+        // Compile shaders
+        const vs = this.compileShader(gl, gl.VERTEX_SHADER, VS_SOURCE);
+        const fs = this.compileShader(gl, gl.FRAGMENT_SHADER, FS_SOURCE);
+        const program = gl.createProgram()!;
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          throw new Error(`WebGL program link error: ${gl.getProgramInfoLog(program)}`);
+        }
+        this.program = program;
+        this.gl = gl;
+
+        this.uMatrixLocation = gl.getUniformLocation(program, 'u_matrix');
+        this.uOpacityLocation = gl.getUniformLocation(program, 'u_opacity');
+        this.uRotationLocation = gl.getUniformLocation(program, 'u_rotation');
+        this.uBlurAmountLocation = gl.getUniformLocation(program, 'u_blurAmount');
+        this.uResolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+        this.uFocusPointLocation = gl.getUniformLocation(program, 'u_focusPoint');
+        this.uCornerRadiusLocation = gl.getUniformLocation(program, 'u_cornerRadius');
+
+        // Quad positions: Triangle Strip (-1,-1), (1,-1), (-1,1), (1,1)
+        const positions = new Float32Array([
+          -1, -1,
+           1, -1,
+          -1,  1,
+           1,  1,
+        ]);
+        this.positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+        // TexCoords: (0,0), (1,0), (0,1), (1,1)
+        const texCoords = new Float32Array([
+          0, 0,
+          1, 0,
+          0, 1,
+          1, 1,
+        ]);
+        this.texCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
+
+        // Texture setup
+        this.texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        this.isFallback2D = false;
+        console.log('[WebGL3DRenderer] Hardware WebGL pipeline initialized successfully.');
+      } catch (shaderErr) {
+        console.warn('[WebGL3DRenderer] WebGL shader compilation error, engaging Canvas 2D fallback:', shaderErr);
+        gl = null;
+        this.gl = null;
+        this.program = null;
+      }
+    }
 
     if (!gl) {
-      throw new Error('WebGL is not supported in this environment');
+      // High-Reliability Canvas 2D Perspective Fallback
+      console.warn('[WebGL3DRenderer] WebGL unavailable. Engaging Canvas 2D perspective fallback engine.');
+      this.isFallback2D = true;
+      this.ctx2d = this.canvas.getContext('2d');
     }
-    this.gl = gl;
-
-    // Compile shaders
-    const vs = this.compileShader(gl.VERTEX_SHADER, VS_SOURCE);
-    const fs = this.compileShader(gl.FRAGMENT_SHADER, FS_SOURCE);
-    const program = gl.createProgram()!;
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(`WebGL program link error: ${gl.getProgramInfoLog(program)}`);
-    }
-    this.program = program;
-
-    this.uMatrixLocation = gl.getUniformLocation(program, 'u_matrix')!;
-    this.uOpacityLocation = gl.getUniformLocation(program, 'u_opacity')!;
-    this.uRotationLocation = gl.getUniformLocation(program, 'u_rotation')!;
-    this.uBlurAmountLocation = gl.getUniformLocation(program, 'u_blurAmount')!;
-    this.uResolutionLocation = gl.getUniformLocation(program, 'u_resolution')!;
-    this.uFocusPointLocation = gl.getUniformLocation(program, 'u_focusPoint')!;
-    this.uCornerRadiusLocation = gl.getUniformLocation(program, 'u_cornerRadius')!;
-
-    // Quad positions: Triangle Strip (-1,-1), (1,-1), (-1,1), (1,1)
-    const positions = new Float32Array([
-      -1, -1,
-       1, -1,
-      -1,  1,
-       1,  1,
-    ]);
-    this.positionBuffer = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-
-    // TexCoords: (0,0), (1,0), (0,1), (1,1)
-    const texCoords = new Float32Array([
-      0, 0,
-      1, 0,
-      0, 1,
-      1, 1,
-    ]);
-    this.texCoordBuffer = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
-
-    // Texture setup
-    this.texture = gl.createTexture()!;
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   }
 
-  private compileShader(type: number, source: string): WebGLShader {
-    const gl = this.gl;
-    const shader = gl.createShader(type)!;
+  private compileShader(gl: WebGLRenderingContext | WebGL2RenderingContext, type: number, source: string): WebGLShader {
+    const shader = gl.createShader(type);
+    if (!shader) throw new Error('Failed to create shader');
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
@@ -347,6 +378,60 @@ export class WebGL3DRenderer {
     focusPoint?: { x: number; y: number },
     cornerRadius: number = 0
   ): void {
+    if (this.isFallback2D || !this.gl || !this.program) {
+      if (!this.ctx2d) {
+        this.ctx2d = this.canvas.getContext('2d');
+      }
+      const ctx = this.ctx2d;
+      if (!ctx) return;
+
+      const width = this.canvas.width;
+      const height = this.canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+
+      // 1. Center Translation + Pan
+      const cx = width / 2 + (camera.panX || 0) * baseScale;
+      const cy = height / 2 + (camera.panY || 0) * baseScale;
+      ctx.translate(cx, cy);
+
+      // 2. Camera Zoom
+      const zoom = camera.zoom || 1.0;
+      ctx.scale(zoom, zoom);
+
+      // 3. Roll (rotZ)
+      if (camera.rotZ) {
+        ctx.rotate(degToRad(camera.rotZ));
+      }
+
+      // 4. Perspective Foreshortening & Shear for Pitch (rotX) and Yaw (rotY)
+      const radX = degToRad(camera.rotX || 0);
+      const radY = degToRad(camera.rotY || 0);
+      const cosX = Math.cos(radX);
+      const cosY = Math.cos(radY);
+      const sinX = Math.sin(radX);
+      const sinY = Math.sin(radY);
+
+      // 2.5D affine transform matrix replicating 3D perspective foreshortening & shear
+      ctx.transform(cosY, -sinY * 0.32, sinX * 0.32, cosX, 0, 0);
+
+      // 5. Blur filter if applicable
+      if (blurAmount > 0) {
+        ctx.filter = `blur(${Math.min(24, blurAmount * baseScale * 0.45)}px)`;
+      }
+
+      // 6. Draw content centered with corner radius clipping
+      if (cornerRadius > 0 && typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(-frameW / 2, -frameH / 2, frameW, frameH, cornerRadius);
+        ctx.clip();
+      }
+      ctx.drawImage(source as CanvasImageSource, -frameW / 2, -frameH / 2, frameW, frameH);
+      ctx.restore();
+      return;
+    }
+
     const gl = this.gl;
     const width = this.canvas.width;
     const height = this.canvas.height;
@@ -358,20 +443,26 @@ export class WebGL3DRenderer {
     gl.useProgram(this.program);
 
     // Upload source texture
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    if (this.texture) {
+      gl.bindTexture(gl.TEXTURE_2D, this.texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    }
 
     // Bind position buffer
-    const posLoc = gl.getAttribLocation(this.program, 'a_position');
-    gl.enableVertexAttribArray(posLoc);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+    if (this.positionBuffer) {
+      const posLoc = gl.getAttribLocation(this.program, 'a_position');
+      gl.enableVertexAttribArray(posLoc);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+      gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+    }
 
     // Bind texCoord buffer
-    const texLoc = gl.getAttribLocation(this.program, 'a_texCoord');
-    gl.enableVertexAttribArray(texLoc);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
-    gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
+    if (this.texCoordBuffer) {
+      const texLoc = gl.getAttribLocation(this.program, 'a_texCoord');
+      gl.enableVertexAttribArray(texLoc);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
+      gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
+    }
 
     // Build 4x4 matrix matching CSS 3D transform exactly:
     // Screen origin is top-left (0,0), Y points down
@@ -395,8 +486,8 @@ export class WebGL3DRenderer {
     M = mat4Multiply(M, R_z);
     M = mat4Multiply(M, S_quad);
 
-    gl.uniformMatrix4fv(this.uMatrixLocation, false, M);
-    gl.uniform1f(this.uOpacityLocation, opacity);
+    if (this.uMatrixLocation) gl.uniformMatrix4fv(this.uMatrixLocation, false, M);
+    if (this.uOpacityLocation) gl.uniform1f(this.uOpacityLocation, opacity);
     if (this.uRotationLocation) {
       gl.uniform2f(this.uRotationLocation, degToRad(camera.rotX), degToRad(camera.rotY));
     }
@@ -420,10 +511,17 @@ export class WebGL3DRenderer {
   }
 
   public destroy(): void {
+    if (this.isFallback2D) {
+      this.ctx2d = null;
+      return;
+    }
     const gl = this.gl;
-    gl.deleteProgram(this.program);
-    gl.deleteBuffer(this.positionBuffer);
-    gl.deleteBuffer(this.texCoordBuffer);
-    gl.deleteTexture(this.texture);
+    if (!gl) return;
+    try {
+      if (this.program) gl.deleteProgram(this.program);
+      if (this.positionBuffer) gl.deleteBuffer(this.positionBuffer);
+      if (this.texCoordBuffer) gl.deleteBuffer(this.texCoordBuffer);
+      if (this.texture) gl.deleteTexture(this.texture);
+    } catch {}
   }
 }
