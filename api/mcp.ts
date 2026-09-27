@@ -468,7 +468,10 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
   }
 
   const encodedParam = encodeProjectToUrl(payload);
-  const shareUrl = `${baseUrl}/?p=${encodedParam}${autoExport ? '&export=mp4' : ''}`;
+  const bgParam = matchedWallpaper ? matchedWallpaper.id : bgInput;
+  const mediaParam = payload.mediaUrl ? `&media=${encodeURIComponent(payload.mediaUrl)}` : '';
+  const exportParam = autoExport ? '&export=mp4' : '';
+  const shareUrl = `${baseUrl}/?preset=${encodeURIComponent(cameraPreset)}&bg=${encodeURIComponent(bgParam)}&ratio=${encodeURIComponent(aspectRatio)}&dur=${duration}${exportParam}${mediaParam}&p=${encodedParam}`;
 
   const md = `### 🎬 Zetashot Mockup Created Successfully!
 
@@ -482,6 +485,9 @@ ${args.textTitle ? `- **Text Title**: "${args.textTitle}"` : ''}
 - **MP4 Auto-Export**: \`${autoExport ? 'Enabled (Instant 4K 60FPS MP4 render & download)' : 'Manual'}\`
 
 👉 **[Open in Zetashot Studio & Download MP4](${shareUrl})**
+
+Direct URL:
+${shareUrl}
 
 *Click the link above to view your interactive 3D camera mockup looping at 60 FPS and download the high-resolution 4K MP4 video directly!*`;
 

@@ -64,6 +64,7 @@ import {
 import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyframe } from './utils/model3DInterpolation';
 import { Model3DControlsIsland } from './components/Model3DControlsIsland';
 import { decodeProjectFromUrl, encodeProjectToUrl, ZetashotSharedProject } from './utils/projectUrlEncoder';
+import { buildCameraClipsFromPreset } from './utils/cameraPresets';
 
 import './styles/index.css';
 import './styles/uicamera.css';
@@ -193,7 +194,14 @@ export function App() {
 
   // 2. Beginner Guide Tour State
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(() => {
-    return !localStorage.getItem('zetashot_guide_completed');
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('p') || sp.get('preset') || sp.get('bg') || sp.get('export') || sp.get('media')) {
+        return false;
+      }
+      return !localStorage.getItem('zetashot_guide_completed');
+    }
+    return false;
   });
   const [guideStepIndex, setGuideStepIndex] = useState<number>(0);
   const [guidePhase, setGuidePhase] = useState<
@@ -648,79 +656,135 @@ export function App() {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const encodedParam = searchParams.get('p') || searchParams.get('project');
-      if (encodedParam) {
-        const project = decodeProjectFromUrl(encodedParam);
-        if (project) {
-          if (project.title) {
-            document.title = `${project.title} | Zetashot 3D`;
-          }
-          if (project.aspectRatio) {
-            setAspectRatio(project.aspectRatio);
-          }
-          if (project.background) {
-            setBackground(project.background);
-          }
-          if (project.cameraClips && project.cameraClips.length > 0) {
-            setClips(project.cameraClips);
-            setSelectedClipId(project.cameraClips[0].id);
-            setCamera({ ...project.cameraClips[0].camera });
-            const calculatedMax = Math.max(
-              ...project.cameraClips.map((c) => c.startTime + c.duration),
-              project.duration || 3.0
-            );
-            setTotalDuration(calculatedMax);
-            setMediaDuration(calculatedMax);
-            setMediaClips((prevClips) =>
-              prevClips.map((c, i) =>
-                i === 0 ? { ...c, duration: calculatedMax } : c
-              )
-            );
-          }
-          if (project.textLayers && project.textLayers.length > 0) {
-            setTextLayers(project.textLayers);
-          }
-          if (project.model3DTransform) {
-            setModel3DTransform(project.model3DTransform);
-          }
-          if (project.mediaUrl) {
-            const customMedia: MediaItem = {
-              id: `media_${Date.now()}`,
-              name: project.mediaName || (project.mediaUrl.split('/').pop()?.split('?')[0] || 'Screen Media'),
-              type: project.mediaType || (project.mediaUrl.endsWith('.mp4') || project.mediaUrl.endsWith('.webm') ? 'video' : 'image'),
-              url: project.mediaUrl,
-              dimensions: '1920 × 1080',
-              format: project.mediaUrl.endsWith('.mp4') || project.mediaUrl.endsWith('.webm') ? 'MP4' : 'PNG',
-            };
-            setActiveMedia(customMedia);
-            setMediaList((prev) => {
-              if (prev.some((m) => m.url === customMedia.url)) return prev;
-              return [customMedia, ...prev];
+      const directPreset = searchParams.get('preset');
+      const directBg = searchParams.get('bg') || searchParams.get('background');
+      const directRatio = searchParams.get('ratio') || searchParams.get('aspectRatio');
+      const directMedia = searchParams.get('media') || searchParams.get('mediaUrl');
+      const directTitle = searchParams.get('title');
+      const directDuration = parseFloat(searchParams.get('dur') || searchParams.get('duration') || '4.0');
+      const directAutoExport = searchParams.get('export') === 'mp4' || searchParams.get('autoExport') === 'true';
+
+      const hasUrlProject = !!(encodedParam || directPreset || directBg || directMedia || directRatio || directAutoExport);
+
+      if (hasUrlProject) {
+        // Immediately dismiss beginner guide tutorial so the project displays cleanly
+        setIsGuideOpen(false);
+        localStorage.setItem('zetashot_guide_completed', 'true');
+
+        let project: ZetashotSharedProject | null = null;
+        if (encodedParam) {
+          project = decodeProjectFromUrl(encodedParam);
+        }
+
+        const title = project?.title || directTitle;
+        if (title) {
+          document.title = `${title} | Zetashot 3D`;
+        }
+
+        const ratio = project?.aspectRatio || (directRatio as any);
+        if (ratio) {
+          setAspectRatio(ratio);
+        }
+
+        // Background restoration
+        if (project?.background) {
+          setBackground(project.background);
+        } else if (directBg) {
+          const bgPresets = [
+            { id: 'bg-purple-wave', path: '/backgrounds/bg-purple-wave.jpg', position: { x: 50, y: 50 } },
+            { id: 'bg-sunflowers', path: '/backgrounds/bg-sunflowers.png', position: { x: 50, y: 100 } },
+            { id: 'bg-green-hills', path: '/backgrounds/bg-green-hills.jpg', position: { x: 50, y: 50 } },
+            { id: 'bg-halftone-clouds', path: '/backgrounds/bg-halftone-clouds.jpg', position: { x: 50, y: 50 } },
+            { id: 'bg-tulips', path: '/backgrounds/bg-tulips.jpg', position: { x: 50, y: 50 } },
+          ];
+          const matchedWp = bgPresets.find((w) => w.id === directBg || w.id === `bg-${directBg}` || directBg.includes(w.id.replace('bg-', '')));
+          if (matchedWp || directBg.startsWith('bg-') || directBg.endsWith('.jpg') || directBg.endsWith('.png')) {
+            const path = matchedWp ? matchedWp.path : directBg.startsWith('/') ? directBg : `/backgrounds/${directBg}.jpg`;
+            setBackground({
+              type: 'image',
+              imageUrl: path,
+              imageFit: 'cover',
+              imageScale: 1.0,
+              position: matchedWp?.position || { x: 50, y: 50 },
+              opacity: 1,
             });
-            setMediaClips((prevClips) =>
-              prevClips.map((c, i) =>
-                i === 0
-                  ? {
-                      ...c,
-                      mediaId: customMedia.id,
-                      name: customMedia.name,
-                      type: customMedia.type,
-                      url: customMedia.url,
-                    }
-                  : c
-              )
-            );
+          } else if (directBg.startsWith('#')) {
+            setBackground({ type: 'solid', color: directBg, opacity: 1 });
           }
+        }
 
-          // Auto-play the 3D camera trajectory on load so the user sees the insane motions live
-          window.setTimeout(() => {
-            setIsPlaying(true);
-          }, 350);
+        // Camera Keyframes restoration
+        const cameraPresetToUse = directPreset || (ratio === '9:16' ? 'tiktok_dynamic_bounce' : 'insane_3d_flyby');
+        const durationToUse = project?.duration || directDuration || 4.0;
+        let clipsToUse = project?.cameraClips;
+        if (!clipsToUse || clipsToUse.length === 0) {
+          clipsToUse = buildCameraClipsFromPreset(cameraPresetToUse, durationToUse);
+        }
 
-          // If autoExport is requested, trigger automatic MP4 render and download
-          const shouldAutoExport = project.autoExport || searchParams.get('export') === 'mp4' || searchParams.get('autoExport') === 'true';
-          if (shouldAutoExport) {
-            setAutoExportRequested(true);
-          }
+        if (clipsToUse && clipsToUse.length > 0) {
+          setClips(clipsToUse);
+          setSelectedClipId(clipsToUse[0].id);
+          setCamera({ ...clipsToUse[0].camera });
+          const calculatedMax = Math.max(
+            ...clipsToUse.map((c) => c.startTime + c.duration),
+            durationToUse
+          );
+          setTotalDuration(calculatedMax);
+          setMediaDuration(calculatedMax);
+          setMediaClips((prevClips) =>
+            prevClips.map((c, i) =>
+              i === 0 ? { ...c, duration: calculatedMax } : c
+            )
+          );
+        }
+
+        if (project?.textLayers && project.textLayers.length > 0) {
+          setTextLayers(project.textLayers);
+        }
+        if (project?.model3DTransform) {
+          setModel3DTransform(project.model3DTransform);
+        }
+
+        // Media restoration
+        const mediaUrlToUse = project?.mediaUrl || directMedia;
+        if (mediaUrlToUse) {
+          const customMedia: MediaItem = {
+            id: `media_${Date.now()}`,
+            name: project?.mediaName || (mediaUrlToUse.split('/').pop()?.split('?')[0] || 'Screen Media'),
+            type: project?.mediaType || (mediaUrlToUse.endsWith('.mp4') || mediaUrlToUse.endsWith('.webm') ? 'video' : 'image'),
+            url: mediaUrlToUse,
+            dimensions: '1920 × 1080',
+            format: mediaUrlToUse.endsWith('.mp4') || mediaUrlToUse.endsWith('.webm') ? 'MP4' : 'PNG',
+          };
+          setActiveMedia(customMedia);
+          setMediaList((prev) => {
+            if (prev.some((m) => m.url === customMedia.url)) return prev;
+            return [customMedia, ...prev];
+          });
+          setMediaClips((prevClips) =>
+            prevClips.map((c, i) =>
+              i === 0
+                ? {
+                    ...c,
+                    mediaId: customMedia.id,
+                    name: customMedia.name,
+                    type: customMedia.type,
+                    url: customMedia.url,
+                  }
+                : c
+            )
+          );
+        }
+
+        // Auto-play the 3D camera trajectory on load so the user sees the insane motions live
+        window.setTimeout(() => {
+          setIsPlaying(true);
+        }, 350);
+
+        // If autoExport is requested, trigger automatic MP4 render and download
+        const shouldAutoExport = project?.autoExport || directAutoExport;
+        if (shouldAutoExport) {
+          setAutoExportRequested(true);
         }
       }
     } catch (e) {
