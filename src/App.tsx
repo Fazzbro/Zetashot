@@ -63,6 +63,7 @@ import {
 } from './types/model3D';
 import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyframe } from './utils/model3DInterpolation';
 import { Model3DControlsIsland } from './components/Model3DControlsIsland';
+import { decodeProjectFromUrl, encodeProjectToUrl, ZetashotSharedProject } from './utils/projectUrlEncoder';
 
 import './styles/index.css';
 import './styles/uicamera.css';
@@ -638,17 +639,69 @@ export function App() {
     }
   }, [activeMedia.type, currentTime, aspectRatio, cropRect, stageScale, model3DTransform, mediaClips]);
 
-  // 13. Shareable Hosted Link State
+  // 13. Shareable Hosted Link & Deep-Link MCP State Restoration
   const [isCopiedLink, setIsCopiedLink] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const encodedParam = searchParams.get('p') || searchParams.get('project');
+      if (encodedParam) {
+        const project = decodeProjectFromUrl(encodedParam);
+        if (project) {
+          if (project.title) {
+            document.title = `${project.title} | Zetashot 3D`;
+          }
+          if (project.aspectRatio) {
+            setAspectRatio(project.aspectRatio);
+          }
+          if (project.background) {
+            setBackground(project.background);
+          }
+          if (project.cameraClips && project.cameraClips.length > 0) {
+            setClips(project.cameraClips);
+            setSelectedClipId(project.cameraClips[0].id);
+            setCamera({ ...project.cameraClips[0].camera });
+            const calculatedMax = Math.max(
+              ...project.cameraClips.map((c) => c.startTime + c.duration),
+              project.duration || 3.0
+            );
+            setTotalDuration(calculatedMax);
+            setMediaDuration(calculatedMax);
+          }
+          if (project.textLayers && project.textLayers.length > 0) {
+            setTextLayers(project.textLayers);
+          }
+          if (project.model3DTransform) {
+            setModel3DTransform(project.model3DTransform);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Zetashot] Failed to parse URL project param:', e);
+    }
+  }, []);
+
   const getShareUrl = () => {
+    let origin = 'https://zetashot.vercel.app';
     if (typeof window !== 'undefined' && window.location.origin) {
-      const origin = window.location.origin;
-      if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-        return origin;
+      const locOrigin = window.location.origin;
+      if (!locOrigin.includes('localhost') && !locOrigin.includes('127.0.0.1')) {
+        origin = locOrigin;
       }
     }
-    return 'https://zetashot.vercel.app';
+    const payload: ZetashotSharedProject = {
+      version: '1.0.0',
+      aspectRatio: aspectRatio as any,
+      background,
+      cameraClips: clips,
+      duration: totalDuration,
+      textLayers: textLayers.length > 0 ? textLayers : undefined,
+      model3DTransform,
+    };
+    const p = encodeProjectToUrl(payload);
+    return p ? `${origin}/?p=${p}` : origin;
   };
 
   const handleShareLink = async () => {
