@@ -21,6 +21,51 @@ export function isWebCodecsSupported(): boolean {
 }
 
 /**
+ * Robustly queries hardware acceleration and codec compatibility for MP4 export.
+ * Checks High, Main, and Baseline H.264 profile tiers with fallback.
+ */
+export async function getSupportedVideoCodec(
+  width: number,
+  height: number,
+  fps: number = 60,
+  bitrate?: number
+): Promise<string | null> {
+  if (!isWebCodecsSupported()) return null;
+
+  const evenWidth = Math.floor(width / 2) * 2;
+  const evenHeight = Math.floor(height / 2) * 2;
+  const targetBitrate = bitrate || (evenWidth * evenHeight > 1920 * 1080 ? 25_000_000 : 12_000_000);
+
+  const candidateCodecs = [
+    'avc1.4d002a', // Main Profile, Level 4.2 (Universal 1080p60)
+    'avc1.64002a', // High Profile, Level 4.2
+    'avc1.42001f', // Baseline Profile, Level 3.1 (Broad hardware fallback)
+    'avc1.4d001f', // Main Profile, Level 3.1
+    'avc1.64001f', // High Profile, Level 3.1
+  ];
+
+  for (const codec of candidateCodecs) {
+    try {
+      const res = await (window as any).VideoEncoder.isConfigSupported({
+        codec,
+        width: evenWidth,
+        height: evenHeight,
+        bitrate: targetBitrate,
+        framerate: fps,
+        avc: { format: 'avc' },
+      });
+      if (res && res.supported) {
+        return codec;
+      }
+    } catch {
+      // Continue to next candidate codec
+    }
+  }
+
+  return null;
+}
+
+/**
  * Checks if AudioEncoder is available and supports AAC encoding.
  */
 export async function isAudioEncoderSupported(sampleRate: number = 44100): Promise<boolean> {
@@ -61,7 +106,7 @@ export class WebCodecsMP4Session {
   private audioEncoded = false;
   private encodeError: Error | null = null;
 
-  constructor(options: WebCodecsExportOptions, audioSupported: boolean = false) {
+  constructor(options: WebCodecsExportOptions, audioSupported: boolean = false, codec: string = 'avc1.4d002a') {
     // Macroblock dimension clamping: dimensions must be even for H.264
     this.width = Math.floor(options.width / 2) * 2;
     this.height = Math.floor(options.height / 2) * 2;
@@ -117,9 +162,9 @@ export class WebCodecsMP4Session {
       }
     }
 
-    // Configure H.264 (AVC High Profile or Baseline)
+    // Configure H.264 with verified supported codec
     this.videoEncoder.configure({
-      codec: 'avc1.4d002a', // Main profile, Level 4.2
+      codec,
       width: this.width,
       height: this.height,
       bitrate: targetBitrate,

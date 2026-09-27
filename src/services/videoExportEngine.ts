@@ -29,6 +29,7 @@ import {
 import {
   isWebCodecsSupported,
   isAudioEncoderSupported,
+  getSupportedVideoCodec,
   WebCodecsMP4Session,
 } from './webcodecsExporter';
 import { FBX3DRenderer } from './fbx3DRenderer';
@@ -371,24 +372,29 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   }
 
   // 8. Hardware-Accelerated WebCodecs Initialization (MP4 target)
-  const canUseWebCodecs = targetFormat === 'mp4' && isWebCodecsSupported();
   let webCodecsSession: WebCodecsMP4Session | null = null;
   let webCodecsAudioHandled = false;
 
-  if (canUseWebCodecs) {
+  if (targetFormat === 'mp4' && isWebCodecsSupported()) {
     try {
-      const audioSupported = exportAudioBuffer ? await isAudioEncoderSupported(exportAudioBuffer.sampleRate) : false;
-      webCodecsSession = new WebCodecsMP4Session(
-        {
-          width,
-          height,
-          fps,
-          audioBuffer: exportAudioBuffer,
-        },
-        audioSupported
-      );
-      webCodecsAudioHandled = audioSupported;
-      console.log(`[Export Engine] Initialized WebCodecs GPU encoder (AAC audio: ${audioSupported})`);
+      const supportedCodec = await getSupportedVideoCodec(width, height, fps);
+      if (supportedCodec) {
+        const audioSupported = exportAudioBuffer ? await isAudioEncoderSupported(exportAudioBuffer.sampleRate) : false;
+        webCodecsSession = new WebCodecsMP4Session(
+          {
+            width,
+            height,
+            fps,
+            audioBuffer: exportAudioBuffer,
+          },
+          audioSupported,
+          supportedCodec
+        );
+        webCodecsAudioHandled = audioSupported;
+        console.log(`[Export Engine] Initialized WebCodecs GPU encoder (codec: ${supportedCodec}, AAC audio: ${audioSupported})`);
+      } else {
+        console.log('[Export Engine] No compatible WebCodecs H.264 profile found on this GPU, using FFmpeg WASM.');
+      }
     } catch (wcErr) {
       console.warn('[Export Engine] WebCodecs session init failed, falling back to FFmpeg WASM:', wcErr);
       webCodecsSession = null;
@@ -491,28 +497,38 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         }
       } else if (activeElement && activeType === 'image') {
         const img = activeElement as HTMLImageElement;
-        const imgW = img.naturalWidth || baseFrameW;
-        const imgH = img.naturalHeight || baseFrameH;
-        const coords = calculateObjectFitCover(imgW, imgH, baseFrameW, baseFrameH);
+        if (img && img.complete && img.naturalWidth > 0) {
+          const imgW = img.naturalWidth;
+          const imgH = img.naturalHeight;
+          const coords = calculateObjectFitCover(imgW, imgH, baseFrameW, baseFrameH);
 
-        if (isCropped) {
-          const cropX = (crop.x / 100) * coords.sw + coords.sx;
-          const cropY = (crop.y / 100) * coords.sh + coords.sy;
-          const cropW = (crop.width / 100) * coords.sw;
-          const cropH = (crop.height / 100) * coords.sh;
-          frameCtx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, frameW, frameH);
-        } else {
-          frameCtx.drawImage(
-            img,
-            coords.sx,
-            coords.sy,
-            coords.sw,
-            coords.sh,
-            0,
-            0,
-            frameW,
-            frameH
-          );
+          if (isCropped) {
+            const cropX = (crop.x / 100) * coords.sw + coords.sx;
+            const cropY = (crop.y / 100) * coords.sh + coords.sy;
+            const cropW = (crop.width / 100) * coords.sw;
+            const cropH = (crop.height / 100) * coords.sh;
+            try {
+              frameCtx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, frameW, frameH);
+            } catch (e) {
+              console.warn('[Export Engine] Non-fatal image crop draw error:', e);
+            }
+          } else {
+            try {
+              frameCtx.drawImage(
+                img,
+                coords.sx,
+                coords.sy,
+                coords.sw,
+                coords.sh,
+                0,
+                0,
+                frameW,
+                frameH
+              );
+            } catch (e) {
+              console.warn('[Export Engine] Non-fatal image draw error:', e);
+            }
+          }
         }
       } else if (activeType === '3d') {
         if (fbxRenderer) {

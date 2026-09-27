@@ -82,6 +82,10 @@ const WALLPAPER_PRESETS = [
 ];
 
 const CAMERA_PRESETS = [
+  { id: 'storytelling_product_walkthrough', name: 'Storytelling Product Walkthrough', description: 'Narrative camera flow: wide establishing angle, swooping into key feature details, panning across interaction, and pulling out to an authoritative hero lock' },
+  { id: 'apple_commercial_sweep', name: 'Apple Commercial Low Sweep', description: 'Clean minimalist commercial glide: low Dutch perspective catching specular glass sheen, sweeping across and resolving center-stage' },
+  { id: 'macro_feature_focus', name: 'Macro Feature Focus', description: 'Extreme close-up macro zoom targeting UI interaction with shallow depth of field, slowly easing back into full frame' },
+  { id: 'tiktok_viral_snap', name: 'TikTok / Reel Viral Snap', description: 'High-energy vertical cadence with rapid kinetic whip-rotations and punchy zoom snaps' },
   { id: 'insane_3d_flyby', name: 'Insane 3D Flyby (High-Energy Dutch Roll & Swoop)', description: 'Extreme dynamic 3D camera flyby with Dutch angle rolls, wide sweeps, and close-up tracking' },
   { id: 'spiral_vortex_dive', name: 'Spiral Vortex Dive', description: 'Corkscrew 3D spiral diving in from deep space into an intense dynamic hero framing' },
   { id: 'push_in_reveal', name: 'Push-In Reveal (Dramatic Hero Zoom)', description: 'Smooth push from 0.74x distance into 1.35x close-up framing' },
@@ -101,6 +105,150 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
   const baseProps = { color: 'yellow', blockId: 'block_main', mediaClipId: 'clip_init', transition: 'cut' };
 
   switch (preset) {
+    case 'storytelling_product_walkthrough':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Establishing Overview',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 28, rotY: -35, rotZ: -10, zoom: 0.82, panX: -28, panY: -15, perspective: 800 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Swoop to Focus Feature',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -8, rotY: 18, rotZ: 8, zoom: 1.45, panX: 18, panY: 22, perspective: 750 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Pan Across Interface',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 14, rotY: -12, rotZ: -4, zoom: 1.20, panX: -12, panY: -5, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Hero Resolve Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'apple_commercial_sweep':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Low Dutch Glide',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: -18, rotY: 42, rotZ: 14, zoom: 0.88, panX: 30, panY: 18, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Specular Horizon Sweep',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 8, rotY: -22, rotZ: -6, zoom: 1.18, panX: -15, panY: -8, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Precision Alignment',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 4, rotY: -6, rotZ: -2, zoom: 1.08, panX: -4, panY: -2, perspective: 980 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Pure Hero Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.0, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'macro_feature_focus':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Macro Close-Up',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: -12, rotY: 16, rotZ: 6, zoom: 1.85, panX: 20, panY: 30, perspective: 650 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Shallow Depth Drift',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 8, rotY: -14, rotZ: -5, zoom: 1.60, panX: -16, panY: 15, perspective: 720 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Smooth Pullback Reveal',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 6, rotY: -8, rotZ: -2, zoom: 1.25, panX: -8, panY: 0, perspective: 880 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Complete Device Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.02, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'tiktok_viral_snap':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. High Angle Snap',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 26, rotY: -32, rotZ: -18, zoom: 0.92, panX: -20, panY: -25, perspective: 700 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Whip Punch In',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -14, rotY: 28, rotZ: 16, zoom: 1.55, panX: 18, panY: 15, perspective: 680 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Dynamic Recoil',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 10, rotY: -12, rotZ: -6, zoom: 1.15, panX: -8, panY: -5, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Center Drop',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.08, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
     case 'insane_3d_flyby':
       return [
         {
@@ -300,7 +448,7 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
 const TOOLS = [
   {
     name: 'create_mockup_project',
-    description: 'Creates a custom 3D device mockup scene in Zetashot Studio and returns a direct 1-click live link to preview at 60 FPS or export to 4K MP4.',
+    description: 'Creates a custom 3D device mockup scene in Zetashot Studio and returns a direct 1-click live link to preview at 60 FPS or export to 4K MP4. FIRST analyze the reference media or content to identify key focal points (e.g. hero title, chart metrics, mobile action, CTA), then choreograph customKeyframes or select a cinematic trajectory relevant to that movement.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -327,9 +475,46 @@ const TOOLS = [
         },
         cameraPreset: {
           type: 'string',
-          enum: ['insane_3d_flyby', 'spiral_vortex_dive', 'push_in_reveal', 'tiktok_dynamic_bounce', 'cinematic_orbit', 'subtle_studio_hover'],
-          default: 'insane_3d_flyby',
-          description: 'Camera trajectory motion preset. "insane_3d_flyby" and "spiral_vortex_dive" deliver extreme high-energy Dutch tilts and swooping 3D angles.',
+          enum: [
+            'storytelling_product_walkthrough',
+            'apple_commercial_sweep',
+            'macro_feature_focus',
+            'tiktok_viral_snap',
+            'insane_3d_flyby',
+            'spiral_vortex_dive',
+            'push_in_reveal',
+            'tiktok_dynamic_bounce',
+            'cinematic_orbit',
+            'subtle_studio_hover'
+          ],
+          default: 'storytelling_product_walkthrough',
+          description: 'Cinematic camera trajectory preset. "storytelling_product_walkthrough" leads the viewer through feature discovery. "apple_commercial_sweep" provides sleek luxury glides. "macro_feature_focus" magnifies UI interaction. "tiktok_viral_snap" delivers snappy vertical energy.',
+        },
+        customKeyframes: {
+          type: 'array',
+          description: 'Optional array of custom 3D camera keyframes choreographed after analyzing the reference media. Overrides cameraPreset when provided.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Descriptive narrative step (e.g. "1. Overview", "2. Swoop to Metric Card")' },
+              startTime: { type: 'number', description: 'Start time in seconds along the timeline' },
+              duration: { type: 'number', description: 'Duration of transition to next keyframe in seconds' },
+              camera: {
+                type: 'object',
+                properties: {
+                  rotX: { type: 'number', description: 'Pitch angle in degrees (-45 to 45)' },
+                  rotY: { type: 'number', description: 'Yaw angle in degrees (-75 to 75)' },
+                  rotZ: { type: 'number', description: 'Roll / Dutch tilt in degrees (-30 to 30)' },
+                  zoom: { type: 'number', description: 'Zoom scale (0.5 to 2.5, where 1.0 is standard view, >1.3 is close-up focus)' },
+                  panX: { type: 'number', description: 'Horizontal pan percentage (-50 to 50)' },
+                  panY: { type: 'number', description: 'Vertical pan percentage (-50 to 50)' },
+                  perspective: { type: 'number', description: 'Focal depth / field-of-view in px (600 = telephoto, 1000 = standard)' },
+                },
+                required: ['rotX', 'rotY', 'rotZ', 'zoom', 'panX', 'panY'],
+              },
+            },
+            required: ['name', 'startTime', 'camera'],
+          },
         },
         textTitle: {
           type: 'string',
@@ -346,7 +531,7 @@ const TOOLS = [
         },
         mediaUrl: {
           type: 'string',
-          description: 'URL or path to an image/video to display on the 3D device screen. Supports web URLs (https://...), project public folder paths or filenames (e.g. "D:\\mockup\\public\\default-codex-image.png", "default-codex-image.png", or "/default-codex-image.png"), and data URLs.',
+          description: 'Direct web URL or relative path to an image/video to display on the 3D device screen (e.g. "https://...", "/default-codex-image.png", or data URL).',
         },
         mediaTitle: {
           type: 'string',
@@ -392,7 +577,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
   const aspectRatio = (args.aspectRatio as '16:9' | '9:16' | '1:1' | '4:5' | '21:9') || '16:9';
   const bgInput = (args.background as string) || 'bg-purple-wave';
   const deviceMockup = (args.deviceMockup as string) || '3d-phone';
-  const cameraPreset = (args.cameraPreset as string) || (aspectRatio === '9:16' ? 'tiktok_dynamic_bounce' : 'insane_3d_flyby');
+  const cameraPreset = (args.cameraPreset as string) || (aspectRatio === '9:16' ? 'tiktok_viral_snap' : 'storytelling_product_walkthrough');
   const duration = Math.max(2.0, Math.min(15.0, Number(args.duration) || 4.0));
   const autoExport = args.autoExport !== false; // defaults to true!
 
@@ -414,7 +599,30 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
         opacity: 1,
       };
 
-  const cameraClips = buildCameraClips(cameraPreset, duration);
+  let cameraClips: TimelinePositionClip[];
+  if (Array.isArray(args.customKeyframes) && args.customKeyframes.length > 0) {
+    cameraClips = (args.customKeyframes as any[]).map((kf, i) => ({
+      id: `kf_custom_${i + 1}`,
+      name: kf.name || `Step ${i + 1}`,
+      startTime: Number(kf.startTime) || 0,
+      duration: Number(kf.duration) || 0,
+      color: 'yellow',
+      blockId: 'block_main',
+      mediaClipId: 'clip_init',
+      transition: 'cut',
+      camera: {
+        rotX: Number(kf.camera?.rotX) || 0,
+        rotY: Number(kf.camera?.rotY) || 0,
+        rotZ: Number(kf.camera?.rotZ) || 0,
+        zoom: Number(kf.camera?.zoom) || 1.0,
+        panX: Number(kf.camera?.panX) || 0,
+        panY: Number(kf.camera?.panY) || 0,
+        perspective: Number(kf.camera?.perspective) || 1000,
+      },
+    }));
+  } else {
+    cameraClips = buildCameraClips(cameraPreset, duration);
+  }
 
   const payload: ZetashotSharedProject = {
     version: '1.0.0',

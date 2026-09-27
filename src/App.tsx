@@ -1960,29 +1960,34 @@ export function App() {
 
         CaptureEngine.downloadFile(result.blob, result.filename);
 
-        await storageService.saveHistoryItem({
-          id: `video_${Date.now()}`,
-          type: 'recording',
-          title: activeMedia.name,
-          filename: result.filename,
-          format: result.format.toUpperCase(),
-          width: stageDims.width,
-          height: stageDims.height,
-          scale: 1,
-          dataUrl: result.dataUrl,
-          blob: result.blob,
-          duration: result.duration,
-          createdAt: Date.now(),
-        });
+        try {
+          await storageService.saveHistoryItem({
+            id: `video_${Date.now()}`,
+            type: 'recording',
+            title: activeMedia.name,
+            filename: result.filename,
+            format: result.format.toUpperCase(),
+            width: stageDims.width,
+            height: stageDims.height,
+            scale: 1,
+            dataUrl: result.dataUrl,
+            blob: result.blob,
+            duration: result.duration,
+            createdAt: Date.now(),
+          });
+        } catch (storageErr) {
+          console.warn('[Zetashot] Non-fatal history storage error:', storageErr);
+        }
 
         confetti({ particleCount: 120, spread: 90 });
         if (isGuideOpen) {
           setGuidePhase('complete');
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Export failed:', e);
-      alert('Export encountered an error. Please try again.');
+      const detail = e?.message || String(e) || 'Unknown export failure';
+      alert(`Export encountered an error: ${detail}. Please try again.`);
     } finally {
       setIsProcessing(false);
       setExportProgress(0);
@@ -2483,6 +2488,7 @@ export function App() {
                       id="mockup-video-player"
                       ref={videoRef}
                       src={activeMedia.url}
+                      crossOrigin="anonymous"
                       playsInline
                       preload="auto"
                       muted={!soundEnabled}
@@ -2544,6 +2550,7 @@ export function App() {
                     <img
                       id="mockup-image-player"
                       src={activeMedia.url}
+                      crossOrigin="anonymous"
                       alt={activeMedia.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
