@@ -14,6 +14,10 @@ interface TimelinePositionClip {
   name: string;
   startTime: number;
   duration: number;
+  color?: string;
+  blockId?: string;
+  mediaClipId?: string;
+  transition?: string;
   camera: {
     rotX: number;
     rotY: number;
@@ -36,6 +40,7 @@ interface ZetashotSharedProject {
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | '3d';
   mediaName?: string;
+  autoExport?: boolean;
   textLayers?: Array<{
     id: string;
     text: string;
@@ -67,43 +72,132 @@ function encodeProjectToUrl(payload: ZetashotSharedProject): string {
   }
 }
 
-// Available wallpapers catalog
+// Available wallpapers catalog with calibrated default center points
 const WALLPAPER_PRESETS = [
-  { id: 'bg-purple-wave', name: 'Purple Wave (Vibrant Dark Flow)', path: '/backgrounds/bg-purple-wave.jpg' },
-  { id: 'bg-sunflowers', name: 'Sunflower Meadow (Warm Summer Light)', path: '/backgrounds/bg-sunflowers.png' },
-  { id: 'bg-green-hills', name: 'Green Hills (Minimalist Landscape)', path: '/backgrounds/bg-green-hills.jpg' },
-  { id: 'bg-halftone-clouds', name: 'Halftone Clouds (Retro Pop Art)', path: '/backgrounds/bg-halftone-clouds.jpg' },
-  { id: 'bg-tulips', name: 'Digital Tulips (Cyber Floral)', path: '/backgrounds/bg-tulips.jpg' },
+  { id: 'bg-purple-wave', name: 'Purple Wave (Vibrant Dark Flow)', path: '/backgrounds/bg-purple-wave.jpg', position: { x: 50, y: 50 } },
+  { id: 'bg-sunflowers', name: 'Sunflower Meadow (Warm Summer Light)', path: '/backgrounds/bg-sunflowers.png', position: { x: 50, y: 100 } },
+  { id: 'bg-green-hills', name: 'Green Hills (Minimalist Landscape)', path: '/backgrounds/bg-green-hills.jpg', position: { x: 50, y: 50 } },
+  { id: 'bg-halftone-clouds', name: 'Halftone Clouds (Retro Pop Art)', path: '/backgrounds/bg-halftone-clouds.jpg', position: { x: 50, y: 50 } },
+  { id: 'bg-tulips', name: 'Digital Tulips (Cyber Floral)', path: '/backgrounds/bg-tulips.jpg', position: { x: 50, y: 50 } },
 ];
 
 const CAMERA_PRESETS = [
-  { id: 'cinematic_orbit', name: 'Cinematic Orbit (Dynamic 3D Yaw & Tilt)', description: 'Sweeps camera around the 3D model with subtle depth curvature' },
-  { id: 'push_in_reveal', name: 'Push-In Reveal (Dramatic Hero Zoom)', description: 'Smooth push from 0.8x distance into 1.35x close-up framing' },
+  { id: 'insane_3d_flyby', name: 'Insane 3D Flyby (High-Energy Dutch Roll & Swoop)', description: 'Extreme dynamic 3D camera flyby with Dutch angle rolls, wide sweeps, and close-up tracking' },
+  { id: 'spiral_vortex_dive', name: 'Spiral Vortex Dive', description: 'Corkscrew 3D spiral diving in from deep space into an intense dynamic hero framing' },
+  { id: 'push_in_reveal', name: 'Push-In Reveal (Dramatic Hero Zoom)', description: 'Smooth push from 0.74x distance into 1.35x close-up framing' },
   { id: 'tiktok_dynamic_bounce', name: 'TikTok / Reel Kinetic Bounce', description: 'Fast snappy rotational tilt designed for 9:16 vertical video engagement' },
+  { id: 'cinematic_orbit', name: 'Cinematic Orbit (Dynamic 3D Yaw & Tilt)', description: 'Sweeps camera around the 3D model with subtle depth curvature' },
   { id: 'subtle_studio_hover', name: 'Subtle Studio Hover', description: 'Gentle, minimalist drift suited for elegant SaaS product showcases' },
-  { id: 'static_frontal', name: 'Static Frontal', description: 'Crisp, perfectly centered presentation with 0 rotation' },
 ];
 
 function buildCameraClips(preset: string, duration: number): TimelinePositionClip[] {
   const dur = Math.max(2.0, Math.min(30.0, duration || 4.0));
-  const half = Number((dur / 2).toFixed(2));
+  const t1 = Number((dur * 0.33).toFixed(2));
+  const t2 = Number((dur * 0.66).toFixed(2));
+  const d1 = t1;
+  const d2 = Number((t2 - t1).toFixed(2));
+  const d3 = Number((dur - t2).toFixed(2));
+
+  const baseProps = { color: 'yellow', blockId: 'block_main', mediaClipId: 'clip_init', transition: 'cut' };
 
   switch (preset) {
+    case 'insane_3d_flyby':
+      return [
+        {
+          id: 'kf_1',
+          name: 'High Dutch Swoop',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 34, rotY: -48, rotZ: -14, zoom: 0.76, panX: -35, panY: -20, perspective: 700 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: 'Low Dutch Punch',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -16, rotY: 36, rotZ: 16, zoom: 1.40, panX: 25, panY: 15, perspective: 700 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: 'Whip Reverse',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 22, rotY: -24, rotZ: -8, zoom: 1.15, panX: -15, panY: 5, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: 'Hero Center',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'spiral_vortex_dive':
+      return [
+        {
+          id: 'kf_1',
+          name: 'Deep Vortex Start',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 42, rotY: -65, rotZ: -28, zoom: 0.68, panX: -40, panY: -30, perspective: 650 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: 'Vortex Mid Swoop',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -24, rotY: 48, rotZ: 22, zoom: 1.32, panX: 30, panY: 15, perspective: 750 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: 'Leveling In',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 12, rotY: -14, rotZ: -6, zoom: 1.12, panX: -10, panY: 0, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: 'Final Hero Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.0, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
     case 'push_in_reveal':
       return [
         {
           id: 'kf_start',
           name: 'Hero In',
           startTime: 0,
-          duration: dur,
-          camera: { rotX: 12, rotY: -8, rotZ: 0, zoom: 0.82, panX: 0, panY: 0, perspective: 1000 },
+          duration: d1 + d2,
+          camera: { rotX: 18, rotY: -22, rotZ: -6, zoom: 0.74, panX: -20, panY: -10, perspective: 800 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_mid',
+          name: 'Close Glide',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 6, rotY: 6, rotZ: 2, zoom: 1.28, panX: 10, panY: 0, perspective: 950 },
+          ...baseProps,
         },
         {
           id: 'kf_end',
           name: 'Close Up',
           startTime: dur,
           duration: 0,
-          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.32, panX: 0, panY: 0, perspective: 1000 },
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.35, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
         },
       ];
 
@@ -113,22 +207,33 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
           id: 'kf_1',
           name: 'Top Right Angle',
           startTime: 0,
-          duration: half,
-          camera: { rotX: 24, rotY: -22, rotZ: -3, zoom: 0.92, panX: 0, panY: 0, perspective: 1000 },
+          duration: d1,
+          camera: { rotX: 28, rotY: -35, rotZ: -12, zoom: 0.88, panX: -25, panY: -15, perspective: 750 },
+          ...baseProps,
         },
         {
           id: 'kf_2',
           name: 'Low Left Punch',
-          startTime: half,
-          duration: Number((dur - half).toFixed(2)),
-          camera: { rotX: -8, rotY: 18, rotZ: 2, zoom: 1.25, panX: 0, panY: 0, perspective: 1000 },
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -16, rotY: 30, rotZ: 10, zoom: 1.38, panX: 28, panY: 12, perspective: 750 },
+          ...baseProps,
         },
         {
           id: 'kf_3',
+          name: 'Snap Tilt',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 14, rotY: -12, rotZ: -4, zoom: 1.12, panX: -10, panY: -5, perspective: 900 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
           name: 'Final Center',
           startTime: dur,
           duration: 0,
           camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
         },
       ];
 
@@ -140,6 +245,7 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
           startTime: 0,
           duration: dur,
           camera: { rotX: 8, rotY: -10, rotZ: 0, zoom: 0.98, panX: -15, panY: -5, perspective: 1000 },
+          ...baseProps,
         },
         {
           id: 'kf_2',
@@ -147,17 +253,7 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
           startTime: dur,
           duration: 0,
           camera: { rotX: 10, rotY: 8, rotZ: 0, zoom: 1.04, panX: 15, panY: 5, perspective: 1000 },
-        },
-      ];
-
-    case 'static_frontal':
-      return [
-        {
-          id: 'kf_static',
-          name: 'Static',
-          startTime: 0,
-          duration: dur,
-          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.0, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
         },
       ];
 
@@ -168,22 +264,33 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
           id: 'kf_start',
           name: 'Orbit In',
           startTime: 0,
-          duration: half,
-          camera: { rotX: 18, rotY: -32, rotZ: -2, zoom: 0.95, panX: 0, panY: 0, perspective: 1000 },
+          duration: d1,
+          camera: { rotX: 24, rotY: -38, rotZ: -8, zoom: 0.85, panX: -25, panY: -10, perspective: 750 },
+          ...baseProps,
         },
         {
           id: 'kf_mid',
           name: 'Center Pan',
-          startTime: half,
-          duration: Number((dur - half).toFixed(2)),
-          camera: { rotX: 8, rotY: 2, rotZ: 0, zoom: 1.15, panX: 0, panY: 0, perspective: 1000 },
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: -10, rotY: 15, rotZ: 5, zoom: 1.25, panX: 15, panY: 8, perspective: 850 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: 'Orbit Swirl',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 16, rotY: -18, rotZ: -4, zoom: 1.10, panX: -8, panY: -2, perspective: 950 },
+          ...baseProps,
         },
         {
           id: 'kf_end',
           name: 'Orbit Out',
           startTime: dur,
           duration: 0,
-          camera: { rotX: 16, rotY: 28, rotZ: 2, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
         },
       ];
   }
@@ -220,9 +327,9 @@ const TOOLS = [
         },
         cameraPreset: {
           type: 'string',
-          enum: ['cinematic_orbit', 'push_in_reveal', 'tiktok_dynamic_bounce', 'subtle_studio_hover', 'static_frontal'],
-          default: 'cinematic_orbit',
-          description: 'Camera trajectory motion preset',
+          enum: ['insane_3d_flyby', 'spiral_vortex_dive', 'push_in_reveal', 'tiktok_dynamic_bounce', 'cinematic_orbit', 'subtle_studio_hover'],
+          default: 'insane_3d_flyby',
+          description: 'Camera trajectory motion preset. "insane_3d_flyby" and "spiral_vortex_dive" deliver extreme high-energy Dutch tilts and swooping 3D angles.',
         },
         textTitle: {
           type: 'string',
@@ -244,6 +351,11 @@ const TOOLS = [
         mediaTitle: {
           type: 'string',
           description: 'Optional display name or title for the media/screen item',
+        },
+        autoExport: {
+          type: 'boolean',
+          default: true,
+          description: 'If true (default), immediately initiates automatic 4K 60FPS MP4 video rendering and download when the link is opened in the browser.',
         },
       },
       required: [],
@@ -269,6 +381,7 @@ const TOOLS = [
         cameraPreset: { type: 'string' },
         title: { type: 'string' },
         mediaUrl: { type: 'string' },
+        autoExport: { type: 'boolean' },
       },
     },
   },
@@ -279,8 +392,9 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
   const aspectRatio = (args.aspectRatio as '16:9' | '9:16' | '1:1' | '4:5' | '21:9') || '16:9';
   const bgInput = (args.background as string) || 'bg-purple-wave';
   const deviceMockup = (args.deviceMockup as string) || '3d-phone';
-  const cameraPreset = (args.cameraPreset as string) || (aspectRatio === '9:16' ? 'tiktok_dynamic_bounce' : 'cinematic_orbit');
+  const cameraPreset = (args.cameraPreset as string) || (aspectRatio === '9:16' ? 'tiktok_dynamic_bounce' : 'insane_3d_flyby');
   const duration = Math.max(2.0, Math.min(15.0, Number(args.duration) || 4.0));
+  const autoExport = args.autoExport !== false; // defaults to true!
 
   const matchedWallpaper = WALLPAPER_PRESETS.find((w) => w.id === bgInput);
   const isImage = !!matchedWallpaper || bgInput.startsWith('bg-') || bgInput.endsWith('.jpg') || bgInput.endsWith('.png');
@@ -290,7 +404,8 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
         type: 'image',
         imageUrl: matchedWallpaper ? matchedWallpaper.path : `/backgrounds/${bgInput}.jpg`,
         imageFit: 'cover',
-        imageScale: 100,
+        imageScale: 1.0,
+        position: matchedWallpaper?.position || { x: 50, y: 50 },
         opacity: 1,
       }
     : {
@@ -309,6 +424,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
     deviceMockup,
     cameraClips,
     duration,
+    autoExport,
   };
 
   let rawMediaUrl = (args.mediaUrl as string)?.trim();
@@ -352,7 +468,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
   }
 
   const encodedParam = encodeProjectToUrl(payload);
-  const shareUrl = `${baseUrl}/?p=${encodedParam}`;
+  const shareUrl = `${baseUrl}/?p=${encodedParam}${autoExport ? '&export=mp4' : ''}`;
 
   const md = `### 🎬 Zetashot Mockup Created Successfully!
 
@@ -360,13 +476,14 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
 - **Aspect Ratio**: \`${aspectRatio}\`
 - **Device Frame**: \`${deviceMockup}\`
 - **Background**: ${matchedWallpaper ? matchedWallpaper.name : `\`${bgInput}\``}
-- **Camera Choreography**: \`${cameraPreset}\` (${duration}s duration, ${cameraClips.length} keyframes)
+- **Camera Choreography**: \`${cameraPreset}\` (${duration}s duration, ${cameraClips.length} keyframes with 3D Dutch tilt & swoop)
 ${payload.mediaUrl ? `- **Screen Media**: \`${payload.mediaUrl}\`` : ''}
 ${args.textTitle ? `- **Text Title**: "${args.textTitle}"` : ''}
+- **MP4 Auto-Export**: \`${autoExport ? 'Enabled (Instant 4K 60FPS MP4 render & download)' : 'Manual'}\`
 
-👉 **[Open in Zetashot Studio](${shareUrl})**
+👉 **[Open in Zetashot Studio & Download MP4](${shareUrl})**
 
-*Click the link above to view your interactive 3D camera mockup at 60 FPS, swap media, adjust angles, or export directly to 4K MP4!*`;
+*Click the link above to view your interactive 3D camera mockup looping at 60 FPS and download the high-resolution 4K MP4 video directly!*`;
 
   return {
     content: [{ type: 'text', text: md }],

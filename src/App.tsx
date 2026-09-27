@@ -477,6 +477,7 @@ export function App() {
   const [exportFps, setExportFps] = useState<24 | 30 | 60>(60);
   const [isProcessing, setIsProcessing] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [autoExportRequested, setAutoExportRequested] = useState(false);
 
   // DOM Refs
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -669,6 +670,11 @@ export function App() {
             );
             setTotalDuration(calculatedMax);
             setMediaDuration(calculatedMax);
+            setMediaClips((prevClips) =>
+              prevClips.map((c, i) =>
+                i === 0 ? { ...c, duration: calculatedMax } : c
+              )
+            );
           }
           if (project.textLayers && project.textLayers.length > 0) {
             setTextLayers(project.textLayers);
@@ -703,6 +709,17 @@ export function App() {
                   : c
               )
             );
+          }
+
+          // Auto-play the 3D camera trajectory on load so the user sees the insane motions live
+          window.setTimeout(() => {
+            setIsPlaying(true);
+          }, 350);
+
+          // If autoExport is requested, trigger automatic MP4 render and download
+          const shouldAutoExport = project.autoExport || searchParams.get('export') === 'mp4' || searchParams.get('autoExport') === 'true';
+          if (shouldAutoExport) {
+            setAutoExportRequested(true);
           }
         }
       }
@@ -1907,6 +1924,17 @@ export function App() {
       setExportProgress(0);
     }
   };
+
+  // Automated background export trigger when requested by deep-link or MCP tool
+  useEffect(() => {
+    if (autoExportRequested && !isProcessing) {
+      const timer = window.setTimeout(() => {
+        handleExport('mp4', 60);
+        setAutoExportRequested(false);
+      }, 1200);
+      return () => window.clearTimeout(timer);
+    }
+  }, [autoExportRequested, isProcessing]);
 
   // Contextual Reference Style Guide step advance
   const handleGuideAdvance = useCallback(() => {

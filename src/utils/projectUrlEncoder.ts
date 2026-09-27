@@ -17,6 +17,7 @@ export interface ZetashotSharedProject {
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | '3d';
   mediaName?: string;
+  autoExport?: boolean;
 }
 
 /**
