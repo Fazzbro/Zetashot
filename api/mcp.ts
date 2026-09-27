@@ -33,6 +33,9 @@ interface ZetashotSharedProject {
   cameraClips?: TimelinePositionClip[];
   deviceMockup?: string;
   duration?: number;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | '3d';
+  mediaName?: string;
   textLayers?: Array<{
     id: string;
     text: string;
@@ -234,6 +237,14 @@ const TOOLS = [
           default: 4.0,
           description: 'Duration of the mockup sequence in seconds (2.0 to 15.0)',
         },
+        mediaUrl: {
+          type: 'string',
+          description: 'URL or path to an image/video to display on the 3D device screen. Supports web URLs (https://...), project public folder paths or filenames (e.g. "D:\\mockup\\public\\default-codex-image.png", "default-codex-image.png", or "/default-codex-image.png"), and data URLs.',
+        },
+        mediaTitle: {
+          type: 'string',
+          description: 'Optional display name or title for the media/screen item',
+        },
       },
       required: [],
     },
@@ -257,6 +268,7 @@ const TOOLS = [
         deviceMockup: { type: 'string' },
         cameraPreset: { type: 'string' },
         title: { type: 'string' },
+        mediaUrl: { type: 'string' },
       },
     },
   },
@@ -299,6 +311,23 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
     duration,
   };
 
+  let rawMediaUrl = (args.mediaUrl as string)?.trim();
+  if (rawMediaUrl) {
+    let resolvedMediaUrl = rawMediaUrl;
+    const normalized = rawMediaUrl.replace(/\\/g, '/');
+    const pubIdx = normalized.toLowerCase().indexOf('/public/');
+    if (pubIdx !== -1) {
+      resolvedMediaUrl = normalized.substring(pubIdx + '/public'.length);
+    } else if (normalized.toLowerCase().startsWith('public/')) {
+      resolvedMediaUrl = '/' + normalized.substring('public/'.length);
+    } else if (!resolvedMediaUrl.startsWith('http://') && !resolvedMediaUrl.startsWith('https://') && !resolvedMediaUrl.startsWith('/') && !resolvedMediaUrl.startsWith('data:')) {
+      resolvedMediaUrl = '/' + resolvedMediaUrl;
+    }
+    payload.mediaUrl = resolvedMediaUrl;
+    payload.mediaName = (args.mediaTitle as string) || (resolvedMediaUrl.split('/').pop()?.split('?')[0] || 'Custom Screen Media');
+    payload.mediaType = resolvedMediaUrl.endsWith('.mp4') || resolvedMediaUrl.endsWith('.webm') ? 'video' : 'image';
+  }
+
   if (args.textTitle || args.textSubtitle) {
     payload.textLayers = [
       {
@@ -332,6 +361,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
 - **Device Frame**: \`${deviceMockup}\`
 - **Background**: ${matchedWallpaper ? matchedWallpaper.name : `\`${bgInput}\``}
 - **Camera Choreography**: \`${cameraPreset}\` (${duration}s duration, ${cameraClips.length} keyframes)
+${payload.mediaUrl ? `- **Screen Media**: \`${payload.mediaUrl}\`` : ''}
 ${args.textTitle ? `- **Text Title**: "${args.textTitle}"` : ''}
 
 👉 **[Open in Zetashot Studio](${shareUrl})**

@@ -676,6 +676,34 @@ export function App() {
           if (project.model3DTransform) {
             setModel3DTransform(project.model3DTransform);
           }
+          if (project.mediaUrl) {
+            const customMedia: MediaItem = {
+              id: `media_${Date.now()}`,
+              name: project.mediaName || (project.mediaUrl.split('/').pop()?.split('?')[0] || 'Screen Media'),
+              type: project.mediaType || (project.mediaUrl.endsWith('.mp4') || project.mediaUrl.endsWith('.webm') ? 'video' : 'image'),
+              url: project.mediaUrl,
+              dimensions: '1920 × 1080',
+              format: project.mediaUrl.endsWith('.mp4') || project.mediaUrl.endsWith('.webm') ? 'MP4' : 'PNG',
+            };
+            setActiveMedia(customMedia);
+            setMediaList((prev) => {
+              if (prev.some((m) => m.url === customMedia.url)) return prev;
+              return [customMedia, ...prev];
+            });
+            setMediaClips((prevClips) =>
+              prevClips.map((c, i) =>
+                i === 0
+                  ? {
+                      ...c,
+                      mediaId: customMedia.id,
+                      name: customMedia.name,
+                      type: customMedia.type,
+                      url: customMedia.url,
+                    }
+                  : c
+              )
+            );
+          }
         }
       }
     } catch (e) {
@@ -699,6 +727,9 @@ export function App() {
       duration: totalDuration,
       textLayers: textLayers.length > 0 ? textLayers : undefined,
       model3DTransform,
+      mediaUrl: activeMedia.url.startsWith('http') || activeMedia.url.startsWith('/') ? activeMedia.url : undefined,
+      mediaName: activeMedia.name,
+      mediaType: activeMedia.type === 'video' ? 'video' : 'image',
     };
     const p = encodeProjectToUrl(payload);
     return p ? `${origin}/?p=${p}` : origin;
