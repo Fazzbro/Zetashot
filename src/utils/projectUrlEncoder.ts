@@ -1,8 +1,8 @@
 import { deflateSync, inflateSync, strToU8, strFromU8 } from 'fflate';
-import { BackgroundConfig } from './gradientUtils';
-import { TimelinePositionClip } from '../components/VideoTimeline';
-import { Model3DTransform } from '../types/model3D';
-import { TextLayerOverlay } from '../types/textLayer';
+import type { BackgroundConfig } from './gradientUtils';
+import type { TimelinePositionClip } from '../components/VideoTimeline';
+import type { Model3DTransform } from '../types/model3D';
+import type { TextLayerOverlay } from '../types/textLayer';
 
 export interface ZetashotSharedProject {
   version: string;

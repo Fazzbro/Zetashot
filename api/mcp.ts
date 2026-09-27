@@ -1,6 +1,68 @@
-import { encodeProjectToUrl, ZetashotSharedProject } from '../src/utils/projectUrlEncoder';
-import { BackgroundConfig } from '../src/utils/gradientUtils';
-import { TimelinePositionClip } from '../src/components/VideoTimeline';
+import zlib from 'node:zlib';
+
+interface BackgroundConfig {
+  type: 'solid' | 'gradient' | 'image' | 'transparent';
+  color?: string;
+  imageUrl?: string;
+  imageFit?: 'cover' | 'contain' | 'fill';
+  imageScale?: number;
+  opacity?: number;
+}
+
+interface TimelinePositionClip {
+  id: string;
+  name: string;
+  startTime: number;
+  duration: number;
+  camera: {
+    rotX: number;
+    rotY: number;
+    rotZ: number;
+    zoom: number;
+    panX: number;
+    panY: number;
+    perspective?: number;
+  };
+}
+
+interface ZetashotSharedProject {
+  version: string;
+  title?: string;
+  aspectRatio?: '16:9' | '9:16' | '1:1' | '4:5' | '21:9';
+  background?: BackgroundConfig;
+  cameraClips?: TimelinePositionClip[];
+  deviceMockup?: string;
+  duration?: number;
+  textLayers?: Array<{
+    id: string;
+    text: string;
+    title?: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    fontFamily: string;
+    color: string;
+    backgroundColor: string;
+    borderRadius: number;
+    paddingX: number;
+    paddingY: number;
+    opacity: number;
+    startTime: number;
+    duration: number;
+    animationType: string;
+  }>;
+}
+
+function encodeProjectToUrl(payload: ZetashotSharedProject): string {
+  try {
+    const jsonStr = JSON.stringify(payload);
+    const compressed = zlib.deflateRawSync(Buffer.from(jsonStr, 'utf-8'));
+    return compressed.toString('base64url');
+  } catch (err) {
+    console.warn('[Zetashot] Failed to encode project:', err);
+    return '';
+  }
+}
 
 // Available wallpapers catalog
 const WALLPAPER_PRESETS = [
