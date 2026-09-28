@@ -628,7 +628,6 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
       ];
 
     case 'cinematic_orbit':
-    default:
       return [
         {
           id: 'kf_start',
