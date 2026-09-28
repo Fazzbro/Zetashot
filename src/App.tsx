@@ -715,7 +715,7 @@ export function App() {
         }
 
         // Camera Keyframes restoration
-        const cameraPresetToUse = directPreset || (ratio === '9:16' ? 'tiktok_dynamic_bounce' : 'insane_3d_flyby');
+        const cameraPresetToUse = directPreset || (ratio === '9:16' ? 'tiktok_dynamic_bounce' : 'saas_feature_spotlight');
         const durationToUse = project?.duration || directDuration || 4.0;
         let clipsToUse = project?.cameraClips;
         if (!clipsToUse || clipsToUse.length === 0) {

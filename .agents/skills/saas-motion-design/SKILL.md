@@ -36,6 +36,7 @@ AI agents frequently default to disorienting, floaty, ungrounded camera moves th
 6. **Robotic Linear Velocity**: Never generate linear ($C^0$) transitions between keyframes. Every trajectory must enforce $C^1$ velocity continuity via Cubic Hermite splines with tension damping ($\tau = 0.35$) and strict boundary velocity clamping ($v_0 = 0, v_{\text{end}} = 0$).
 7. **The Tilted Resolve**: Never end a video sequence on a tilted, yawed, or off-center frame. The final resolve waypoint **MUST** be strictly leveled: $\text{rotX} = 0^\circ, \text{rotY} = 0^\circ, \text{rotZ} = 0^\circ, \text{panX} = 0\%, \text{panY} = 0\%, \text{perspective} = 1000\text{px}$.
 8. **Vertical Viewport Clipping**: Never apply desktop-scale horizontal pans ($|\text{panX}| > 25\%$) when animating mobile devices or $9:16$ vertical reels. Panning too wide clips the device bezel outside the screen boundary.
+9. **Spamming the Tilted Roller-Coaster on Feature Showcases & Changelogs**: Never default to extreme 3D diagonal swoops ($30^\circ$ yaw $+ 25^\circ$ pitch $+$ Dutch roll) when the user's intent is to present a SaaS product, introduce a feature, or walk through a changelog. High angles distort typography, stretch UI components, and destroy legibility. When showcasing a feature, you **MUST** prioritize clean orthogonal or near-zero angles ($\text{rotX} \in [0^\circ, 3^\circ]$, $\text{rotY} \in [-2^\circ, +2^\circ]$, $\text{rotZ} \equiv 0^\circ$), telephoto perspective ($1100\text{px} - 1300\text{px}$), and generous dwell time so viewers can actually read and digest the new feature!
 
 ---
 
@@ -235,6 +236,19 @@ $$\text{rotY}_{\text{damped}} = \text{rotY} \cdot \text{readabilityDamping}$$
 
 *Example*: At $\text{zoom} = 1.55x$, $\text{readabilityDamping} \approx 0.90$. A target pitch of $12^\circ$ is automatically damped to $10.8^\circ$, preserving typographic clarity.
 
+### 2.5 The Legibility-First SaaS Motion Doctrine (Feature Releases vs Trailers)
+
+The single most critical failure mode in automated 3D UI animation is treating every software video like a cinematic video game trailer. 
+
+When introducing a **SaaS Product** or highlighting a **New Feature Release**:
+1. **The Viewer's Primary Need is Cognitive Comprehension**: The user wants to see what the feature does, read the copy, inspect the new buttons, and understand the workflow.
+2. **Aggressive Keystoning Destroys Software Credibility**: If the screen is tilted at $35^\circ$ with an aggressive Dutch roll, numbers cannot be read, syntax is smeared, and the interface looks chaotic and amateurish.
+3. **The 4 Invariant Rules of SaaS Feature Motion**:
+   - **Rule 1 (Orthogonal Dominance)**: Keep $\text{rotX} \in [0^\circ, 3^\circ]$ and $\text{rotY} \in [-2^\circ, +2^\circ]$. The screen must remain virtually parallel to the viewport.
+   - **Rule 2 (Strict Zero Dutch Roll)**: Set $\text{rotZ} \equiv 0.0^\circ$. Never roll the horizon during a feature showcase or changelog video.
+   - **Rule 3 (Telephoto Optics)**: Set $\text{perspective} \in [1100\text{px}, 1400\text{px}]$. Long virtual focal lengths flatten spatial distortion, preserving straight parallel UI borders and crisp text rendering.
+   - **Rule 4 (Feature Dwell Window)**: When the camera punches into the new feature area ($\text{zoom} \ge 1.45x$), hold the framing across Beats 2 and 3 with only a gentle micro-drift ($\Delta \text{pan} \approx 2\% - 4\%$). This creates the vital 1.5–2.0 second "cognitive dwell window" allowing the audience to actually read and understand the feature value!
+
 ---
 
 ## R3: Visual Landmark Inspection & Narrative Pacing Protocol
@@ -278,61 +292,69 @@ When presented with reference UI media (screenshot, screen recording, or compone
 | **7** | **Multi-Tier Pricing / Checkout Card** | $X \in [-35\%, +35\%]$<br>$Y \in [-15\%, +30\%]$ | Tier badge ("Pro"), pricing strike-through, feature checklist with checkmarks | Direct monetization moment, product tier comparison | Beat 2 Swoop to "Recommended" card |
 | **8** | **Primary CTA & Action Trigger** | $X \in [+10\%, +40\%]$<br>$Y \in [+20\%, +40\%]$ | High-intent solid fill (obsidian or brand color), subtle specular highlight | Conversion climax, user engagement trigger | **Final Target** for Beat 4 Hero Lock |
 
-### 3.3 The 4-Beat Cinematic Narrative Arc
+### 3.2.1 The Feature Targeting Coordinate Map (Zero-Distortion Pan & Zoom)
 
-Every high-end SaaS product animation must follow a strict **4-Beat Narrative Arc** timed to golden-ratio proportions:
+When highlighting a specific feature, do **NOT** tilt the camera into a distorted diagonal angle. Use this calibrated mapping to center the feature squarely with clean optical zoom and zero roll ($\text{rotZ} = 0^\circ$):
+
+| Target Feature Primitive | Recommended $panX$ | Recommended $panY$ | Recommended $zoom$ | Recommended $perspective$ | Keyframe Name Example |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **New Primary CTA / Publish Button** | `+22%` | `-20%` | `1.55x` | `1150px` | `Feature Dive: Primary Action CTA` |
+| **Navigation Sidebar / Project Rail** | `-26%` | `0%` | `1.45x` | `1100px` | `Feature Dive: Project Workspace Rail` |
+| **KPI Metric Block & Telemetry** | `+18%` | `-12%` | `1.55x` | `1150px` | `Feature Dive: Real-Time ARR Metrics` |
+| **Analytics Chart & Data Visual** | `+12%` | `+6%` | `1.48x` | `1150px` | `Feature Dive: Interactive Trend Chart` |
+| **Data Ledger / Table Rows** | `0%` | `+16%` | `1.45x` | `1100px` | `Feature Dive: Structured Event Ledger` |
+| **Command Palette & Quick Filter** | `0%` | `-20%` | `1.60x` | `1200px` | `Feature Dive: Omnibar Quick Actions` |
+| **AI Prompt Input Bar / Composer** | `0%` | `+22%` | `1.55x` | `1150px` | `Feature Dive: AI Prompt Stream` |
+| **Syntax Block / Terminal Output** | `+10%` | `0%` | `1.50x` | `1150px` | `Feature Dive: Monospace Syntax Engine` |
+| **Pricing Tier / Plan Feature List** | `0%` | `+2%` | `1.50x` | `1100px` | `Feature Dive: Pro Tier Capabilities` |
+| **Active Modal Dialog / Popup Sheet** | `0%` | `0%` | `1.52x` | `1150px` | `Feature Dive: Focused Settings Sheet` |
+
+---
+
+### 3.3 The 4-Beat Narrative Arc: Feature Showcase vs Cinematic Trailer
+
+Every high-end SaaS product animation must follow a structured **4-Beat Narrative Arc** timed to golden-ratio proportions:
 
 ```
 0.0s                      t1 (~30%)                  t2 (~65%)                 t_end (100%)
  ├─────────────────────────┼──────────────────────────┼─────────────────────────┤
  │         BEAT 1          │          BEAT 2          │         BEAT 3          │      BEAT 4
- │  ESTABLISHING OVERVIEW  │   MACRO FEATURE SWOOP    │  LATERAL DETAIL GLIDE   │ AUTHORITATIVE HERO
- │  (Scale & Perspective)  │    (The Hero Hook)       │  (Ergonomics & Depth)   │  (Conversion Lock)
+ │  CONTEXT ESTABLISHING   │   FEATURE DEEP DIVE      │  FEATURE DWELL & GLIDE  │ AUTHORITATIVE HERO
+ │  (Scale & Clean Frame)  │    (The Feature Hook)    │  (Cognitive Dwell Time) │  (Conversion Lock)
 ```
 
-#### Beat 1: Establishing Overview (Orientation & Context)
-- **Time Ratio**: $0.0\text{s} \to t_1$ ($\approx 0\% - 30\%$ of total clip; e.g. $0.0\text{s} \to 1.3\text{s}$ in a $4.0\text{s}$ clip).
-- **Cinematic Framing**:
-  - **Zoom**: $0.75x - 0.88x$ (wide establishing; full device chassis visible with comfortable background margins).
-  - **Pitch ($\text{rotX}$)**: $+18^\circ \text{ to } +26^\circ$ (birds-eye overview) or $-14^\circ \text{ to } -20^\circ$ (low specular hero angle).
-  - **Yaw ($\text{rotY}$)**: Pronounced 3/4 angle ($-28^\circ \text{ to } -36^\circ$ or $+30^\circ \text{ to } +42^\circ$) revealing 3D device bezel and drop shadow.
-  - **Roll ($\text{rotZ}$)**: Dynamic banking ($-8^\circ \text{ to } -12^\circ$) matching entry vector.
-  - **Pan ($\text{panX}, \text{panY}$)**: Off-center offset ($-22\% \text{ to } -28\%, -10\% \text{ to } -18\%$) creating negative space for the opening text badge.
-  - **Perspective**: $750\text{px} - 850\text{px}$ (wide-angle depth convergence).
-- **Narrative Function**: Answers: *"What world am I entering?"* Establishes hardware frame context, software identity, and luxury aesthetic.
+Crucially, **THE CAMERA BEHAVIOR CHANGES COMPLETELY BASED ON USER INTENT**:
 
-#### Beat 2: Macro Feature Swoop (The Hero Hook)
-- **Time Ratio**: $t_1 \to t_2$ ($\approx 30\% - 65\%$ of total clip; e.g. $1.3\text{s} \to 2.6\text{s}$).
-- **Cinematic Framing**:
-  - **Zoom**: Deep Macro Dive ($1.38x - 1.55x$). Fills the viewport with the primary value landmark.
-  - **Pitch ($\text{rotX}$)**: Orthogonal recovery ($-6^\circ \text{ to } -12^\circ$ or $+6^\circ \text{ to } +10^\circ$) bringing typography parallel to the lens plane.
-  - **Yaw ($\text{rotY}$)**: Dynamic swing across optical center ($+14^\circ \text{ to } +24^\circ$), generating intense parallax between background wallpaper and mockup glass.
-  - **Roll ($\text{rotZ}$)**: Counter-banking ($+5^\circ \text{ to } +8^\circ$) flowing into the new motion vector.
-  - **Pan ($\text{panX}, \text{panY}$)**: Counter-pan ($+14\% \text{ to } +22\%, +4\% \text{ to } +14\%$) locking the focal card into the golden third.
-  - **Perspective**: $700\text{px} - 800\text{px}$ (macro focus falloff).
-- **Narrative Function**: Answers: *"What is the core superpower of this product?"* Delivers the instant value spike.
+#### Arc Mode 1: High-Readability SaaS Feature Spotlight (Default for Feature Launches & Changelogs)
+*Enforces zero Dutch roll ($\text{rotZ} = 0^\circ$), flat/near-zero angles ($\text{rotX} \in [0^\circ, 3^\circ], \text{rotY} \in [-2^\circ, 2^\circ]$), telephoto compression ($1100\text{px}-1200\text{px}$), and generous dwell time for 100% text legibility.*
 
-#### Beat 3: Lateral Detail Glide (Dynamic Ergonomics)
-- **Time Ratio**: $t_2 \to t_3$ ($\approx 65\% - 85\%$ of total clip; e.g. $2.6\text{s} \to 3.5\text{s}$).
-- **Cinematic Framing**:
-  - **Zoom**: Medium Detail Framing ($1.18x - 1.28x$). Wider than Beat 2 to reveal secondary controls and workflows.
-  - **Pitch ($\text{rotX}$)**: Gentle stabilizing tilt ($+8^\circ \text{ to } +14^\circ$).
-  - **Yaw ($\text{rotY}$)**: Stabilizing counter-yaw ($-10^\circ \text{ to } -16^\circ$).
-  - **Roll ($\text{rotZ}$)**: Horizon recovery ($-2^\circ \text{ to } -4^\circ$).
-  - **Pan ($\text{panX}, \text{panY}$)**: Lateral tracking sweep ($-8\% \text{ to } -15\%, +14\% \text{ to } +24\%$) tracing toward secondary mechanisms (table rows, prompt bar, navigation pills).
-  - **Perspective**: $850\text{px} - 920\text{px}$ (progressive distortion relaxation).
-- **Narrative Function**: Answers: *"How does this product actually work?"* Proves interface depth and ergonomic utility.
+- **Beat 1: Context Establishing (Upright)**
+  - Framing: `rotX: +2°`, `rotY: 0°`, `rotZ: 0°`, `zoom: 0.95x`, `panX: 0%`, `panY: 0%`, `perspective: 1100px`.
+  - Narrative: Establishes full app context in a clean, professional, perpendicular orientation without disorienting tilt.
+- **Beat 2: Feature Deep Dive (Direct Push)**
+  - Framing: `rotX: +1°`, `rotY: -2°`, `rotZ: 0°`, `zoom: 1.50x - 1.65x`, `panX: targetPanX`, `panY: targetPanY`, `perspective: 1150px`.
+  - Narrative: Deliberate, smooth optical dive right into the new feature component. Parallel lines preserved; text completely legible.
+- **Beat 3: Feature Dwell & Micro-Glide (Reading Window)**
+  - Framing: `rotX: +2°`, `rotY: +1°`, `rotZ: 0°`, `zoom: 1.52x - 1.58x`, `panX: targetPanX + 2%`, `panY: targetPanY + 2%`, `perspective: 1150px`.
+  - Narrative: Dwells on the feature with subtle micro-drift, giving the viewer's brain 1.5s to absorb the UI before pulling out.
+- **Beat 4: Crisp Hero Resolve Lock**
+  - Framing: `rotX: 0°`, `rotY: 0°`, `rotZ: 0°`, `zoom: 1.02x`, `panX: 0%`, `panY: 0%`, `perspective: 1000px`.
+  - Narrative: Settle on perfect center hero state showing the complete software value proposition.
 
-#### Beat 4: Authoritative Hero Lock (Resolution & Settle)
-- **Time Ratio**: $t_3 \to t_{\text{end}}$ ($\approx 85\% - 100\%$ of total clip; e.g. $3.5\text{s} \to 4.0\text{s}$).
-- **Cinematic Framing**:
-  - **Zoom**: Confident Hero Scale ($1.00x - 1.08x$). Product fills 85% of stage with perfect optical margins.
-  - **Pitch ($\text{rotX}$)**: **$0.0^\circ$** (strictly perpendicular alignment).
-  - **Yaw ($\text{rotY}$)**: **$0.0^\circ$** (strictly zero azimuthal skew).
-  - **Roll ($\text{rotZ}$)**: **$0.0^\circ$** (perfect zero horizon tilt).
-  - **Pan ($\text{panX}, \text{panY}$)**: **$0\%, 0\%$** (dead center optical alignment).
-  - **Perspective**: **$1000\text{px} - 1100\text{px}$** (standard prime lens perspective, zero fish-eye).
-- **Narrative Function**: Answers: *"What should I do next?"* Complete visual stability allowing the eye to lock onto the primary CTA and full product state.
+#### Arc Mode 2: SaaS 3-Step Guided Workflow (Feature Walkthrough Tour)
+*Walks through the steps of actually using a feature: Trigger Input -> Main Action Canvas -> Output Result -> Complete Product.*
+
+- **Beat 1 (Step 1 - Trigger / Input)**: Spotlight input trigger (`zoom: 1.35x`, `panX: -22%`, `panY: -6%`, `rotX: 2°`, `rotY: -3°`, `rotZ: 0°`).
+- **Beat 2 (Step 2 - Action Canvas)**: Glides smoothly to central interaction area (`zoom: 1.45x`, `panX: 0%`, `panY: 0%`, `rotX: 0°`, `rotY: 0°`, `rotZ: 0°`).
+- **Beat 3 (Step 3 - Output Result)**: Glides to result telemetry / success badge (`zoom: 1.38x`, `panX: +20%`, `panY: +10%`, `rotX: 1°`, `rotY: 2°`, `rotZ: 0°`).
+- **Beat 4 (Complete Product Hero)**: Resolves to full upright interface (`zoom: 1.05x`, centered, 0,0,0).
+
+#### Arc Mode 3: Dynamic 3D Cinematic Reveal (Promotional Teasers Only)
+*Reserved ONLY for high-level marketing teaser trailers where 3D physical chassis drama is explicitly requested (NOT for feature tutorials or changelogs).*
+- **Beat 1: Angled 3/4 Overview**: `rotX: +20° to +26°`, `rotY: -28° to -36°`, `rotZ: -8° to -12°`, `zoom: 0.82x`.
+- **Beat 2: Dynamic Swoop**: Across optical center (`rotX: -6° to -12°`, `rotY: +14° to +24°`, `rotZ: +5° to +8°`, `zoom: 1.45x`).
+- **Beat 3: Lateral Detail Glide**: `rotX: +8° to +14°`, `rotY: -10° to -16°`, `rotZ: -4°`, `zoom: 1.22x`.
+- **Beat 4: Authoritative Hero Lock**: `rotX: 0°`, `rotY: 0°`, `rotZ: 0°`, `zoom: 1.05x`, centered.
 
 ### 3.4 Pre-Choreography Inspection Protocol Checklist
 
@@ -379,176 +401,174 @@ When presented with reference media, Claude must execute this strict 6-stage pro
 ### 3.5 Deterministic Decision Heuristic Tree
 
 ```
-                                  [START: Analyze Reference UI Media]
-                                                   │
-                                                   ▼
-                                {Is Aspect Ratio 9:16 or Height > Width?}
-                               /                                         \
-                             YES                                          NO
-                             /                                             \
-             {Fast kinetic tempo / viral hook?}                {Contains code tokens / monospaced font?}
-                /                        \                                 /                       \
-              YES                         NO                             YES                        NO
-              /                            \                             /                           \
-    [ARCHETYPE 7: Kinetic Social Reel]   [ARCHETYPE 2: Mobile App Flow] [ARCHETYPE 3: Dark Dev Tools] \
-                                                                                                       \
-                                                    {Contains pricing tiers, $ currency, or checkout form?}
-                                                   /                                                      \
-                                                 YES                                                       NO
-                                                 /                                                          \
-                                [ARCHETYPE 5: SaaS Pricing Cards]                                            \
-                                                                         {Contains chat bubbles / streaming feed?}
-                                                                        /                                     \
-                                                                      YES                                      NO
-                                                                      /                                         \
-                                               [ARCHETYPE 6: Collaborative Chat]                                 \
-                                                                         {Contains KPI cards, charts, data tables?}
-                                                                        /                                         \
-                                                                      YES                                          NO
-                                                                      /                                             \
-                                               [ARCHETYPE 1: Analytics Dashboard]                                    \
-                                                                          {Contains large H1 display hero & CTA?}
-                                                                         /                                       \
-                                                                       YES                                        NO
-                                                                       /                                           \
-                                               [ARCHETYPE 4: Landing Page Hero]      [ARCHETYPE 8: Minimalist Studio Luxury]
+                                [START: Analyze Reference UI Media & User Goal]
+                                                       │
+                                                       ▼
+                {Is User Intent a Feature Release, Changelog, or SaaS Product Demo?}
+                                 /                                            \
+                               YES                                             NO
+                               /                                                \
+           [USE PART 1: LEGIBILITY-FIRST RECIPES]                  {Is Ratio 9:16 & High-Energy Reel?}
+            • Highlighting a single new feature:                     /                           \
+              -> Archetype 1 (Feature Spotlight)                    YES                           NO
+            • Showing a multi-step user journey:                     │                             │
+              -> Archetype 2 (3-Step Guided Workflow)     [ARCHETYPE 7: Social Reel]   [ARCHETYPE 8: Studio Luxury]
+            • Dark-mode developer tools / productivity:
+              -> Archetype 3 (Linear Minimal 2.5D)
+            • Frontal keynote announcement:
+              -> Archetype 4 (Apple Frontal Push)
+            • Before-and-after / migration:
+              -> Archetype 5 (Feature Comparison)
+            • Revenue metrics / investor reporting:
+              -> Archetype 6 (Executive KPI Spotlight)
 ```
 
 ---
 
 ## R4: Archetype Keyframe Choreography Matrix
 
-Below is the complete, exhaustive, production-grade 8-Archetype Keyframe Choreography Matrix. Every archetype features calibrated device frames, wallpapers, exact timestamps, 7-DOF camera coordinates, Hermite spline tangent behaviors, and synchronized text badge triggers.
+Below is the complete, production-grade 8-Archetype Keyframe Choreography Matrix. 
+It is strictly divided into **Part 1 (SaaS Feature Showcase & Product Demo Matrix - Legibility First)** and **Part 2 (Dynamic 3D Cinematic Marketing Trailers)**.
 
 ---
 
-### Archetype 1: Analytics Dashboard & Data Visualizations (e.g. Stripe, Datadog)
+### PART 1: SAAS FEATURE SHOWCASE & PRODUCT DEMO MATRIX (LEGIBILITY FIRST)
+
+> [!IMPORTANT]
+> In Part 1, all keyframes enforce **zero Dutch roll ($\text{rotZ} \equiv 0^\circ$)**, near-zero angles ($\text{rotX} \in [0^\circ, 4^\circ]$, $\text{rotY} \in [-3^\circ, +3^\circ]$), and telephoto perspective ($1100\text{px} - 1200\text{px}$). This guarantees that UI copy, numerical KPIs, and interface buttons remain 100% crisp and readable without nausea-inducing roller-coaster spam.
+
+#### Archetype 1: New Feature Spotlight & Changelog Release
 - **Aspect Ratio**: `16:9` | **Device Frame**: `macbook-pro` | **Wallpaper**: `bg-purple-wave`
-- **Total Duration**: `4.0s` | **Vibe**: Authoritative, analytical precision, real-time KPI metrics
+- **Total Duration**: `4.0s` | **Vibe**: Clean, high legibility, feature comprehension, changelog drop
 
 ```
 Narrative Strategy:
-- Beat 1: High birds-eye perspective establishing complex dashboard grid and ambient telemetry.
-- Beat 2: Aggressive macro swoop into the top-performing KPI metric card (+248% ARR).
-- Beat 3: Lateral glide across the real-time event ledger and live streaming data points.
-- Beat 4: Monolithic upright hero lock displaying the complete business intelligence command center.
+- Beat 1: Upright context establishing overview without disorienting tilt.
+- Beat 2: Deliberate, smooth optical dive straight into the new feature area (e.g. AI prompt bar, filter, or modal).
+- Beat 3: Generous dwell time with subtle micro-drift allowing viewers to read copy and inspect the feature.
+- Beat 4: Authoritative hero resolve lock showing the feature within the full product experience.
 ```
 
 | Beat | Name | Time | Dur | rotX | rotY | rotZ | Zoom | panX | panY | Persp | Easing / Tangent | Text Badge (Title / Subtitle) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1** | Establishing Overview | `0.00s` | `1.30s` | `+24°` | `-34°` | `-9°` | `0.82x` | `-24%` | `-12%` | `850px` | `Spline (M0=0)` | **REAL-TIME INTELLIGENCE** / Mission Control Overview |
-| **2** | Macro Swoop: Revenue Metric | `1.30s` | `1.30s` | `-6°` | `+18°` | `+6°` | `1.48x` | `+18%` | `+14%` | `780px` | `Cubic Hermite (τ=0.35)` | **+248% ARR GROWTH** / High-Velocity Conversion Engine |
-| **3** | Lateral Glide: Event Ledger | `2.60s` | `1.40s` | `+10°` | `-14°` | `-4°` | `1.22x` | `-14%` | `-4%` | `920px` | `Cubic Hermite (τ=0.35)` | **STREAMING LEDGER** / Sub-Millisecond Settlement |
-| **4** | Authoritative Hero Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.05x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **STRIPE DATA SUITE** / Unleash Autonomous Growth |
+| **1** | Context Establishing | `0.00s` | `1.30s` | `+2°` | `0°` | `0°` | `0.95x` | `0%` | `0%` | `1100px` | `Spline (M0=0)` | **NEW FEATURE RELEASE** / Seamless Intelligence Upgrade |
+| **2** | Feature Deep Dive | `1.30s` | `1.30s` | `+1°` | `-2°` | `0°` | `1.52x` | `+16%` | `-12%` | `1150px` | `Cubic Hermite (τ=0.35)` | **SPOTLIGHT CAPABILITY** / Purpose-Built for Maximum Velocity |
+| **3** | Feature Dwell & Micro-Glide | `2.60s` | `1.40s` | `+2°` | `+1°` | `0°` | `1.55x` | `+18%` | `-10%` | `1150px` | `Cubic Hermite (τ=0.35)` | **SEAMLESS INTEGRATION** / Zero Disruption to Existing Flows |
+| **4** | Crisp Hero Resolve Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.02x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **TRY IT TODAY** / Available in the Latest Update |
 
 ---
 
-### Archetype 2: Mobile App Flows & Social Interactions (e.g. iOS App Teaser)
-- **Aspect Ratio**: `9:16` | **Device Frame**: `3d-phone` | **Wallpaper**: `bg-purple-wave`
-- **Total Duration**: `4.0s` | **Vibe**: Tactile, intimate, titanium chassis, thumb-friendly micro-gestures
+#### Archetype 2: SaaS 3-Step Guided Workflow (Feature Walkthrough)
+- **Aspect Ratio**: `16:9` | **Device Frame**: `macbook-pro` | **Wallpaper**: `bg-green-hills`
+- **Total Duration**: `4.0s` | **Vibe**: Step-by-step user onboarding, guided workflow tour, friction-free ergonomics
 
 ```
 Narrative Strategy:
-- Beat 1: High-angle angled reveal showing titanium chassis bezel and edge glass curvature.
-- Beat 2: Deep macro dive onto the primary social feed card and interaction heart pill.
-- Beat 3: Downward tracking glide revealing bottom navigation bar and active gesture pill.
-- Beat 4: Perfectly centered vertical smartphone lock with subtle floating shadow.
+- Beat 1 (Step 1 - Trigger): Spotlight input trigger (sidebar navigation or command palette).
+- Beat 2 (Step 2 - Action): Glide across to the central interactive canvas where configuration occurs.
+- Beat 3 (Step 3 - Output): Glide to the resulting telemetry card, export toast, or status badge.
+- Beat 4: Complete product hero lock celebrating the finished workflow.
 ```
 
 | Beat | Name | Time | Dur | rotX | rotY | rotZ | Zoom | panX | panY | Persp | Easing / Tangent | Text Badge (Title / Subtitle) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1** | Titanium Rim Entry | `0.00s` | `1.20s` | `+28°` | `-32°` | `-12°` | `0.88x` | `-18%` | `-16%` | `720px` | `Spline (M0=0)` | **NEXT-GEN MOBILE UX** / Designed for iOS 18 |
-| **2** | Macro Feed & Gesture Dive | `1.20s` | `1.30s` | `-10°` | `+24°` | `+8°` | `1.52x` | `+20%` | `+10%` | `700px` | `Cubic Hermite (τ=0.35)` | **INSTANT ENGAGEMENT** / Fluid Gesture Navigation |
-| **3** | Tab Bar & Action Glide | `2.50s` | `1.50s` | `+12°` | `-10°` | `-3°` | `1.26x` | `-8%` | `-22%` | `850px` | `Cubic Hermite (τ=0.35)` | **SEAMLESS DISCOVERY** / Explore Without Friction |
-| **4** | Upright Center Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.06x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **DOWNLOAD TODAY** / Available on the App Store |
+| **1** | Step 1: Input Trigger | `0.00s` | `1.30s` | `+2°` | `-3°` | `0°` | `1.35x` | `-22%` | `-6%` | `1100px` | `Spline (M0=0)` | **STEP 1: TRIGGER** / Select Project & Set Parameters |
+| **2** | Step 2: Action Canvas | `1.30s` | `1.30s` | `0°` | `0°` | `0°` | `1.45x` | `0%` | `0%` | `1100px` | `Cubic Hermite (τ=0.35)` | **STEP 2: COMPOSE** / Real-Time Autonomous Processing |
+| **3** | Step 3: Output Result | `2.60s` | `1.40s` | `+1°` | `+2°` | `0°` | `1.38x` | `+20%` | `+10%` | `1100px` | `Cubic Hermite (τ=0.35)` | **STEP 3: DELIVER** / 1-Click Multi-Channel Distribution |
+| **4** | Complete Product View | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.05x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **EFFORTLESS EXECUTION** / The Complete Software Suite |
 
 ---
 
-### Archetype 3: Dark-Mode Developer Tools & Syntax Terminals (e.g. Raycast, Cursor, Linear)
+#### Archetype 3: Linear Minimal 2.5D Elevation (Dark Dev Tools & Productivity)
 - **Aspect Ratio**: `16:9` | **Device Frame**: `macbook-pro` | **Wallpaper**: `#09090b`
-- **Total Duration**: `4.0s` | **Vibe**: Cyberpunk, keyboard-driven velocity, monospace precision, deep zinc contrast
+- **Total Duration**: `4.0s` | **Vibe**: Iconic Linear/Raycast aesthetic, subtle 2.5D elevation, telephoto optics, keyboard velocity
 
 ```
 Narrative Strategy:
-- Beat 1: Moody isometric workstation perspective emphasizing deep obsidian dark mode.
-- Beat 2: Extreme macro zoom (1.55x) locking onto active syntax token parsing and fuzzy omnibar.
-- Beat 3: Lateral panning glide across terminal build output and zero-config deployment logs.
-- Beat 4: Imposing monolithic developer workstation lock with crisp border luminance.
+- Beat 1: Clean 2.5D elevation establishing dark-mode contrast with subtle specular border sheen.
+- Beat 2: Zoom straight into central syntax/command omnibar without keystoning distortion.
+- Beat 3: Horizontal linear glide tracing secondary terminal logs and shortcut pills.
+- Beat 4: Crisp resting lock with zero residual momentum.
 ```
 
 | Beat | Name | Time | Dur | rotX | rotY | rotZ | Zoom | panX | panY | Persp | Easing / Tangent | Text Badge (Title / Subtitle) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1** | Workstation Isometric Angle | `0.00s` | `1.25s` | `+22°` | `-36°` | `-10°` | `0.84x` | `-26%` | `-8%` | `820px` | `Spline (M0=0)` | **KEYBOARD-FIRST VELOCITY** / Built for 10x Engineers |
-| **2** | Macro Omnibar & Syntax Dive | `1.25s` | `1.25s` | `-4°` | `+16°` | `+5°` | `1.55x` | `+16%` | `+2%` | `760px` | `Cubic Hermite (τ=0.35)` | **SUB-5MS FUZZY SEARCH** / Raycast Omnibar Engine |
-| **3** | Terminal Output Stream | `2.50s` | `1.50s` | `+8°` | `-12°` | `-3°` | `1.28x` | `-10%` | `-18%` | `900px` | `Cubic Hermite (τ=0.35)` | **STREAMING CI/CD LOGS** / Instant Zero-Config Deploy |
-| **4** | Monolithic Code Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.04x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **LINEAR ARCHITECTURE** / Streamline Your Workflow |
+| **1** | Clean 2.5D Establishing | `0.00s` | `1.30s` | `+4°` | `-2°` | `0°` | `0.92x` | `-10%` | `-4%` | `1200px` | `Spline (M0=0)` | **KEYBOARD-FIRST VELOCITY** / Built for 10x Engineers |
+| **2** | Feature Center Zoom | `1.30s` | `1.30s` | `+2°` | `+2°` | `0°` | `1.40x` | `+8%` | `+4%` | `1200px` | `Cubic Hermite (τ=0.35)` | **SUB-5MS FUZZY SEARCH** / Raycast Omnibar Engine |
+| **3** | Horizontal Linear Glide | `2.60s` | `1.40s` | `+3°` | `-1°` | `0°` | `1.25x` | `-6%` | `+2%` | `1200px` | `Cubic Hermite (τ=0.35)` | **STREAMING CI/CD LOGS** / Instant Zero-Config Deploy |
+| **4** | Crisp Resting Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.04x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **LINEAR ARCHITECTURE** / Streamline Your Workflow |
 
 ---
 
-### Archetype 4: High-Conversion Landing Pages & Hero Headers (e.g. Framer, Vercel)
-- **Aspect Ratio**: `16:9` | **Device Frame**: `mac-safari` | **Wallpaper**: `bg-green-hills`
-- **Total Duration**: `4.0s` | **Vibe**: Expansive, bold typographic hierarchy, ambient lighting, high conversion
+#### Archetype 4: Apple Keynote Frontal Push (Pure Orthogonal Reveal)
+- **Aspect Ratio**: `16:9` | **Device Frame**: `studio-display` | **Wallpaper**: `bg-halftone-clouds`
+- **Total Duration**: `4.0s` | **Vibe**: Apple keynote presentation, zero keystoning, pure optical push, museum clarity
 
 ```
 Narrative Strategy:
-- Beat 1: Low-angle specular chrome sweep across Safari toolbar and grand H1 display headline.
-- Beat 2: Focused macro dive into the core product proposition badge and interactive UI widget.
-- Beat 3: Downward glide tracing social proof client logos and primary action button.
-- Beat 4: Level Safari window centered cleanly against lush warm ambient gradient.
+- Beat 1: Wide frontal establishing shot displaying complete software frame in perfect orthogonal alignment.
+- Beat 2: Direct optical push-in straight into the primary feature element without any rotational skew.
+- Beat 3: Micro-pan across secondary feature controls with zero roll.
+- Beat 4: Full hero reveal settling into crystal-clear product framing.
 ```
 
 | Beat | Name | Time | Dur | rotX | rotY | rotZ | Zoom | panX | panY | Persp | Easing / Tangent | Text Badge (Title / Subtitle) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1** | Low Specular Chrome Sweep | `0.00s` | `1.30s` | `-16°` | `+38°` | `+12°` | `0.88x` | `+26%` | `+18%` | `800px` | `Spline (M0=0)` | **CRAFTED FOR SCALE** / Ship at the Speed of Thought |
-| **2** | Hero Headline Macro Zoom | `1.30s` | `1.30s` | `+6°` | `-18°` | `-6°` | `1.40x` | `-14%` | `-10%` | `900px` | `Cubic Hermite (τ=0.35)` | **GLOBAL EDGE NETWORK** / 99.999% Fault-Tolerant Uptime |
-| **3** | Primary CTA Pill Glide | `2.60s` | `1.40s` | `-8°` | `+14°` | `+4°` | `1.25x` | `+12%` | `+18%` | `900px` | `Cubic Hermite (τ=0.35)` | **START BUILDING TODAY** / Zero Setup Required |
-| **4** | Centered Safari Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.02x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **DEPLOY WITH VERCEL** / Loved by 100k+ Teams |
+| **1** | Wide Frontal Establishing | `0.00s` | `1.30s` | `0°` | `0°` | `0°` | `0.88x` | `0%` | `0%` | `1200px` | `Spline (M0=0)` | **INTRODUCING STUDIO SUITE** / The Next Chapter in Creation |
+| **2** | Frontal Push-In to Feature | `1.30s` | `1.30s` | `0°` | `0°` | `0°` | `1.48x` | `+12%` | `-8%` | `1200px` | `Cubic Hermite (τ=0.35)` | **RETINA DETAIL ENGINE** / Precision Down to Every Pixel |
+| **3** | Secondary Feature Focus | `2.60s` | `1.40s` | `0°` | `0°` | `0°` | `1.35x` | `-10%` | `+6%` | `1200px` | `Cubic Hermite (τ=0.35)` | **INTUITIVE CONTROLS** / Powerful Yet Incredibly Simple |
+| **4** | Full Hero Reveal | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.02x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **EXPERIENCE PERFECTION** / Available Worldwide Today |
 
 ---
 
-### Archetype 5: Multi-Step Checkout / SaaS Pricing Cards
-- **Aspect Ratio**: `16:9` | **Device Frame**: `frameless` | **Wallpaper**: `bg-midnight-gradient`
-- **Total Duration**: `4.0s` | **Vibe**: Reassuring, high-trust, friction-free checkout, clear value tiers
+#### Archetype 5: Feature Comparison Glide (Before & After / Multi-Panel)
+- **Aspect Ratio**: `16:9` | **Device Frame**: `macbook-pro` | **Wallpaper**: `bg-tulips`
+- **Total Duration**: `4.0s` | **Vibe**: Side-by-side comparison, migration showcase, dual workflow
 
 ```
 Narrative Strategy:
-- Beat 1: Wide angled establishing view showcasing the complete 3-tier pricing matrix.
-- Beat 2: Direct swoop into the "Recommended Pro" card and annual billing discount pill.
-- Beat 3: Downward glide tracing enterprise security compliance badges and 1-click checkout CTA.
-- Beat 4: Rock-solid level lock providing complete clarity over plan features and guarantees.
+- Beat 1: Spotlight the left feature panel (initial configuration or legacy state).
+- Beat 2: Smooth linear transition sliding across center divider.
+- Beat 3: Spotlight the right feature panel (upgraded output or accelerated state).
+- Beat 4: Pull back to full comparative overview framing both panels in balance.
 ```
 
 | Beat | Name | Time | Dur | rotX | rotY | rotZ | Zoom | panX | panY | Persp | Easing / Tangent | Text Badge (Title / Subtitle) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1** | Tier Comparison Overview | `0.00s` | `1.20s` | `+18°` | `-34°` | `-9°` | `0.86x` | `-24%` | `-10%` | `850px` | `Spline (M0=0)` | **TRANSPARENT PRICING** / Predictable Scaling for Every Team |
-| **2** | Pro Card & Toggle Focus | `1.20s` | `1.30s` | `-10°` | `+22°` | `+7°` | `1.46x` | `+18%` | `+6%` | `800px` | `Cubic Hermite (τ=0.35)` | **MOST POPULAR TIER** / Unlock Unlimited AI Workflows |
-| **3** | Secure Checkout CTA Glide | `2.50s` | `1.50s` | `+8°` | `-12°` | `-4°` | `1.30x` | `-10%` | `-20%` | `900px` | `Cubic Hermite (τ=0.35)` | **1-CLICK CHECKOUT** / 30-Day Money-Back Guarantee |
-| **4** | High-Trust Resolve Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.05x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **START 14-DAY TRIAL** / No Credit Card Required |
+| **1** | Left Feature Panel | `0.00s` | `1.30s` | `+1°` | `-3°` | `0°` | `1.35x` | `-24%` | `0%` | `1100px` | `Spline (M0=0)` | **LEGACY WORKFLOW** / Hours of Manual Repetition |
+| **2** | Transition Across Center | `1.30s` | `1.30s` | `0°` | `0°` | `0°` | `1.20x` | `0%` | `0%` | `1100px` | `Cubic Hermite (τ=0.35)` | **THE NEXT EVOLUTION** / Instant AI Transformation |
+| **3** | Right Feature Panel | `2.60s` | `1.40s` | `+1°` | `+3°` | `0°` | `1.35x` | `+24%` | `0%` | `1100px` | `Cubic Hermite (τ=0.35)` | **THE NEW STANDARD** / 10x Faster Output, Zero Setup |
+| **4** | Full Comparison Overview | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.05x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **MIGRATE IN MINUTES** / See the Difference Instantly |
 
 ---
 
-### Archetype 6: Collaborative Chat & Real-Time Feed Interfaces (e.g. Slack, Claude Chat)
+#### Archetype 6: Executive KPI & Telemetry Spotlight (Data Visuals & ROI)
 - **Aspect Ratio**: `16:9` | **Device Frame**: `macbook-pro` | **Wallpaper**: `bg-purple-wave`
-- **Total Duration**: `4.0s` | **Vibe**: Conversational, dynamic streaming tokens, collaborative presence
+- **Total Duration**: `4.0s` | **Vibe**: Business growth, executive reporting, metrics and ROI announcement
 
 ```
 Narrative Strategy:
-- Beat 1: Dynamic channel feed angle capturing multi-user presence avatars and room sidebar.
-- Beat 2: Focused macro dive on the live streaming AI assistant response bubble.
-- Beat 3: Downward tracking glide landing on the multimodal prompt bar and attachment pill.
-- Beat 4: Level workstation lock displaying collaborative intelligence synchronized in real time.
+- Beat 1: Direct focus onto the primary ARR growth card (+248%) with crystal-clear readability.
+- Beat 2: Smooth drift over to supporting conversion metrics and live transaction sparklines.
+- Beat 3: Downward glide tracing data trend chart and volume indicators.
+- Beat 4: Complete business dashboard hero lock presenting the full operational picture.
 ```
 
 | Beat | Name | Time | Dur | rotX | rotY | rotZ | Zoom | panX | panY | Persp | Easing / Tangent | Text Badge (Title / Subtitle) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1** | Channel Feed Perspective | `0.00s` | `1.25s` | `+26°` | `-28°` | `-8°` | `0.85x` | `-18%` | `-18%` | `780px` | `Spline (M0=0)` | **REAL-TIME WORKSPACES** / Seamless Collective Intelligence |
-| **2** | Macro Stream: AI Reasoning | `1.25s` | `1.35s` | `-6°` | `+18°` | `+5°` | `1.44x` | `+14%` | `+4%` | `820px` | `Cubic Hermite (τ=0.35)` | **GENERATIVE SYNTHESIS** / Sub-Second Claude Reasoning |
-| **3** | Prompt Bar & Context Pill | `2.60s` | `1.40s` | `+10°` | `-8°` | `-2°` | `1.32x` | `-6%` | `-24%` | `880px` | `Cubic Hermite (τ=0.35)` | **MULTIMODAL CONTEXT** / Drop Code, Images & Docs |
-| **4** | Centered Collaboration Lock | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.05x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **HYPERSCALE TEAMS** / Synchronized Worldwide |
+| **1** | Metric Card Focus | `0.00s` | `1.30s` | `-2°` | `+2°` | `0°` | `1.55x` | `+18%` | `-14%` | `1150px` | `Spline (M0=0)` | **+248% ARR GROWTH** / High-Velocity Conversion Engine |
+| **2** | Supporting Metric Inspection | `1.30s` | `1.30s` | `+1°` | `-2°` | `0°` | `1.45x` | `-14%` | `-10%` | `1150px` | `Cubic Hermite (τ=0.35)` | **99.98% CONVERSION** / Autonomous Payment Optimization |
+| **3** | Data Trend Glide | `2.60s` | `1.40s` | `+2°` | `0°` | `0°` | `1.25x` | `0%` | `+8%` | `1100px` | `Cubic Hermite (τ=0.35)` | **REAL-TIME INTELLIGENCE** / Sub-Millisecond Telemetry |
+| **4** | Complete Business Dashboard | `4.00s` | `0.00s` | `0°` | `0°` | `0°` | `1.04x` | `0%` | `0%` | `1000px` | `Clamp (M1=0)` | **EXECUTIVE SUITE** / Unleash Enterprise Performance |
 
 ---
 
-### Archetype 7: High-Energy Kinetic Social Reels (9:16 Vertical for TikTok / Shorts)
+### PART 2: DYNAMIC 3D CINEMATIC MARKETING TRAILERS (PROMOTIONAL TEASERS ONLY)
+
+> [!CAUTION]
+> Part 2 keyframes utilize aggressive 3D angles and dynamic roll banking ($\pm 14^\circ \text{ to } \pm 22^\circ$). Use these **ONLY** when the user explicitly requests a promotional marketing trailer, teaser video, or viral social reel. **DO NOT** use Part 2 for software feature showcases, changelogs, or UI tutorials.
+
+#### Archetype 7: High-Energy Kinetic Social Reels (9:16 Vertical for TikTok / Shorts)
 - **Aspect Ratio**: `9:16` | **Device Frame**: `3d-phone` | **Wallpaper**: `bg-purple-wave`
 - **Total Duration**: `3.5s` | **Vibe**: Adrenaline, kinetic whip transitions, punchy snap zooms, extreme viral engagement
 
@@ -569,7 +589,7 @@ Narrative Strategy:
 
 ---
 
-### Archetype 8: Minimalist Studio Luxury Reveals (Apple-Style Specular Sweeps)
+#### Archetype 8: Minimalist Studio Luxury Reveals (Apple-Style Specular Sweeps)
 - **Aspect Ratio**: `16:9` | **Device Frame**: `macbook-pro` | **Wallpaper**: `#09090b`
 - **Total Duration**: `4.2s` | **Vibe**: Ultra-luxury, grazing specular light, buttery smooth glide, museum-grade elegance
 

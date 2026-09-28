@@ -82,6 +82,12 @@ const WALLPAPER_PRESETS = [
 ];
 
 const CAMERA_PRESETS = [
+  { id: 'saas_feature_spotlight', name: 'SaaS Feature Spotlight (High Readability)', description: 'Deliberate, legible push into new UI feature with near-zero tilt for crystal-clear readability and dwell time' },
+  { id: 'saas_workflow_walkthrough', name: 'SaaS 3-Step Guided Workflow', description: 'Step-by-step feature walkthrough: trigger input -> action canvas -> output result -> full hero view' },
+  { id: 'linear_clean_elevation', name: 'Linear Minimal 2.5D Elevation', description: 'Iconic Linear/Raycast aesthetic: subtle 2.5D elevation (rotX ≤ 4°), zero Dutch roll, telephoto perspective' },
+  { id: 'apple_keynote_presentation', name: 'Apple Keynote Frontal Push', description: 'Pure perpendicular 0° camera push without rotation or keystoning for pristine product presentation' },
+  { id: 'feature_comparison_glide', name: 'Feature Comparison Glide', description: 'Smooth orthogonal horizontal tracking between two panels or before-and-after states' },
+  { id: 'executive_kpi_reveal', name: 'Executive KPI & Metric Highlight', description: 'Direct spotlight on metrics cards, charts, and business growth indicators with sharp focus' },
   { id: 'storytelling_product_walkthrough', name: 'Storytelling Product Walkthrough', description: 'Narrative camera flow: wide establishing angle, swooping into key feature details, panning across interaction, and pulling out to an authoritative hero lock' },
   { id: 'apple_commercial_sweep', name: 'Apple Commercial Low Sweep', description: 'Clean minimalist commercial glide: low Dutch perspective catching specular glass sheen, sweeping across and resolving center-stage' },
   { id: 'macro_feature_focus', name: 'Macro Feature Focus', description: 'Extreme close-up macro zoom targeting UI interaction with shallow depth of field, slowly easing back into full frame' },
@@ -105,6 +111,222 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
   const baseProps = { color: 'yellow', blockId: 'block_main', mediaClipId: 'clip_init', transition: 'cut' };
 
   switch (preset) {
+    case 'saas_feature_spotlight':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Context Overview',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 2, rotY: 0, rotZ: 0, zoom: 0.95, panX: 0, panY: 0, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Feature Deep Dive',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 1, rotY: -2, rotZ: 0, zoom: 1.52, panX: 16, panY: -12, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Feature Dwell & Micro-Glide',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 2, rotY: 1, rotZ: 0, zoom: 1.55, panX: 18, panY: -10, perspective: 1150 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Hero Overview Resolve',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.02, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'saas_workflow_walkthrough':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Step 1: Trigger / Sidebar',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 2, rotY: -3, rotZ: 0, zoom: 1.35, panX: -22, panY: -6, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Step 2: Action Canvas',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.45, panX: 0, panY: 0, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Step 3: Output Result',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 1, rotY: 2, rotZ: 0, zoom: 1.38, panX: 20, panY: 10, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Complete Product View',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'linear_clean_elevation':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Clean 2.5D Establishing',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 4, rotY: -2, rotZ: 0, zoom: 0.92, panX: -10, panY: -4, perspective: 1200 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Feature Center Zoom',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 2, rotY: 2, rotZ: 0, zoom: 1.40, panX: 8, panY: 4, perspective: 1200 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Horizontal Linear Glide',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 3, rotY: -1, rotZ: 0, zoom: 1.25, panX: -6, panY: 2, perspective: 1200 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Crisp Resting Lock',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.04, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'apple_keynote_presentation':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Wide Frontal Establishing',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.88, panX: 0, panY: 0, perspective: 1200 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Frontal Push-In to Feature',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.48, panX: 12, panY: -8, perspective: 1200 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Secondary Feature Focus',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.35, panX: -10, panY: 6, perspective: 1200 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Full Hero Reveal',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.02, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'feature_comparison_glide':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Left Feature Panel',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: 1, rotY: -3, rotZ: 0, zoom: 1.35, panX: -24, panY: 0, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Transition Across Center',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.20, panX: 0, panY: 0, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Right Feature Panel',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 1, rotY: 3, rotZ: 0, zoom: 1.35, panX: 24, panY: 0, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Full Comparison Overview',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
+    case 'executive_kpi_reveal':
+      return [
+        {
+          id: 'kf_1',
+          name: '1. Metric Card Focus',
+          startTime: 0,
+          duration: d1,
+          camera: { rotX: -2, rotY: 2, rotZ: 0, zoom: 1.55, panX: 18, panY: -14, perspective: 1150 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_2',
+          name: '2. Supporting Metric Inspection',
+          startTime: t1,
+          duration: d2,
+          camera: { rotX: 1, rotY: -2, rotZ: 0, zoom: 1.45, panX: -14, panY: -10, perspective: 1150 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_3',
+          name: '3. Data Trend Glide',
+          startTime: t2,
+          duration: d3,
+          camera: { rotX: 2, rotY: 0, rotZ: 0, zoom: 1.25, panX: 0, panY: 8, perspective: 1100 },
+          ...baseProps,
+        },
+        {
+          id: 'kf_4',
+          name: '4. Complete Business Dashboard',
+          startTime: dur,
+          duration: 0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.04, panX: 0, panY: 0, perspective: 1000 },
+          ...baseProps,
+        },
+      ];
+
     case 'storytelling_product_walkthrough':
       return [
         {
@@ -441,10 +663,61 @@ function buildCameraClips(preset: string, duration: number): TimelinePositionCli
           ...baseProps,
         },
       ];
+
+    default:
+      return buildCameraClips('saas_feature_spotlight', dur);
   }
 }
 
-function buildLayoutAwareKeyframes(layoutType: string, duration: number, focalPoints?: string[]): TimelinePositionClip[] {
+function resolveFocalPointCoords(focalPoint: string, layoutType: string): { name: string; panX: number; panY: number; zoom: number } {
+  const norm = (focalPoint || '').toLowerCase().replace(/[-_\s]+/g, '');
+  if (norm.includes('topright') || norm.includes('cta') || norm.includes('button') || norm.includes('action') || norm.includes('publish')) {
+    return { name: 'Action Button / Primary CTA', panX: 22, panY: -20, zoom: 1.55 };
+  }
+  if (norm.includes('sidebar') || norm.includes('nav') || norm.includes('menu') || norm.includes('rail') || norm.includes('channel')) {
+    return { name: 'Navigation Sidebar & Project Rail', panX: -26, panY: 0, zoom: 1.45 };
+  }
+  if (norm.includes('kpi') || norm.includes('metric') || norm.includes('stat') || norm.includes('revenue') || norm.includes('arr') || norm.includes('conversion')) {
+    return { name: 'KPI Metric Block & Telemetry', panX: 18, panY: -12, zoom: 1.55 };
+  }
+  if (norm.includes('chart') || norm.includes('graph') || norm.includes('analytics') || norm.includes('trend') || norm.includes('sparkline')) {
+    return { name: 'Analytics Chart & Data Visual', panX: 12, panY: 6, zoom: 1.48 };
+  }
+  if (norm.includes('table') || norm.includes('ledger') || norm.includes('row') || norm.includes('list') || norm.includes('feed')) {
+    return { name: 'Data Ledger & Table Rows', panX: 0, panY: 16, zoom: 1.45 };
+  }
+  if (norm.includes('search') || norm.includes('omnibar') || norm.includes('command') || norm.includes('palette') || norm.includes('filter')) {
+    return { name: 'Command Palette & Quick Filter', panX: 0, panY: -20, zoom: 1.6 };
+  }
+  if (norm.includes('prompt') || norm.includes('chat') || norm.includes('input') || norm.includes('composer')) {
+    return { name: 'Input Bar & Action Composer', panX: 0, panY: 22, zoom: 1.55 };
+  }
+  if (norm.includes('code') || norm.includes('editor') || norm.includes('terminal') || norm.includes('syntax') || norm.includes('console')) {
+    return { name: 'Syntax Block & Active Editor', panX: 10, panY: 0, zoom: 1.5 };
+  }
+  if (norm.includes('header') || norm.includes('headline') || norm.includes('title') || norm.includes('hero')) {
+    return { name: 'Display Headline & Hero Banner', panX: -14, panY: -20, zoom: 1.45 };
+  }
+  if (norm.includes('pricing') || norm.includes('tier') || norm.includes('card') || norm.includes('plan')) {
+    return { name: 'Plan Tier & Pricing Features', panX: 0, panY: 2, zoom: 1.5 };
+  }
+  if (norm.includes('modal') || norm.includes('dialog') || norm.includes('popup') || norm.includes('sheet')) {
+    return { name: 'Active Modal Dialog & Focus Sheet', panX: 0, panY: 0, zoom: 1.52 };
+  }
+  // Layout defaults
+  if (layoutType === 'mobile_app') return { name: 'Mobile Interaction Canvas', panX: 0, panY: 4, zoom: 1.5 };
+  if (layoutType === 'landing_page') return { name: 'Feature Value Proposition', panX: -10, panY: -14, zoom: 1.45 };
+  if (layoutType === 'chat_feed') return { name: 'Conversation Stream', panX: 0, panY: 10, zoom: 1.5 };
+  if (layoutType === 'code_editor') return { name: 'Source Function & Logic', panX: 12, panY: -4, zoom: 1.5 };
+  return { name: 'Core Feature Component', panX: 16, panY: -10, zoom: 1.5 };
+}
+
+function buildLayoutAwareKeyframes(
+  layoutType: string,
+  duration: number,
+  focalPoints?: string[],
+  motionIntent?: string
+): TimelinePositionClip[] {
   const dur = Math.max(2.0, Math.min(30.0, duration || 4.0));
   const t1 = Number((dur * 0.33).toFixed(2));
   const t2 = Number((dur * 0.66).toFixed(2));
@@ -453,6 +726,173 @@ function buildLayoutAwareKeyframes(layoutType: string, duration: number, focalPo
   const d3 = Number((dur - t2).toFixed(2));
   const baseProps = { color: 'yellow', blockId: 'block_main', mediaClipId: 'clip_init', transition: 'cut' };
 
+  const intent = motionIntent || 'feature_spotlight';
+
+  // 1. High-Readability Feature Spotlight (THE ESSENTIAL CHOICE FOR SAAS FEATURE ANNOUNCEMENTS)
+  if (intent === 'feature_spotlight') {
+    const rawFocal1 = focalPoints && focalPoints[0] ? focalPoints[0] : (layoutType === 'desktop_dashboard' ? 'kpi_metric' : layoutType === 'code_editor' ? 'code_editor' : 'hero_feature');
+    const rawFocal2 = focalPoints && focalPoints[1] ? focalPoints[1] : (layoutType === 'desktop_dashboard' ? 'chart' : 'action_button');
+    const f1 = resolveFocalPointCoords(rawFocal1, layoutType);
+    const f2 = resolveFocalPointCoords(rawFocal2, layoutType);
+
+    return [
+      {
+        id: 'kf_1',
+        name: '1. Context Establishing (Upright)',
+        startTime: 0,
+        duration: d1,
+        camera: { rotX: 2, rotY: 0, rotZ: 0, zoom: 0.95, panX: 0, panY: 0, perspective: 1100 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_2',
+        name: `2. Feature Deep Dive: ${f1.name}`,
+        startTime: t1,
+        duration: d2,
+        camera: { rotX: 1, rotY: -2, rotZ: 0, zoom: f1.zoom, panX: f1.panX, panY: f1.panY, perspective: 1150 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_3',
+        name: `3. Feature Dwell & Micro-Glide: ${f2.name}`,
+        startTime: t2,
+        duration: d3,
+        camera: { rotX: 2, rotY: 1, rotZ: 0, zoom: f2.zoom, panX: f2.panX, panY: f2.panY, perspective: 1150 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_4',
+        name: '4. Crisp Hero Resolve Lock',
+        startTime: dur,
+        duration: 0,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.02, panX: 0, panY: 0, perspective: 1000 },
+        ...baseProps,
+      },
+    ];
+  }
+
+  // 2. Guided 3-Step Workflow Tour
+  if (intent === 'product_walkthrough') {
+    const rawFocal1 = focalPoints && focalPoints[0] ? focalPoints[0] : 'sidebar';
+    const rawFocal2 = focalPoints && focalPoints[1] ? focalPoints[1] : 'canvas';
+    const rawFocal3 = focalPoints && focalPoints[2] ? focalPoints[2] : 'cta';
+    const f1 = resolveFocalPointCoords(rawFocal1, layoutType);
+    const f2 = resolveFocalPointCoords(rawFocal2, layoutType);
+    const f3 = resolveFocalPointCoords(rawFocal3, layoutType);
+
+    return [
+      {
+        id: 'kf_1',
+        name: `1. Step 1 (Trigger): ${f1.name}`,
+        startTime: 0,
+        duration: d1,
+        camera: { rotX: 2, rotY: -3, rotZ: 0, zoom: f1.zoom, panX: f1.panX, panY: f1.panY, perspective: 1100 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_2',
+        name: `2. Step 2 (Action): ${f2.name}`,
+        startTime: t1,
+        duration: d2,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: f2.zoom, panX: f2.panX, panY: f2.panY, perspective: 1100 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_3',
+        name: `3. Step 3 (Outcome): ${f3.name}`,
+        startTime: t2,
+        duration: d3,
+        camera: { rotX: 1, rotY: 2, rotZ: 0, zoom: f3.zoom, panX: f3.panX, panY: f3.panY, perspective: 1100 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_4',
+        name: '4. Full Product Hero Lock',
+        startTime: dur,
+        duration: 0,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.05, panX: 0, panY: 0, perspective: 1000 },
+        ...baseProps,
+      },
+    ];
+  }
+
+  // 3. Linear Minimal 2.5D Elevation
+  if (intent === 'clean_linear') {
+    return [
+      {
+        id: 'kf_1',
+        name: '1. Clean 2.5D Establishing',
+        startTime: 0,
+        duration: d1,
+        camera: { rotX: 4, rotY: -2, rotZ: 0, zoom: 0.92, panX: -10, panY: -4, perspective: 1200 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_2',
+        name: '2. Feature Center Zoom',
+        startTime: t1,
+        duration: d2,
+        camera: { rotX: 2, rotY: 2, rotZ: 0, zoom: 1.40, panX: 8, panY: 4, perspective: 1200 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_3',
+        name: '3. Horizontal Linear Glide',
+        startTime: t2,
+        duration: d3,
+        camera: { rotX: 3, rotY: -1, rotZ: 0, zoom: 1.25, panX: -6, panY: 2, perspective: 1200 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_4',
+        name: '4. Crisp Resting Lock',
+        startTime: dur,
+        duration: 0,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.04, panX: 0, panY: 0, perspective: 1000 },
+        ...baseProps,
+      },
+    ];
+  }
+
+  // 4. Apple Keynote Frontal Push
+  if (intent === 'frontal_keynote') {
+    return [
+      {
+        id: 'kf_1',
+        name: '1. Wide Frontal Establishing',
+        startTime: 0,
+        duration: d1,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.88, panX: 0, panY: 0, perspective: 1200 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_2',
+        name: '2. Frontal Push-In to Feature',
+        startTime: t1,
+        duration: d2,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.48, panX: 12, panY: -8, perspective: 1200 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_3',
+        name: '3. Secondary Feature Focus',
+        startTime: t2,
+        duration: d3,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.35, panX: -10, panY: 6, perspective: 1200 },
+        ...baseProps,
+      },
+      {
+        id: 'kf_4',
+        name: '4. Full Hero Reveal',
+        startTime: dur,
+        duration: 0,
+        camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 1.02, panX: 0, panY: 0, perspective: 1000 },
+        ...baseProps,
+      },
+    ];
+  }
+
+  // 5. Cinematic Teaser (Layout-specific 3D sweeps when high-energy dynamic angles are desired)
   switch (layoutType) {
     case 'desktop_dashboard':
       return [
@@ -671,7 +1111,7 @@ function buildLayoutAwareKeyframes(layoutType: string, duration: number, focalPo
       ];
 
     default:
-      return buildCameraClips('storytelling_product_walkthrough', dur);
+      return buildCameraClips('saas_feature_spotlight', dur);
   }
 }
 
@@ -679,7 +1119,8 @@ function handleChoreographMotion(args: Record<string, unknown>) {
   const layoutType = (args.layoutType as string) || 'desktop_dashboard';
   const duration = Math.max(2.0, Math.min(15.0, Number(args.duration) || 4.0));
   const focalPoints = (args.focalPoints as string[]) || [];
-  const keyframes = buildLayoutAwareKeyframes(layoutType, duration, focalPoints);
+  const motionIntent = (args.motionIntent as string) || 'feature_spotlight';
+  const keyframes = buildLayoutAwareKeyframes(layoutType, duration, focalPoints, motionIntent);
 
   let recommendedFrame = 'macbook-pro';
   let recommendedWallpaper = 'bg-purple-wave';
@@ -703,13 +1144,14 @@ function handleChoreographMotion(args: Record<string, unknown>) {
     recommendedRatio = '16:9';
   }
 
-  const resultText = `### 🎯 Bespoke Camera Choreography for \`${layoutType}\`
+  const resultText = `### 🎯 Bespoke Camera Choreography for \`${layoutType}\` (Intent: \`${motionIntent}\`)
 
+- **Motion Intent**: \`${motionIntent}\` (${motionIntent === 'feature_spotlight' ? 'High-readability feature showcase' : motionIntent === 'product_walkthrough' ? '3-step guided flow' : motionIntent === 'clean_linear' ? 'Linear 2.5D minimal elevation' : motionIntent === 'frontal_keynote' ? 'Frontal 0° push' : 'Dynamic cinematic teaser'})
 - **Recommended Frame**: \`${recommendedFrame}\`
 - **Recommended Aspect Ratio**: \`${recommendedRatio}\`
 - **Recommended Wallpaper**: \`${recommendedWallpaper}\`
 - **Duration**: \`${duration}s\`
-- **Focal Landmarks**: ${focalPoints.length > 0 ? focalPoints.map((f) => `\`${f}\``).join(', ') : 'Sequential Narrative Flow'}
+- **Focal Landmarks**: ${focalPoints.length > 0 ? focalPoints.map((f) => `\`${f}\``).join(', ') : 'Context -> Feature Deep Dive -> Feature Dwell -> Hero Lock'}
 
 #### 🎬 Generated 3D Waypoint Keyframes:
 ${keyframes
@@ -719,7 +1161,7 @@ ${keyframes
   )
   .join('\n')}
 
-*Pass \`layoutType: "${layoutType}"\` or the \`customKeyframes\` above directly to \`create_mockup_project\` to generate your instant 4K 60FPS video!*`;
+*Pass \`layoutType: "${layoutType}"\` and \`motionIntent: "${motionIntent}"\` directly to \`create_mockup_project\` to generate your instant 4K 60FPS video!*`;
 
   return {
     content: [{ type: 'text', text: resultText }],
@@ -772,6 +1214,12 @@ CRITICAL INSTRUCTIONS FOR AI:
           default: 'bg-purple-wave',
           description: 'Wallpaper preset ("bg-purple-wave", "bg-sunflowers", "bg-green-hills", "bg-halftone-clouds", "bg-tulips") or hex color (e.g. "#09090b")',
         },
+        motionIntent: {
+          type: 'string',
+          enum: ['feature_spotlight', 'product_walkthrough', 'clean_linear', 'frontal_keynote', 'cinematic_teaser'],
+          default: 'feature_spotlight',
+          description: 'Camera motion philosophy: "feature_spotlight" (RECOMMENDED for SaaS product introductions & new feature launches: deliberate, high legibility, near-zero tilt so text and UI features remain crystal-clear and readable), "product_walkthrough" (3-step guided flow: trigger -> action -> outcome), "clean_linear" (Linear/Raycast 2.5D minimal elevation, zero Dutch roll), "frontal_keynote" (Apple Keynote style, 0° rotation, pure frontal push), "cinematic_teaser" (Dynamic 3D sweeps for high-level promotional trailers).',
+        },
         deviceMockup: {
           type: 'string',
           enum: ['3d-phone', 'macbook-pro', 'ipad-pro', 'studio-display', 'mac-safari', 'frameless'],
@@ -781,6 +1229,12 @@ CRITICAL INSTRUCTIONS FOR AI:
         cameraPreset: {
           type: 'string',
           enum: [
+            'saas_feature_spotlight',
+            'saas_workflow_walkthrough',
+            'linear_clean_elevation',
+            'apple_keynote_presentation',
+            'feature_comparison_glide',
+            'executive_kpi_reveal',
             'storytelling_product_walkthrough',
             'apple_commercial_sweep',
             'macro_feature_focus',
@@ -790,10 +1244,10 @@ CRITICAL INSTRUCTIONS FOR AI:
             'push_in_reveal',
             'tiktok_dynamic_bounce',
             'cinematic_orbit',
-            'subtle_studio_hover'
+            'subtle_studio_hover',
           ],
-          default: 'storytelling_product_walkthrough',
-          description: 'Cinematic camera trajectory preset. "storytelling_product_walkthrough" leads the viewer through feature discovery. "apple_commercial_sweep" provides sleek luxury glides. "macro_feature_focus" magnifies UI interaction. "tiktok_viral_snap" delivers snappy vertical energy.',
+          default: 'saas_feature_spotlight',
+          description: 'Cinematic camera trajectory preset. "saas_feature_spotlight" (RECOMMENDED DEFAULT for SaaS feature releases & intros: crisp, near-zero tilt for 100% text legibility), "saas_workflow_walkthrough" (step-by-step feature journey), "linear_clean_elevation" (Linear-style minimal 2.5D), "apple_keynote_presentation" (pure frontal push).',
         },
         customKeyframes: {
           type: 'array',
@@ -862,6 +1316,12 @@ CRITICAL INSTRUCTIONS FOR AI:
           enum: ['desktop_dashboard', 'mobile_app', 'landing_page', 'chat_feed', 'code_editor', 'product_card'],
           description: 'Detected layout structure',
         },
+        motionIntent: {
+          type: 'string',
+          enum: ['feature_spotlight', 'product_walkthrough', 'clean_linear', 'frontal_keynote', 'cinematic_teaser'],
+          default: 'feature_spotlight',
+          description: 'Desired motion intent: "feature_spotlight" (SaaS feature release / changelog highlight), "product_walkthrough" (guided 3-step tour), "clean_linear" (subtle 2.5D elevation), "frontal_keynote" (0° frontal push), "cinematic_teaser" (high-energy 3D trailer).',
+        },
         duration: {
           type: 'number',
           default: 4.0,
@@ -907,7 +1367,7 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
   const aspectRatio = (args.aspectRatio as '16:9' | '9:16' | '1:1' | '4:5' | '21:9') || '16:9';
   const bgInput = (args.background as string) || 'bg-purple-wave';
   const deviceMockup = (args.deviceMockup as string) || '3d-phone';
-  const cameraPreset = (args.cameraPreset as string) || (aspectRatio === '9:16' ? 'tiktok_viral_snap' : 'storytelling_product_walkthrough');
+  const cameraPreset = (args.cameraPreset as string) || (aspectRatio === '9:16' ? 'tiktok_viral_snap' : 'saas_feature_spotlight');
   const duration = Math.max(2.0, Math.min(15.0, Number(args.duration) || 4.0));
   const autoExport = args.autoExport !== false; // defaults to true!
 
@@ -953,8 +1413,9 @@ function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
     }));
     choreographyDescription = `Custom AI Choreography (${cameraClips.length} waypoints)`;
   } else if (args.layoutType) {
-    cameraClips = buildLayoutAwareKeyframes(args.layoutType as string, duration, args.focalPoints as string[]);
-    choreographyDescription = `Layout-Aware (\`${args.layoutType}\`, ${cameraClips.length} waypoints)`;
+    const motionIntent = (args.motionIntent as string) || 'feature_spotlight';
+    cameraClips = buildLayoutAwareKeyframes(args.layoutType as string, duration, args.focalPoints as string[], motionIntent);
+    choreographyDescription = `Layout-Aware (\`${args.layoutType}\`, Intent: \`${motionIntent}\`, ${cameraClips.length} waypoints)`;
   } else {
     cameraClips = buildCameraClips(cameraPreset, duration);
   }
