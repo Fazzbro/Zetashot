@@ -28,14 +28,21 @@ export const EasingCurveModal: React.FC<EasingCurveModalProps> = ({
   const toSvgX = (nx: number) => padding + nx * usable;
   const toSvgY = (ny: number) => padding + (1 - ny) * usable;
 
-  const handleMouseDown = (handle: 'p1' | 'p2', e: React.MouseEvent) => {
+  const handlePointerDown = (handle: 'p1' | 'p2', e: React.PointerEvent<SVGElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     e.stopPropagation();
     setActiveHandle(handle);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
       if (!graphRef.current) return;
       const rect = graphRef.current.getBoundingClientRect();
+      if (rect.width <= 0) return;
       const rawX = (moveEvent.clientX - rect.left - padding) / usable;
       const rawY = 1 - (moveEvent.clientY - rect.top - padding) / usable;
 
@@ -49,14 +56,19 @@ export const EasingCurveModal: React.FC<EasingCurveModalProps> = ({
       }
     };
 
-    const onMouseUp = () => {
+    const onPointerUp = (upEvent: PointerEvent) => {
+      try {
+        target.releasePointerCapture(upEvent.pointerId);
+      } catch {}
       setActiveHandle(null);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     };
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   };
 
   const p0x = toSvgX(0);
@@ -111,28 +123,42 @@ export const EasingCurveModal: React.FC<EasingCurveModalProps> = ({
           <circle cx={p0x} cy={p0y} r="5" fill="#3b82f6" />
           <circle cx={p3x} cy={p3y} r="5" fill="#3b82f6" />
 
-          {/* Draggable Control Point 1 Handle */}
+          {/* Draggable Control Point 1 Handle & Touch Target */}
           <circle
             cx={p1x}
             cy={p1y}
-            r="6"
+            r="18"
+            fill="transparent"
+            style={{ cursor: 'grab', touchAction: 'none' }}
+            onPointerDown={(e) => handlePointerDown('p1', e)}
+          />
+          <circle
+            cx={p1x}
+            cy={p1y}
+            r="7"
             fill="#ffffff"
             stroke="#3b82f6"
-            strokeWidth="3"
-            style={{ cursor: 'grab' }}
-            onMouseDown={(e) => handleMouseDown('p1', e)}
+            strokeWidth="3.5"
+            pointerEvents="none"
           />
 
-          {/* Draggable Control Point 2 Handle */}
+          {/* Draggable Control Point 2 Handle & Touch Target */}
           <circle
             cx={p2x}
             cy={p2y}
-            r="6"
+            r="18"
+            fill="transparent"
+            style={{ cursor: 'grab', touchAction: 'none' }}
+            onPointerDown={(e) => handlePointerDown('p2', e)}
+          />
+          <circle
+            cx={p2x}
+            cy={p2y}
+            r="7"
             fill="#ffffff"
             stroke="#3b82f6"
-            strokeWidth="3"
-            style={{ cursor: 'grab' }}
-            onMouseDown={(e) => handleMouseDown('p2', e)}
+            strokeWidth="3.5"
+            pointerEvents="none"
           />
         </svg>
       </div>

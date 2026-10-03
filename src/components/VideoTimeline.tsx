@@ -9,6 +9,7 @@ import {
   Pause,
   Plus,
   ChevronDown,
+  ChevronUp,
   Shuffle,
   Focus,
   Download,
@@ -155,6 +156,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const trackRef = useRef<HTMLDivElement | null>(null);
   const trayRef = useRef<HTMLDivElement | null>(null);
   const [showFormatMenu, setShowFormatMenu] = useState(false);
+  const [isMobileCollapsed, setIsMobileCollapsed] = useState(() => {
+    return typeof window !== 'undefined' && window.innerWidth <= 768;
+  });
 
   // Dynamically sync timeline tray height to CSS variable --timeline-height
   // Ensures floating control panel (CameraControlsIsland) and canvas stage adapt seamlessly
@@ -1021,10 +1025,13 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const [isScrubbing, setIsScrubbing] = useState(false);
 
   useEffect(() => {
-    const handleScrubMove = (e: MouseEvent) => {
+    const handleScrubMove = (e: MouseEvent | TouchEvent | PointerEvent) => {
       if (!isScrubbing || !trackRef.current) return;
+      const clientX = 'touches' in e && e.touches.length > 0 
+        ? e.touches[0].clientX 
+        : (e as MouseEvent | PointerEvent).clientX;
       const rect = trackRef.current.getBoundingClientRect();
-      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       onSeek(percent * rulerDuration);
     };
 
@@ -1035,21 +1042,34 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     if (isScrubbing) {
       window.addEventListener('mousemove', handleScrubMove);
       window.addEventListener('mouseup', handleScrubEnd);
+      window.addEventListener('pointermove', handleScrubMove);
+      window.addEventListener('pointerup', handleScrubEnd);
+      window.addEventListener('touchmove', handleScrubMove, { passive: false });
+      window.addEventListener('touchend', handleScrubEnd);
+      window.addEventListener('touchcancel', handleScrubEnd);
     }
     return () => {
       window.removeEventListener('mousemove', handleScrubMove);
       window.removeEventListener('mouseup', handleScrubEnd);
+      window.removeEventListener('pointermove', handleScrubMove);
+      window.removeEventListener('pointerup', handleScrubEnd);
+      window.removeEventListener('touchmove', handleScrubMove);
+      window.removeEventListener('touchend', handleScrubEnd);
+      window.removeEventListener('touchcancel', handleScrubEnd);
     };
   }, [isScrubbing, rulerDuration, onSeek]);
 
-  const handleTrackMouseDown = (e: React.MouseEvent) => {
+  const handleTrackPointerDown = (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
     if (!trackRef.current) return;
     if ((e.target as HTMLElement).closest('.sequence-drag-handle')) return;
     if ((e.target as HTMLElement).closest('.clip-triangle-btn')) return;
     if ((e.target as HTMLElement).closest('.transition-popover-card')) return;
     setIsScrubbing(true);
+    const clientX = 'touches' in e && e.touches.length > 0
+      ? e.touches[0].clientX
+      : (e as React.MouseEvent | React.PointerEvent).clientX;
     const rect = trackRef.current.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     onSeek(percent * rulerDuration);
   };
 
@@ -1265,15 +1285,62 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   return (
     <div
       ref={trayRef}
-      className="ui-camera-timeline-tray"
+      className={`ui-camera-timeline-tray ${isMobileCollapsed ? 'is-mobile-collapsed' : ''}`}
       onClick={() => {
         setShowEasingModal(false);
         setActiveTransitionPopover(null);
         setActiveMediaTransitionPopover(null);
       }}
     >
-      {/* 1. Top Action Controls */}
-      <div className="timeline-action-bar">
+      {isMobileCollapsed ? (
+        <div className="timeline-mobile-collapsed-bar" onClick={(e) => e.stopPropagation()}>
+          <div className="timeline-mobile-collapsed-left">
+            <button
+              type="button"
+              className="timeline-mobile-collapsed-skip-btn"
+              onClick={() => onSeek(0)}
+              title="Skip to Start"
+            >
+              <SkipBack size={14} />
+            </button>
+            <button
+              type="button"
+              className={`timeline-mobile-collapsed-play-btn ${isPlaying ? 'is-playing' : ''}`}
+              onClick={onPlayPause}
+              title={isPlaying ? 'Pause Preview' : 'Play Preview'}
+            >
+              {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+            </button>
+            <span className="timeline-mobile-collapsed-time">
+              {currentTime.toFixed(1)}s / {totalDuration.toFixed(1)}s
+            </span>
+          </div>
+          <button
+            type="button"
+            className="timeline-mobile-toggle-btn is-expand"
+            onClick={() => setIsMobileCollapsed(false)}
+            title="Expand timeline"
+          >
+            <ChevronUp size={15} />
+            <span>Expand Timeline</span>
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="timeline-mobile-header-strip">
+            <button
+              type="button"
+              className="timeline-mobile-toggle-btn is-collapse"
+              onClick={() => setIsMobileCollapsed(true)}
+              title="Collapse timeline to free canvas"
+            >
+              <ChevronDown size={14} />
+              <span>Collapse</span>
+            </button>
+          </div>
+
+          {/* 1. Top Action Controls */}
+          <div className="timeline-action-bar">
         <div className="timeline-left-section-container" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             type="button"
@@ -1545,8 +1612,10 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         <div 
           className="timeline-track-scroll-area" 
           ref={trackRef} 
-          onMouseDown={handleTrackMouseDown} 
-          style={{ position: 'relative', width: '100%' }}
+          onMouseDown={handleTrackPointerDown}
+          onPointerDown={handleTrackPointerDown}
+          onTouchStart={handleTrackPointerDown}
+          style={{ position: 'relative', width: '100%', touchAction: 'none' }}
         >
           {/* TOP ROW: Keyframe Blocks & Sequence Sets */}
           <div className="timeline-clips-track">
@@ -2457,6 +2526,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         </div>
       </div>
       <div className="timeline-bottom-handle" />
+        </>
+      )}
     </div>
   );
 };

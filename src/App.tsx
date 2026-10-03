@@ -50,6 +50,9 @@ import {
   HelpCircle,
   Move,
   RotateCw,
+  Menu,
+  X,
+  Sliders,
 } from 'lucide-react';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
@@ -469,6 +472,28 @@ export function App() {
     rotY: number;
     panX: number;
     panY: number;
+  }>({
+    x: 0,
+    y: 0,
+    rotX: 0,
+    rotY: 0,
+    panX: 0,
+    panY: 0,
+  });
+
+  // Mobile navigation drawer state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Mobile touch gesture tracking (Drag & Pinch-to-Zoom)
+  const touchStartRef = useRef<{
+    x: number;
+    y: number;
+    rotX: number;
+    rotY: number;
+    panX: number;
+    panY: number;
+    initialDistance?: number;
+    initialZoom?: number;
   }>({
     x: 0,
     y: 0,
@@ -1699,6 +1724,96 @@ export function App() {
     window.addEventListener('mouseup', handleMouseUp);
   };
 
+  // Mobile / Touch support for 3D Scene Dragging & 2-finger Pinch-to-Zoom
+  const handleSceneTouchStart = (e: React.TouchEvent) => {
+    if (isMarkingRegion) return;
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setIsDraggingScene(true);
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        rotX: camera.rotX,
+        rotY: camera.rotY,
+        panX: camera.panX || 0,
+        panY: camera.panY || 0,
+      };
+    } else if (e.touches.length === 2) {
+      setIsDraggingScene(true);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      touchStartRef.current = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2,
+        rotX: camera.rotX,
+        rotY: camera.rotY,
+        panX: camera.panX || 0,
+        panY: camera.panY || 0,
+        initialDistance: dist,
+        initialZoom: camera.zoom,
+      };
+    }
+  };
+
+  const handleSceneTouchMove = (e: React.TouchEvent) => {
+    if (isMarkingRegion) return;
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const currentScale = stageScaleRef.current || 1.0;
+
+      if (dragMode === 'move') {
+        const newPanX = Math.round(touchStartRef.current.panX + deltaX / currentScale);
+        const newPanY = Math.round(touchStartRef.current.panY + deltaY / currentScale);
+        handleCameraChange({
+          ...camera,
+          panX: newPanX,
+          panY: newPanY,
+        });
+      } else {
+        const newRotY = clampRotation(touchStartRef.current.rotY + deltaX * 0.4, -85, 85);
+        const newRotX = clampRotation(touchStartRef.current.rotX - deltaY * 0.4, -85, 85);
+        handleCameraChange({
+          ...camera,
+          rotX: newRotX,
+          rotY: newRotY,
+        });
+      }
+
+      if (isGuideOpen && guideStepIndex === 1) {
+        setGuideStepIndex(2);
+      }
+    } else if (e.touches.length === 2 && touchStartRef.current.initialDistance && touchStartRef.current.initialZoom !== undefined) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const scaleFactor = dist / Math.max(1, touchStartRef.current.initialDistance);
+      const newZoom = Math.max(0.2, Math.min(3.5, Number((touchStartRef.current.initialZoom * scaleFactor).toFixed(2))));
+      handleCameraChange({
+        ...camera,
+        zoom: newZoom,
+      });
+    }
+  };
+
+  const handleSceneTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        rotX: camera.rotX,
+        rotY: camera.rotY,
+        panX: camera.panX || 0,
+        panY: camera.panY || 0,
+      };
+    } else if (e.touches.length === 0) {
+      setIsDraggingScene(false);
+    }
+  };
+
   // Append a new media item to the multi-clip sequence
   const handleAddMediaClip = useCallback((item: MediaItem) => {
     const isVideo = item.type === 'video';
@@ -2162,7 +2277,7 @@ export function App() {
 
         <button
           type="button"
-          className="top-pill-btn"
+          className="top-pill-btn desktop-only-btn"
           title="Direct file import (.fbx, videos, images)"
           onClick={() => directUploadInputRef.current?.click()}
         >
@@ -2186,7 +2301,10 @@ export function App() {
       </div>
 
       {/* 2. TOP CENTER MODE ISLAND (Unified Operator & Compose matching Screenshot 1) */}
-      <div className="top-center-mode-island-wrap" data-guide="top-mode-island">
+      <div
+        className={`top-center-mode-island-wrap ${topMode === 'compose' ? 'is-compose-mode' : 'is-operator-mode'}`}
+        data-guide="top-mode-island"
+      >
         <TopModeIsland
           isComposeActive={topMode === 'compose'}
           onToggleCompose={() => {
@@ -2236,7 +2354,7 @@ export function App() {
         {/* Beginner Guide / Tour Pill (Strict Black & White) */}
         <button
           type="button"
-          className={`top-pill-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
+          className={`top-pill-btn desktop-only-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
           onClick={() => {
             if (isGuideOpen) {
               setIsGuideOpen(false);
@@ -2255,17 +2373,16 @@ export function App() {
 
         <button
           type="button"
-          className="top-pill-btn"
+          className="top-pill-btn desktop-only-btn"
           onClick={handleResetScene}
           title="Reset scene"
         >
           <RotateCcw size={14} />
         </button>
-        {/* Profile icon removed based on user request */}
 
         <button
           type="button"
-          className="top-pill-btn"
+          className="top-pill-btn desktop-only-btn"
           onClick={() => setSoundEnabled(!soundEnabled)}
           title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
         >
@@ -2275,7 +2392,7 @@ export function App() {
         {/* Share Live Link Pill */}
         <button
           type="button"
-          className="top-pill-btn"
+          className="top-pill-btn desktop-only-btn"
           onClick={handleShareLink}
           title="Share live studio link (https://zetashot.vercel.app)"
         >
@@ -2294,24 +2411,216 @@ export function App() {
             title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
           >
             <Zap size={13} />
-            <span>
+            <span className="export-btn-label">
               {isProcessing
                 ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
                 : `Export ${exportFormat.toUpperCase()} • ${exportFps}fps`}
+            </span>
+            <span className="export-btn-label-mobile">
+              {isProcessing ? `${exportProgress}%` : 'Export'}
             </span>
           </button>
           <a
             href="https://paypal.me/zetabyteIN"
             target="_blank"
             rel="noopener noreferrer"
-            className="support-creator-pill-link"
+            className="support-creator-pill-link desktop-only-btn"
             title="Support Creator on PayPal (@zetabyteIN)"
           >
             <Heart size={11} stroke="currentColor" fill="none" />
             <span>Support Creator</span>
           </a>
         </div>
+
+        {/* Mobile Menu Hamburger Button (visible <= 768px) */}
+        <button
+          type="button"
+          className="top-pill-btn mobile-menu-toggle-btn"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? "Close menu" : "Open studio menu"}
+          title="Studio options and tools"
+        >
+          {isMobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+        </button>
       </div>
+
+      {/* MOBILE STUDIO DRAWER / SHEET */}
+      {isMobileMenuOpen && (
+        <div className="mobile-menu-drawer-backdrop" onClick={() => setIsMobileMenuOpen(false)}>
+          <div className="mobile-menu-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-drawer-header">
+              <div className="mobile-drawer-brand">
+                <Sparkles size={16} color="#38bdf8" />
+                <span>Zetashot Studio</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-drawer-close-btn"
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mobile-drawer-content">
+              {/* Media Section */}
+              <div className="mobile-drawer-section">
+                <span className="mobile-drawer-section-title">Media & Assets</span>
+                <div className="mobile-drawer-grid-two">
+                  <button
+                    type="button"
+                    className="mobile-drawer-action-btn"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setMediaLibraryMode('add');
+                      setIsMediaLibraryOpen(true);
+                    }}
+                  >
+                    <Plus size={16} />
+                    <span>Media Library</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-action-btn"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      directUploadInputRef.current?.click();
+                    }}
+                  >
+                    <Upload size={16} />
+                    <span>Upload File</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Viewport Settings */}
+              <div className="mobile-drawer-section">
+                <span className="mobile-drawer-section-title">Canvas Aspect Ratio</span>
+                <div className="mobile-ratio-chips-row">
+                  {['16:9', '9:16', '1:1', '4:3', '21:9'].map((ratio) => (
+                    <button
+                      key={ratio}
+                      type="button"
+                      className={`mobile-ratio-chip ${aspectRatio === ratio ? 'is-active' : ''}`}
+                      onClick={() => setAspectRatio(ratio)}
+                    >
+                      {ratio}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Camera Drag & Studio Mode */}
+              <div className="mobile-drawer-section">
+                <span className="mobile-drawer-section-title">Mode & Touch Drag</span>
+                <div className="mobile-drawer-grid-two">
+                  <button
+                    type="button"
+                    className={`mobile-drawer-action-btn ${studioMode === 'video' ? 'is-active' : ''}`}
+                    onClick={() => setStudioMode(studioMode === 'video' ? 'photo' : 'video')}
+                  >
+                    <span>{studioMode === 'video' ? 'Video Mode' : 'Photo Mode'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`mobile-drawer-action-btn ${dragMode === 'orbit' ? 'is-active' : ''}`}
+                    onClick={() => setDragMode(dragMode === 'orbit' ? 'move' : 'orbit')}
+                  >
+                    <span>{dragMode === 'orbit' ? 'Touch: 3D Orbit' : 'Touch: Pan/Move'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="mobile-drawer-section">
+                <span className="mobile-drawer-section-title">Studio Actions</span>
+                <div className="mobile-drawer-list">
+                  <button
+                    type="button"
+                    className={`mobile-drawer-list-btn ${topMode === 'compose' ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      const next = topMode === 'compose' ? 'operator' : 'compose';
+                      setTopMode(next);
+                      if (next === 'compose') {
+                        setIsMarkingRegion(true);
+                      } else {
+                        setIsMarkingRegion(false);
+                      }
+                    }}
+                  >
+                    <Sliders size={16} />
+                    <span>AI Compose Mode ({topMode === 'compose' ? 'Active' : 'Choreograph'})</span>
+                    <span className="mobile-badge">{topMode === 'compose' ? 'ON' : 'OFF'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`mobile-drawer-list-btn ${isGuideOpen ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      if (isGuideOpen) {
+                        setIsGuideOpen(false);
+                      } else {
+                        setIsGuideOpen(true);
+                        setGuidePhase('start');
+                        handleSelectClip('P01');
+                      }
+                    }}
+                  >
+                    <Sparkles size={16} />
+                    <span>Beginner Guide & Tour</span>
+                    <span className="mobile-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="mobile-drawer-list-btn"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      handleResetScene();
+                    }}
+                  >
+                    <RotateCcw size={16} />
+                    <span>Reset Scene Camera</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="mobile-drawer-list-btn"
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                  >
+                    {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                    <span>Sound Effects ({soundEnabled ? 'Enabled' : 'Muted'})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="mobile-drawer-list-btn"
+                    onClick={() => {
+                      handleShareLink();
+                    }}
+                  >
+                    {isCopiedLink ? <Check size={16} color="#10b981" /> : <Share2 size={16} />}
+                    <span>{isCopiedLink ? 'Copied Share Link!' : 'Share Live Project Link'}</span>
+                  </button>
+
+                  <a
+                    href="https://paypal.me/zetabyteIN"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mobile-drawer-list-btn"
+                  >
+                    <Heart size={16} color="#ec4899" />
+                    <span>Support Creator (PayPal)</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. MEDIA LIBRARY MODAL */}
       <MediaLibraryModal
@@ -2408,7 +2717,12 @@ export function App() {
         <div
           ref={stageRef}
           className="capture-stage"
+          onTouchStart={handleSceneTouchStart}
+          onTouchMove={handleSceneTouchMove}
+          onTouchEnd={handleSceneTouchEnd}
+          onTouchCancel={handleSceneTouchEnd}
           style={{
+            touchAction: 'none',
             backgroundColor: background.type === 'solid' ? (background.color || '#ffffff') : undefined,
             backgroundImage: background.type === 'image' && background.imageUrl
               ? `url("${background.imageUrl}")`
@@ -2437,7 +2751,11 @@ export function App() {
             ref={frameAnchorRef}
             className={`frame-anchor mode-${dragMode} ${isDraggingScene ? 'is-dragging' : ''}`}
             onMouseDown={handleSceneMouseDown}
-            style={{ perspective: `${(camera.perspective || 1000) * stageScale}px` }}
+            onTouchStart={handleSceneTouchStart}
+            onTouchMove={handleSceneTouchMove}
+            onTouchEnd={handleSceneTouchEnd}
+            onTouchCancel={handleSceneTouchEnd}
+            style={{ perspective: `${(camera.perspective || 1000) * stageScale}px`, touchAction: 'none' }}
           >
             {/* Ambient warm lighting spill around device frame during gradient transition */}
             <div

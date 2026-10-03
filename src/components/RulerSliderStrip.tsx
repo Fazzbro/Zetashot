@@ -24,39 +24,56 @@ export const RulerSliderStrip: React.FC<RulerSliderStripProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     setIsDragging(true);
 
-    const updateFromMouse = (clientX: number) => {
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const updateFromPosition = (clientX: number) => {
       if (!trackRef.current) return;
       const rect = trackRef.current.getBoundingClientRect();
+      if (rect.width <= 0) return;
       const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const raw = min + percent * (max - min);
       const stepped = Math.round(raw / step) * step;
       onChange(Math.max(min, Math.min(max, stepped)));
     };
 
-    updateFromMouse(e.clientX);
+    updateFromPosition(e.clientX);
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      updateFromMouse(moveEvent.clientX);
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      updateFromPosition(moveEvent.clientX);
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      try {
+        target.releasePointerCapture(upEvent.pointerId);
+      } catch {}
       setIsDragging(false);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   const progress = Math.max(0, Math.min(1, (value - min) / (max - min)));
 
   return (
-    <div className="ruler-slider-strip" ref={trackRef} onMouseDown={handleMouseDown}>
+    <div
+      className={`ruler-slider-strip ${isDragging ? 'is-dragging' : ''}`}
+      ref={trackRef}
+      onPointerDown={handlePointerDown}
+      style={{ touchAction: 'none' }}
+    >
       {/* Horizontal tick marks */}
       <div className="ruler-ticks-track">
         {Array.from({ length: 32 }).map((_, i) => (

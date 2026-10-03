@@ -80,16 +80,18 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   };
 
   return (
-    <div className="unified-screens-library" style={{ position: 'fixed', top: '56px', left: '24px', zIndex: 1000 }}>
-      <div className="source-library-heading">
-        <div>
-          <strong>{mode === 'add' ? 'Add Clip to Sequence' : 'Media Library / Demos'}</strong>
-          <small>{mode === 'add' ? 'Select or upload a clip to append to your video sequence' : 'Select a scene or upload your own video, image, or 3D asset'}</small>
+    <>
+      <div className="screens-library-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="unified-screens-library" style={{ position: 'fixed', top: '56px', left: '24px', zIndex: 1000 }}>
+        <div className="source-library-heading">
+          <div>
+            <strong>{mode === 'add' ? 'Add Clip to Sequence' : 'Media Library / Demos'}</strong>
+            <small>{mode === 'add' ? 'Select or upload a clip to append to your video sequence' : 'Select a scene or upload your own video, image, or 3D asset'}</small>
+          </div>
+          <button type="button" className="screens-library-close" onClick={onClose} title="Close" aria-label="Close media library">
+            <X size={16} />
+          </button>
         </div>
-        <button type="button" className="screens-library-close" onClick={onClose} title="Close">
-          <X size={14} />
-        </button>
-      </div>
 
       {onModeChange && (
         <div className="source-library-mode-pills">
@@ -270,5 +272,6 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
         />
       </div>
     </div>
-  );
+  </>
+);
 };

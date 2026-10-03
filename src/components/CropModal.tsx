@@ -43,25 +43,27 @@ export const CropModal: React.FC<CropModalProps> = ({
     onClose();
   };
 
-  // Comprehensive 8-point handles + center move drag logic
+  // Comprehensive 8-point handles + center move drag logic with full Touch support
   const handleStartDrag = (
     type: DragHandleType,
-    e: React.MouseEvent
+    e: React.MouseEvent | React.TouchEvent
   ) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!containerRef.current) return;
     const initialRect = containerRef.current.getBoundingClientRect();
-    const startMouseX = ((e.clientX - initialRect.left) / initialRect.width) * 100;
-    const startMouseY = ((e.clientY - initialRect.top) / initialRect.height) * 100;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const startMouseX = ((clientX - initialRect.left) / initialRect.width) * 100;
+    const startMouseY = ((clientY - initialRect.top) / initialRect.height) * 100;
     const initialCrop = { ...crop };
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const updateCropPosition = (curClientX: number, curClientY: number) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const curMouseX = Math.max(0, Math.min(100, ((moveEvent.clientX - rect.left) / rect.width) * 100));
-      const curMouseY = Math.max(0, Math.min(100, ((moveEvent.clientY - rect.top) / rect.height) * 100));
+      const curMouseX = Math.max(0, Math.min(100, ((curClientX - rect.left) / rect.width) * 100));
+      const curMouseY = Math.max(0, Math.min(100, ((curClientY - rect.top) / rect.height) * 100));
       const deltaX = curMouseX - startMouseX;
       const deltaY = curMouseY - startMouseY;
 
@@ -113,13 +115,29 @@ export const CropModal: React.FC<CropModalProps> = ({
       });
     };
 
-    const onMouseUp = () => {
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      updateCropPosition(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const onTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length > 0) {
+        updateCropPosition(moveEvent.touches[0].clientX, moveEvent.touches[0].clientY);
+      }
+    };
+
+    const onDragEnd = () => {
       window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('mouseup', onDragEnd);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onDragEnd);
+      window.removeEventListener('touchcancel', onDragEnd);
     };
 
     window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mouseup', onDragEnd);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onDragEnd);
+    window.addEventListener('touchcancel', onDragEnd);
   };
 
   const calcW = Math.round(2974 * (crop.width / 100));
@@ -164,8 +182,10 @@ export const CropModal: React.FC<CropModalProps> = ({
               top: `${crop.y}%`,
               width: `${crop.width}%`,
               height: `${crop.height}%`,
+              touchAction: 'none',
             }}
             onMouseDown={(e) => handleStartDrag('move', e)}
+            onTouchStart={(e) => handleStartDrag('move', e)}
           >
             {/* 3x3 Grid Lines */}
             <div className="crop-grid-overlay">
@@ -176,21 +196,25 @@ export const CropModal: React.FC<CropModalProps> = ({
             <div
               className="crop-yellow-handle handle-tl"
               onMouseDown={(e) => handleStartDrag('tl', e)}
+              onTouchStart={(e) => handleStartDrag('tl', e)}
               title="Drag corner to resize"
             />
             <div
               className="crop-yellow-handle handle-tr"
               onMouseDown={(e) => handleStartDrag('tr', e)}
+              onTouchStart={(e) => handleStartDrag('tr', e)}
               title="Drag corner to resize"
             />
             <div
               className="crop-yellow-handle handle-bl"
               onMouseDown={(e) => handleStartDrag('bl', e)}
+              onTouchStart={(e) => handleStartDrag('bl', e)}
               title="Drag corner to resize"
             />
             <div
               className="crop-yellow-handle handle-br"
               onMouseDown={(e) => handleStartDrag('br', e)}
+              onTouchStart={(e) => handleStartDrag('br', e)}
               title="Drag corner to resize"
             />
 
@@ -198,21 +222,25 @@ export const CropModal: React.FC<CropModalProps> = ({
             <div
               className="crop-yellow-handle handle-t"
               onMouseDown={(e) => handleStartDrag('t', e)}
+              onTouchStart={(e) => handleStartDrag('t', e)}
               title="Drag top edge to resize height"
             />
             <div
               className="crop-yellow-handle handle-b"
               onMouseDown={(e) => handleStartDrag('b', e)}
+              onTouchStart={(e) => handleStartDrag('b', e)}
               title="Drag bottom edge to resize height"
             />
             <div
               className="crop-yellow-handle handle-l"
               onMouseDown={(e) => handleStartDrag('l', e)}
+              onTouchStart={(e) => handleStartDrag('l', e)}
               title="Drag left edge to resize width"
             />
             <div
               className="crop-yellow-handle handle-r"
               onMouseDown={(e) => handleStartDrag('r', e)}
+              onTouchStart={(e) => handleStartDrag('r', e)}
               title="Drag right edge to resize width"
             />
           </div>

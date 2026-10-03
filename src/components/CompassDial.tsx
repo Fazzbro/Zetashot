@@ -20,13 +20,20 @@ export const CompassDial: React.FC<CompassDialProps> = ({
 
   const roundedValue = Math.round(value || 0);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // Only handle primary button / primary touch
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     setIsDragging(true);
     dragStartXRef.current = e.clientX;
     startValRef.current = roundedValue;
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
       const deltaX = moveEvent.clientX - dragStartXRef.current;
       const step = moveEvent.shiftKey ? 5 : 1;
       const rawNewVal = startValRef.current + Math.round(deltaX / 2);
@@ -37,14 +44,19 @@ export const CompassDial: React.FC<CompassDialProps> = ({
       onChange(clampRotation(stepped, min, max));
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      try {
+        target.releasePointerCapture(upEvent.pointerId);
+      } catch {}
       setIsDragging(false);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   const handleDoubleClick = () => {
@@ -59,8 +71,9 @@ export const CompassDial: React.FC<CompassDialProps> = ({
       type="button"
       className={`bottom-axis-button ${isDragging ? 'is-dragging' : ''}`}
       data-axis={axis}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onDoubleClick={handleDoubleClick}
+      style={{ touchAction: 'none' }}
       title={`${axis.toUpperCase()} rotation: ${roundedValue}°. Drag left/right to adjust, Shift for 5° increments, double-click to reset.`}
     >
       <svg className="axis-compass-ring" viewBox="0 0 40 40" aria-hidden="true" shapeRendering="geometricPrecision">

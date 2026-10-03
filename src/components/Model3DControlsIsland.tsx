@@ -112,7 +112,7 @@ export const Model3DControlsIsland: React.FC<Model3DControlsIslandProps> = ({
       }}
     >
       {/* Sub-panel controls based on activeTab */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '340px', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', maxWidth: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
         {activeTab === 'scale' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

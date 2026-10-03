@@ -83,10 +83,44 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
     setCurrentPoint(pt);
   };
 
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isActive || e.touches.length !== 1) return;
+    if ((e.target as HTMLElement).closest('.region-delete-btn')) return;
+
+    if (!overlayRef.current) return;
+    const rect = overlayRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    if (
+      touch.clientX < rect.left ||
+      touch.clientX > rect.right ||
+      touch.clientY < rect.top ||
+      touch.clientY > rect.bottom
+    ) {
+      return;
+    }
+
+    const pt = getCanvasCoords(touch.clientX, touch.clientY);
+    isDrawingRef.current = true;
+    startPointRef.current = pt;
+    currentPointRef.current = pt;
+
+    setIsDrawing(true);
+    setStartPoint(pt);
+    setCurrentPoint(pt);
+  };
+
   useEffect(() => {
     const handleWindowMouseMove = (e: MouseEvent) => {
       if (!isDrawingRef.current || !startPointRef.current || !overlayRef.current) return;
       const pt = getCanvasCoords(e.clientX, e.clientY);
+      currentPointRef.current = pt;
+      setCurrentPoint(pt);
+    };
+
+    const handleWindowTouchMove = (e: TouchEvent) => {
+      if (!isDrawingRef.current || !startPointRef.current || !overlayRef.current || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const pt = getCanvasCoords(touch.clientX, touch.clientY);
       currentPointRef.current = pt;
       setCurrentPoint(pt);
     };
@@ -142,12 +176,68 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
       setCurrentPoint(null);
     };
 
+    const handleWindowTouchEnd = () => {
+      if (!isDrawingRef.current || !startPointRef.current) {
+        isDrawingRef.current = false;
+        startPointRef.current = null;
+        currentPointRef.current = null;
+        setIsDrawing(false);
+        setStartPoint(null);
+        setCurrentPoint(null);
+        return;
+      }
+
+      const sp = startPointRef.current;
+      const cp = currentPointRef.current || sp;
+
+      const minX = Math.max(0, Math.min(sp.x, cp.x));
+      const minY = Math.max(0, Math.min(sp.y, cp.y));
+      const maxX = Math.min(width, Math.max(sp.x, cp.x));
+      const maxY = Math.min(height, Math.max(sp.y, cp.y));
+
+      const w = maxX - minX;
+      const h = maxY - minY;
+
+      if (w >= 20 && h >= 20) {
+        const nextIndex = regions.length + 1;
+        const newRegion: InterestRegion = {
+          id: `region_${Date.now()}_${nextIndex}`,
+          index: nextIndex,
+          x: Math.round(minX),
+          y: Math.round(minY),
+          width: Math.round(w),
+          height: Math.round(h),
+          label: `Region ${nextIndex}`,
+        };
+
+        const updated = [...regions, newRegion];
+        onRegionsChange(updated);
+        onSelectRegion(newRegion.id);
+        if (isGuideOpen && onGuideAdvance) {
+          onGuideAdvance();
+        }
+      }
+
+      isDrawingRef.current = false;
+      startPointRef.current = null;
+      currentPointRef.current = null;
+      setIsDrawing(false);
+      setStartPoint(null);
+      setCurrentPoint(null);
+    };
+
     window.addEventListener('mousemove', handleWindowMouseMove);
     window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('touchmove', handleWindowTouchMove);
+    window.addEventListener('touchend', handleWindowTouchEnd);
+    window.addEventListener('touchcancel', handleWindowTouchEnd);
 
     return () => {
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
+      window.removeEventListener('touchmove', handleWindowTouchMove);
+      window.removeEventListener('touchend', handleWindowTouchEnd);
+      window.removeEventListener('touchcancel', handleWindowTouchEnd);
     };
   }, [width, height, regions, onRegionsChange, onSelectRegion, isGuideOpen, onGuideAdvance]);
 
@@ -211,8 +301,10 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
         pointerEvents: isActive || regions.length > 0 ? 'auto' : 'none',
         cursor: isActive ? 'crosshair' : 'default',
         zIndex: 50,
+        touchAction: isActive ? 'none' : 'auto',
       }}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
     >
       {/* Guide Cue for Creating a Rectangle */}
       {isGuideOpen && isComposeActive && regions.length === 0 && (
@@ -292,24 +384,29 @@ export const InterestRegionOverlay: React.FC<InterestRegionOverlayProps> = ({
                 className="region-action-btn region-delete-btn"
                 style={{
                   position: 'absolute',
-                  top: '6px',
-                  right: '6px',
-                  width: '20px',
-                  height: '20px',
+                  top: '4px',
+                  right: '4px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
                   color: '#f87171',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
                   padding: 0,
+                  touchAction: 'manipulation',
                 }}
                 onClick={(e) => handleDeleteRegion(region.id, e)}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  handleDeleteRegion(region.id, e as unknown as React.MouseEvent);
+                }}
                 title="Remove interest region"
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             )}
           </div>
