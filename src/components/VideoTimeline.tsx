@@ -107,6 +107,7 @@ interface VideoTimelineProps {
   onAudioTracksChange?: (tracks: AudioTrackItem[]) => void;
   selectedAudioTrackId?: string | null;
   onSelectAudioTrack?: (trackId: string | null) => void;
+  onDisableGuide?: () => void;
 }
 
 export const VideoTimeline: React.FC<VideoTimelineProps> = ({
@@ -140,6 +141,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   isGuideOpen = false,
   guidePhase = 'start',
   onGuideAdvance,
+  onDisableGuide,
   textLayers,
   onTextLayersChange,
   selectedTextLayerId,
@@ -1459,18 +1461,34 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             <span className="timeline-preview-label">{isPlaying ? 'PAUSE' : 'PREVIEW'}</span>
           </button>
           {isGuideOpen && guidePhase === 'preview' && (
-            <button
-              type="button"
-              className="reference-guide-pill play-guide-pill"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPlayPause();
-                if (onGuideAdvance) onGuideAdvance();
-              }}
-              title="Press Spacebar or Click Play to preview motion"
-            >
-              Press <strong>Space</strong> to preview
-            </button>
+            <div className="reference-guide-pill-wrapper">
+              <button
+                type="button"
+                className="reference-guide-pill play-guide-pill"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlayPause();
+                  if (onGuideAdvance) onGuideAdvance();
+                }}
+                title="Press Spacebar or Click Play to preview motion"
+              >
+                Press <strong>Space</strong> to preview
+              </button>
+              {onDisableGuide && (
+                <button
+                  type="button"
+                  className="guide-pill-dismiss-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDisableGuide();
+                  }}
+                  title="Disable guide tips"
+                  aria-label="Disable guide tips"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -1478,18 +1496,34 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         <div className="timeline-right-actions" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           {/* Reference Style Guide Pill: Click to Export 60 FPS video */}
           {isGuideOpen && guidePhase === 'export' && (
-            <button
-              type="button"
-              className="reference-guide-pill export-guide-pill"
-              onClick={(e) => {
-                e.stopPropagation();
-                onExportVideo(exportFormat, exportFps);
-                if (onGuideAdvance) onGuideAdvance();
-              }}
-              title="Click to render and download video"
-            >
-              Click to <strong>Export</strong> 60 FPS video
-            </button>
+            <div className="reference-guide-pill-wrapper">
+              <button
+                type="button"
+                className="reference-guide-pill export-guide-pill"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExportVideo(exportFormat, exportFps);
+                  if (onGuideAdvance) onGuideAdvance();
+                }}
+                title="Click to render and download video"
+              >
+                Click to <strong>Export</strong> 60 FPS video
+              </button>
+              {onDisableGuide && (
+                <button
+                  type="button"
+                  className="guide-pill-dismiss-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDisableGuide();
+                  }}
+                  title="Disable guide tips"
+                  aria-label="Disable guide tips"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           )}
 
           {/* Export Button */}

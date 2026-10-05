@@ -166,10 +166,10 @@ export const BeginnerGuide: React.FC<BeginnerGuideProps> = ({
 
   const handleDismiss = useCallback(() => {
     onClose();
-    if (isMobile && onDisableMobileGuide) {
+    if (onDisableMobileGuide) {
       onDisableMobileGuide();
     }
-  }, [onClose, isMobile, onDisableMobileGuide]);
+  }, [onClose, onDisableMobileGuide]);
 
   // Keyboard navigation: Left/Right arrows, Enter, Escape
   useEffect(() => {

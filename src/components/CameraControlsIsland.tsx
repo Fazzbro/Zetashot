@@ -12,6 +12,9 @@ import {
   Move,
   RotateCw,
   SlidersHorizontal,
+  Play,
+  Pause,
+  X,
 } from 'lucide-react';
 
 interface CameraControlsIslandProps {
@@ -42,6 +45,9 @@ interface CameraControlsIslandProps {
   selectedClipId?: string;
   onGuideAdvance?: () => void;
   onRulerActiveChange?: (active: boolean) => void;
+  isPlaying?: boolean;
+  onPlayPause?: () => void;
+  onDisableGuide?: () => void;
 }
 
 export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
@@ -72,6 +78,9 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   selectedClipId = 'P01',
   onGuideAdvance,
   onRulerActiveChange,
+  isPlaying = false,
+  onPlayPause,
+  onDisableGuide,
 }) => {
   // activeSlider: null | 'blur' | 'perspective' | 'zoom'
   const [activeSlider, setActiveSlider] = useState<'blur' | 'perspective' | 'zoom' | null>(null);
@@ -114,7 +123,7 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
     <div className="bottom-studio-controls">
       <div className="bottom-chrome-row">
         {/* 1. PHOTO / VIDEO Toggle */}
-        <div className="studio-mode-toggle" role="group" aria-label="Studio mode">
+        <div className="studio-mode-toggle photo-video-toggle" role="group" aria-label="Studio mode">
           <button
             type="button"
             className={mode === 'photo' ? 'is-active' : ''}
@@ -184,29 +193,61 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
 
         {/* Reference Style Guide Pill: Set START / END position (matching Image 2) */}
         {isGuideOpen && guidePhase === 'start' && (
-          <button
-            type="button"
-            className="reference-guide-pill dials-guide-pill"
-            onClick={onGuideAdvance}
-            title="Adjust camera angles to set START position, then click to proceed"
-          >
-            Set <strong>START</strong> position
-          </button>
+          <div className="reference-guide-pill-wrapper">
+            <button
+              type="button"
+              className="reference-guide-pill dials-guide-pill"
+              onClick={onGuideAdvance}
+              title="Adjust camera angles to set START position, then click to proceed"
+            >
+              Set <strong>START</strong> position
+            </button>
+            {onDisableGuide && (
+              <button
+                type="button"
+                className="guide-pill-dismiss-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDisableGuide();
+                }}
+                title="Disable guide tips without menu"
+                aria-label="Disable guide tips"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         )}
 
         {isGuideOpen && guidePhase === 'end' && (
-          <button
-            type="button"
-            className="reference-guide-pill dials-guide-pill"
-            onClick={onGuideAdvance}
-            title="Click to confirm END position and preview animation"
-          >
-            Set <strong>END</strong> position
-          </button>
+          <div className="reference-guide-pill-wrapper">
+            <button
+              type="button"
+              className="reference-guide-pill dials-guide-pill"
+              onClick={onGuideAdvance}
+              title="Click to confirm END position and preview animation"
+            >
+              Set <strong>END</strong> position
+            </button>
+            {onDisableGuide && (
+              <button
+                type="button"
+                className="guide-pill-dismiss-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDisableGuide();
+                }}
+                title="Disable guide tips without menu"
+                aria-label="Disable guide tips"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         )}
 
         {/* 3. Horizontal Control Strip or Ruler Slider */}
-        <div style={{ position: 'relative' }}>
+        <div className="camera-secondary-controls-wrap" style={{ position: 'relative' }}>
           {activeSlider === 'blur' ? (
             <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
               <RulerSliderStrip
@@ -371,7 +412,7 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
         </div>
 
         {/* 4. Golden Shutter Button (only shown in Photo mode) */}
-        {mode === 'photo' && (
+        {mode === 'photo' ? (
           <span className="pill-capture-wrap">
             <button
               type="button"
@@ -387,7 +428,22 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
               </span>
             </button>
           </span>
-        )}
+        ) : onPlayPause ? (
+          <span className="pill-capture-wrap">
+            <button
+              type="button"
+              className={`pill-preview-button ${isPlaying ? 'is-playing' : ''}`}
+              onClick={onPlayPause}
+              title={isPlaying ? "Pause 60fps Video Preview (Space)" : "Play 60fps Video Preview (Space)"}
+              aria-label={isPlaying ? "Pause Preview" : "Play Preview"}
+            >
+              {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
+              <span style={{ fontSize: '11px', fontWeight: 700, marginLeft: '4px' }}>
+                {isPlaying ? 'PAUSE' : 'PREVIEW'}
+              </span>
+            </button>
+          </span>
+        ) : null}
       </div>
 
       {/* FLOATING BACKDROP SELECTOR PILL (Matching Screenshot 2) */}

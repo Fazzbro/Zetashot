@@ -939,6 +939,55 @@
   background: #000000;
 }
 
+/* Vibrant Preview / Pause Toggle Button in Bottom Island */
+.pill-preview-button {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: #ffffff;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.pill-preview-button:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.45);
+}
+
+.pill-preview-button.is-playing {
+  background: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #000000;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+  animation: previewPulse 1.6s infinite ease-in-out;
+}
+
+.pill-preview-button.is-playing:hover {
+  background: #d97706;
+}
+
+@keyframes previewPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.7);
+  }
+}
+
 /* VIDEO TIMELINE TRAY */
 .ui-camera-timeline-tray {
   position: absolute;
@@ -3497,6 +3546,62 @@
   color: #ffffff;
   border-color: #ef4444;
   transform: scale(1.08);
+}
+
+.reference-guide-pill-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1200;
+}
+
+/* Quick 1-Click Disable Guide Pill in Top Header */
+.guide-disable-quick-btn {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 11px;
+  font-weight: 600;
+  gap: 5px;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.guide-disable-quick-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #ffffff;
+  border-color: rgba(239, 68, 68, 0.6);
+  transform: translateY(-1px);
+}
+
+.guide-disable-text-desktop {
+  display: inline;
+}
+
+.guide-disable-text-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .guide-disable-text-desktop {
+    display: none;
+  }
+  .guide-disable-text-mobile {
+    display: inline;
+  }
+  .guide-disable-quick-btn {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
 }
 
 /* ==========================================================================
@@ -6184,6 +6289,36 @@
 
   .bottom-chrome-row::-webkit-scrollbar {
     display: none;
+  }
+
+  .bottom-chrome-row .photo-video-toggle {
+    order: 1;
+    flex-shrink: 0;
+  }
+
+  .bottom-chrome-row .drag-tool-toggle {
+    order: 2;
+    flex-shrink: 0;
+  }
+
+  .bottom-chrome-row .pill-capture-wrap {
+    order: 3;
+    flex-shrink: 0;
+  }
+
+  .bottom-chrome-row .bottom-axis-controls {
+    order: 4;
+    flex-shrink: 0;
+  }
+
+  .bottom-chrome-row .reference-guide-pill-wrapper {
+    order: 5;
+    flex-shrink: 0;
+  }
+
+  .bottom-chrome-row .camera-secondary-controls-wrap {
+    order: 6;
+    flex-shrink: 0;
   }
 
   .studio-mode-toggle button {

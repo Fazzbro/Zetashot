@@ -504,6 +504,15 @@ export function App() {
     }
   };
 
+  const handleDisableGuide = useCallback(() => {
+    setIsGuideOpen(false);
+    setIsMobileGuideDisabled(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('zetashot_guide_completed', 'true');
+      localStorage.setItem('zetashot_guide_mobile_disabled', 'true');
+    }
+  }, []);
+
   // Mobile touch gesture tracking (Drag & Pinch-to-Zoom)
   const touchStartRef = useRef<{
     x: number;
@@ -2365,7 +2374,7 @@ export function App() {
               }
             }}
             regionsCount={interestRegions.length}
-            isGuideOpen={isGuideOpen}
+            isGuideOpen={isGuideOpen && !isMobileGuideDisabled}
             guidePhase={guidePhase}
             onGuideAdvance={handleGuideAdvance}
           />
@@ -2421,6 +2430,21 @@ export function App() {
             {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
             <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
           </button>
+
+          {/* Direct 1-Click Guide Disable Button (Visible on mobile & desktop whenever guide is active) */}
+          {isGuideOpen && !isMobileGuideDisabled && (
+            <button
+              type="button"
+              className="top-pill-btn guide-disable-quick-btn"
+              onClick={handleDisableGuide}
+              title="Disable guide tips"
+              aria-label="Disable guide"
+            >
+              <X size={13} />
+              <span className="guide-disable-text-desktop">Disable Guide</span>
+              <span className="guide-disable-text-mobile">Guide Off</span>
+            </button>
+          )}
 
           {/* Export & Support Creator Group */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
@@ -2800,22 +2824,6 @@ export function App() {
             ['--stage-aspect-ratio' as any]: getAspectRatioCss(aspectRatio),
           }}
         >
-          {/* Canvas Artboard Header Badge */}
-          <div className="stage-artboard-badge">
-            <span className="badge-dot" />
-            <span>Canvas: {aspectRatio}</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowGrid(!showGrid);
-              }}
-              title={showGrid ? "Hide 3x3 Grid Guides" : "Show 3x3 Grid Guides"}
-            >
-              <Grid size={13} style={{ color: showGrid ? '#38bdf8' : '#94a3b8' }} />
-            </button>
-          </div>
-
           {/* Framing 3x3 Grid */}
           {showGrid && (
             <div className="framing-grid-overlay">
@@ -3027,7 +3035,7 @@ export function App() {
             }}
             width={STAGE_BASE_DIMS.width}
             height={STAGE_BASE_DIMS.height}
-            isGuideOpen={isGuideOpen}
+            isGuideOpen={isGuideOpen && !isMobileGuideDisabled}
             guidePhase={guidePhase}
             onGuideAdvance={() => {
               if (guidePhase === 'compose_draw') {
@@ -3193,11 +3201,14 @@ export function App() {
             onToggleGrid={() => setShowGrid(!showGrid)}
             onCapture={() => handleExport(exportFormat)}
             isProcessing={isProcessing}
-            isGuideOpen={isGuideOpen}
+            isGuideOpen={isGuideOpen && !isMobileGuideDisabled}
             guidePhase={guidePhase}
             selectedClipId={selectedClipId}
             onGuideAdvance={handleGuideAdvance}
             onRulerActiveChange={setIsCameraRulerOpen}
+            isPlaying={isPlaying}
+            onPlayPause={handlePlayPause}
+            onDisableGuide={handleDisableGuide}
           />
         </div>
       </div>
@@ -3236,9 +3247,10 @@ export function App() {
             mediaThumbnailUrl={activeMedia.type === 'image' ? activeMedia.url : undefined}
             mediaThumbnails={videoThumbnails}
             mediaDuration={mediaDuration}
-            isGuideOpen={isGuideOpen}
+            isGuideOpen={isGuideOpen && !isMobileGuideDisabled}
             guidePhase={guidePhase}
             onGuideAdvance={handleGuideAdvance}
+            onDisableGuide={handleDisableGuide}
             textLayers={textLayers}
             onTextLayersChange={setTextLayers}
             selectedTextLayerId={selectedTextLayerId}
@@ -3331,13 +3343,13 @@ export function App() {
 
       {/* 9. INTERACTIVE BEGINNER ONBOARDING GUIDE (Pure Black & White, Real-Time Telemetry) */}
       <BeginnerGuide
-        isOpen={isGuideOpen}
+        isOpen={isGuideOpen && !isMobileGuideDisabled}
         onClose={() => setIsGuideOpen(false)}
         currentStepIndex={guideStepIndex}
         onStepChange={setGuideStepIndex}
         onCompleteTour={handleCompleteTour}
         isMobileGuideDisabled={isMobileGuideDisabled}
-        onDisableMobileGuide={() => handleToggleMobileGuide(true)}
+        onDisableMobileGuide={handleDisableGuide}
         activeMediaName={activeMedia.name}
         isMediaLibraryOpen={isMediaLibraryOpen}
         onOpenMediaLibrary={() => {
