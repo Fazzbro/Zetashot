@@ -6,6 +6,7 @@ import {
   Focus,
   Film,
   Zap,
+  X,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Camera3DState } from '../utils/camera3D';
@@ -97,6 +98,8 @@ export interface BeginnerGuideProps {
   currentStepIndex: number;
   onStepChange: (stepIndex: number) => void;
   onCompleteTour: () => void;
+  isMobileGuideDisabled?: boolean;
+  onDisableMobileGuide?: () => void;
   // Real-Time Telemetry & Interactive Actions
   activeMediaName?: string;
   isMediaLibraryOpen?: boolean;
@@ -131,12 +134,15 @@ export const BeginnerGuide: React.FC<BeginnerGuideProps> = ({
   currentStepIndex,
   onStepChange,
   onCompleteTour,
+  isMobileGuideDisabled = false,
+  onDisableMobileGuide,
   onOpenMediaLibrary,
   topMode = 'operator',
   onSetTopMode,
   onExport,
 }) => {
   const totalSteps = GUIDE_STEPS.length;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   const handleNext = useCallback(() => {
     if (currentStepIndex < totalSteps - 1) {
@@ -157,6 +163,13 @@ export const BeginnerGuide: React.FC<BeginnerGuideProps> = ({
       onStepChange(currentStepIndex - 1);
     }
   }, [currentStepIndex, onStepChange]);
+
+  const handleDismiss = useCallback(() => {
+    onClose();
+    if (isMobile && onDisableMobileGuide) {
+      onDisableMobileGuide();
+    }
+  }, [onClose, isMobile, onDisableMobileGuide]);
 
   // Keyboard navigation: Left/Right arrows, Enter, Escape
   useEffect(() => {
@@ -187,62 +200,102 @@ export const BeginnerGuide: React.FC<BeginnerGuideProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleNext, handlePrev, onClose]);
 
-  if (!isOpen) return null;
+  // If guide is closed, or if on mobile and guide is disabled on mobile, do not render
+  if (!isOpen || (isMobile && isMobileGuideDisabled)) return null;
 
   return (
     <>
       {/* Step 0: Media Library Contextual Reference Pill */}
       {currentStepIndex === 0 && (
-        <button
-          type="button"
-          className="reference-guide-pill floating-guide-pill"
-          style={{ top: '64px', left: '24px' }}
-          onClick={() => {
-            if (onOpenMediaLibrary) onOpenMediaLibrary();
-            onStepChange(1);
-          }}
-          title="Click to open Media Library"
-        >
-          Click + to add <strong>Media</strong> or Template
-        </button>
+        <div className="floating-guide-container" style={{ top: '68px', left: '20px' }}>
+          <button
+            type="button"
+            className="reference-guide-pill floating-guide-pill"
+            onClick={() => {
+              if (onOpenMediaLibrary) onOpenMediaLibrary();
+              onStepChange(1);
+            }}
+            title="Click to open Media Library"
+          >
+            Click + to add <strong>Media</strong> or Template
+          </button>
+          <button
+            type="button"
+            className="guide-pill-dismiss-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDismiss();
+            }}
+            title="Dismiss guide tips (disables on mobile)"
+            aria-label="Dismiss guide"
+          >
+            <X size={12} />
+          </button>
+        </div>
       )}
 
       {/* Step 3: Compose Contextual Reference Pill */}
       {currentStepIndex === 3 && (
-        <button
-          type="button"
-          className="reference-guide-pill floating-guide-pill"
-          style={{ top: '64px', left: '50%', transform: 'translateX(-50%)' }}
-          onClick={() => {
-            if (onSetTopMode) onSetTopMode(topMode === 'compose' ? 'operator' : 'compose');
-            onStepChange(4);
-          }}
-          title="Click to activate AI Compose Mode"
-        >
-          Click to <strong>Auto-Compose</strong> AI Motion
-        </button>
+        <div className="floating-guide-container" style={{ top: '68px', left: '50%', transform: 'translateX(-50%)' }}>
+          <button
+            type="button"
+            className="reference-guide-pill floating-guide-pill"
+            onClick={() => {
+              if (onSetTopMode) onSetTopMode(topMode === 'compose' ? 'operator' : 'compose');
+              onStepChange(4);
+            }}
+            title="Click to activate AI Compose Mode"
+          >
+            Click to <strong>Auto-Compose</strong> AI Motion
+          </button>
+          <button
+            type="button"
+            className="guide-pill-dismiss-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDismiss();
+            }}
+            title="Dismiss guide tips (disables on mobile)"
+            aria-label="Dismiss guide"
+          >
+            <X size={12} />
+          </button>
+        </div>
       )}
 
       {/* Step 5: Export Contextual Reference Pill */}
       {currentStepIndex === 5 && (
-        <button
-          type="button"
-          className="reference-guide-pill floating-guide-pill"
-          style={{ top: '64px', right: '24px' }}
-          onClick={() => {
-            if (onExport) onExport();
-            confetti({
-              particleCount: 100,
-              spread: 80,
-              colors: ['#2563eb', '#ffffff', '#60a5fa'],
-              origin: { y: 0.2 },
-            });
-            onCompleteTour();
-          }}
-          title="Click to render 60 FPS video"
-        >
-          Click to <strong>Export</strong> 60 FPS video
-        </button>
+        <div className="floating-guide-container" style={{ top: '68px', right: '20px' }}>
+          <button
+            type="button"
+            className="reference-guide-pill floating-guide-pill"
+            onClick={() => {
+              if (onExport) onExport();
+              confetti({
+                particleCount: 100,
+                spread: 80,
+                colors: ['#2563eb', '#ffffff', '#60a5fa'],
+                origin: { y: 0.2 },
+              });
+              onCompleteTour();
+            }}
+            title="Click to render 60 FPS video"
+          >
+            Click to <strong>Export</strong> 60 FPS video
+          </button>
+          <button
+            type="button"
+            className="guide-pill-dismiss-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDismiss();
+            }}
+            title="Dismiss guide tips (disables on mobile)"
+            aria-label="Dismiss guide"
+          >
+            <X size={12} />
+          </button>
+        </div>
       )}
     </>
   );

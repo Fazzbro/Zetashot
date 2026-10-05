@@ -58,24 +58,47 @@
   color: var(--text-main);
 }
 
-/* TOP TOOLBARS */
-.top-left-toolbar {
+/* UNIFIED STUDIO TOP BAR */
+.studio-top-bar {
   position: absolute;
-  top: 18px;
-  left: 24px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+  z-index: 120;
+  pointer-events: none;
+}
+
+.studio-top-bar > * {
+  pointer-events: auto;
+}
+
+.top-left-toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 0;
+  justify-content: flex-start;
+  min-width: 0;
   z-index: 100;
 }
 
 .top-right-toolbar {
-  position: absolute;
-  top: 18px;
-  right: 24px;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 0;
+  justify-content: flex-end;
+  min-width: 0;
   z-index: 100;
 }
 
@@ -93,6 +116,7 @@
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .top-pill-btn:hover {
@@ -107,13 +131,12 @@
 
 /* Top Center Mode / Operator Wrapper */
 .top-center-mode-island-wrap {
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
   z-index: 120;
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   pointer-events: auto;
 }
 
@@ -3436,10 +3459,44 @@
   animation: guidePillPulse 2.5s infinite ease-in-out;
 }
 
-.floating-guide-pill {
+.floating-guide-container {
   position: absolute;
   z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: auto;
+}
+
+.floating-guide-pill {
+  position: relative;
+  z-index: 1200;
+  pointer-events: auto;
+}
+
+.guide-pill-dismiss-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  backdrop-filter: blur(8px);
+}
+
+.guide-pill-dismiss-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  transform: scale(1.08);
 }
 
 /* ==========================================================================
@@ -5984,16 +6041,26 @@
     touch-action: manipulation;
   }
 
+  .studio-top-bar {
+    height: auto;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+    gap: 8px;
+  }
+
   .top-left-toolbar {
-    top: max(10px, env(safe-area-inset-top));
-    left: max(10px, env(safe-area-inset-left));
+    position: relative;
+    top: auto;
+    left: auto;
+    flex: 0 0 auto;
     gap: 6px;
     z-index: 110;
   }
 
   .top-right-toolbar {
-    top: max(10px, env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
+    position: relative;
+    top: auto;
+    right: auto;
+    flex: 0 0 auto;
     gap: 6px;
     z-index: 110;
   }
@@ -6014,20 +6081,27 @@
     font-weight: 700;
   }
 
-  /* Center Mode Island: Clean alignment in header bar during operator mode, drop down during active compose choreography */
+  /* Center Mode Island: Flex alignment in header bar during operator mode, drop down during active compose choreography */
   .top-center-mode-island-wrap {
-    top: max(10px, env(safe-area-inset-top));
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    flex: 1 1 auto;
+    justify-content: center;
+    width: auto;
+    max-width: none;
+    z-index: 110;
+  }
+
+  .top-center-mode-island-wrap.is-compose-mode {
+    position: absolute;
+    top: max(56px, calc(env(safe-area-inset-top) + 48px));
     left: 50%;
     transform: translateX(-50%);
     width: auto;
     max-width: calc(100vw - 20px);
-    z-index: 110;
-    transition: top 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .top-center-mode-island-wrap.is-compose-mode {
-    top: max(56px, calc(env(safe-area-inset-top) + 48px));
-    z-index: 120;
+    z-index: 140;
   }
 
   .top-operator-pill-btn {

@@ -70,7 +70,6 @@ import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyfr
 import { Model3DControlsIsland } from './components/Model3DControlsIsland';
 import { decodeProjectFromUrl, encodeProjectToUrl, ZetashotSharedProject } from './utils/projectUrlEncoder';
 import { buildCameraClipsFromPreset } from './utils/cameraPresets';
-import { StudioSettingsDrawer, SettingsTab } from './components/StudioSettingsDrawer';
 
 import './styles/index.css';
 import './styles/uicamera.css';
@@ -487,9 +486,23 @@ export function App() {
   // Mobile navigation drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Unified Studio Settings Hierarchy Drawer state
-  const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('canvas');
+  // Option to disable beginner guide on mobile devices (persisted in localStorage)
+  const [isMobileGuideDisabled, setIsMobileGuideDisabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('zetashot_guide_mobile_disabled') === 'true';
+    }
+    return false;
+  });
+
+  const handleToggleMobileGuide = (disabled: boolean) => {
+    setIsMobileGuideDisabled(disabled);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('zetashot_guide_mobile_disabled', disabled ? 'true' : 'false');
+    }
+    if (disabled) {
+      setIsGuideOpen(false);
+    }
+  };
 
   // Mobile touch gesture tracking (Drag & Pinch-to-Zoom)
   const touchStartRef = useRef<{
@@ -2267,205 +2280,192 @@ export function App() {
         </div>
       )}
 
-      {/* 1. TOP-LEFT TOOLBAR */}
-      <div className="top-left-toolbar">
-        <button
-          type="button"
-          className="top-pill-btn"
-          data-guide="add-media"
-          onClick={() => {
-            setMediaLibraryMode('add');
-            setIsMediaLibraryOpen(true);
-          }}
-        >
-          <Plus size={14} />
-          <span>Add media</span>
-        </button>
-
-        <button
-          type="button"
-          className="top-pill-btn desktop-only-btn"
-          title="Direct file import (.fbx, videos, images)"
-          onClick={() => directUploadInputRef.current?.click()}
-        >
-          <Upload size={14} />
-          <span>Upload</span>
-        </button>
-
-        <input
-          ref={directUploadInputRef}
-          type="file"
-          accept=".fbx,.obj,.gltf,.glb,video/*,image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              handleUploadFile(file);
-            }
-            e.target.value = '';
-          }}
-        />
-      </div>
-
-      {/* 2. TOP CENTER MODE ISLAND (Unified Operator & Compose matching Screenshot 1) */}
-      <div
-        className={`top-center-mode-island-wrap ${topMode === 'compose' ? 'is-compose-mode' : 'is-operator-mode'}`}
-        data-guide="top-mode-island"
-      >
-        <TopModeIsland
-          isComposeActive={topMode === 'compose'}
-          onToggleCompose={() => {
-            const nextMode = topMode === 'operator' ? 'compose' : 'operator';
-            setTopMode(nextMode);
-            if (nextMode === 'compose') {
-              setIsMarkingRegion(true);
-              setGuideStepIndex((prev) => (prev === 3 ? 4 : prev));
-              if (isGuideOpen) {
-                if (interestRegions.length === 0) {
-                  setGuidePhase('compose_draw');
-                } else {
-                  setGuidePhase('compose_action');
-                }
-              }
-            } else {
-              setIsMarkingRegion(false);
-              if (isGuideOpen && (guidePhase === 'compose_draw' || guidePhase === 'compose_action')) {
-                setGuidePhase('compose_operator');
-              }
-            }
-          }}
-          onCloseCompose={handleCloseCompose}
-          onComposeMacro={() => {
-            handleCompose();
-            if (isGuideOpen) {
-              setGuidePhase('preview');
-            }
-          }}
-          isMarkingRegion={isMarkingRegion}
-          onToggleMarkingRegion={() => setIsMarkingRegion(!isMarkingRegion)}
-          onClearRegions={() => {
-            setInterestRegions([]);
-            if (isGuideOpen && topMode === 'compose') {
-              setGuidePhase('compose_draw');
-            }
-          }}
-          regionsCount={interestRegions.length}
-          isGuideOpen={isGuideOpen}
-          guidePhase={guidePhase}
-          onGuideAdvance={handleGuideAdvance}
-        />
-      </div>
-
-      {/* 3. TOP-RIGHT TOOLBAR */}
-      <div className="top-right-toolbar">
-        {/* Beginner Guide / Tour Pill (Strict Black & White) */}
-        <button
-          type="button"
-          className={`top-pill-btn desktop-only-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
-          onClick={() => {
-            if (isGuideOpen) {
-              setIsGuideOpen(false);
-            } else {
-              setIsGuideOpen(true);
-              setGuidePhase('start');
-              handleSelectClip('P01');
-            }
-          }}
-          title="Interactive Beginner Guide & Feature Tour"
-        >
-          <Sparkles size={13} color="#ffffff" />
-          <span>Guide</span>
-          <span className="guide-tour-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
-        </button>
-
-        <button
-          type="button"
-          className="top-pill-btn desktop-only-btn"
-          onClick={handleResetScene}
-          title="Reset scene"
-        >
-          <RotateCcw size={14} />
-        </button>
-
-        <button
-          type="button"
-          className="top-pill-btn desktop-only-btn"
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-        >
-          {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-        </button>
-
-        {/* Share Live Link Pill */}
-        <button
-          type="button"
-          className="top-pill-btn desktop-only-btn"
-          onClick={handleShareLink}
-          title="Share live studio link (https://zetashot.vercel.app)"
-        >
-          {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
-          <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
-        </button>
-
-        {/* Studio Settings Hierarchy Button */}
-        <button
-          type="button"
-          className="top-pill-btn"
-          data-testid="studio-settings-btn"
-          aria-label="Studio Settings Hierarchy"
-          onClick={() => {
-            setSettingsTab('canvas');
-            setIsSettingsDrawerOpen(true);
-          }}
-          title="Studio Settings (Canvas, Camera, Device, Styling, Export)"
-        >
-          <SlidersHorizontal size={14} />
-          <span>Settings</span>
-        </button>
-
-        {/* Export & Support Creator Group */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+      {/* UNIFIED STUDIO TOP BAR: Ensures zero overlap between Left tools, Operator island, and Right actions */}
+      <header className="studio-top-bar">
+        {/* 1. TOP-LEFT TOOLBAR */}
+        <div className="top-left-toolbar">
           <button
             type="button"
-            className="top-pill-btn top-upgrade-btn"
-            data-guide="export-button"
-            onClick={() => handleExport(exportFormat, exportFps)}
-            disabled={isProcessing}
-            title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
+            className="top-pill-btn"
+            data-guide="add-media"
+            onClick={() => {
+              setMediaLibraryMode('add');
+              setIsMediaLibraryOpen(true);
+            }}
           >
-            <Zap size={13} />
-            <span className="export-btn-label">
-              {isProcessing
-                ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
-                : `Export ${exportFormat.toUpperCase()} • ${exportFps}fps`}
-            </span>
-            <span className="export-btn-label-mobile">
-              {isProcessing ? `${exportProgress}%` : 'Export'}
-            </span>
+            <Plus size={14} />
+            <span>Add media</span>
           </button>
-          <a
-            href="https://paypal.me/zetabyteIN"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="support-creator-pill-link desktop-only-btn"
-            title="Support Creator on PayPal (@zetabyteIN)"
+
+          <button
+            type="button"
+            className="top-pill-btn desktop-only-btn"
+            title="Direct file import (.fbx, videos, images)"
+            onClick={() => directUploadInputRef.current?.click()}
           >
-            <Heart size={11} stroke="currentColor" fill="none" />
-            <span>Support Creator</span>
-          </a>
+            <Upload size={14} />
+            <span>Upload</span>
+          </button>
+
+          <input
+            ref={directUploadInputRef}
+            type="file"
+            accept=".fbx,.obj,.gltf,.glb,video/*,image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                handleUploadFile(file);
+              }
+              e.target.value = '';
+            }}
+          />
         </div>
 
-        {/* Mobile Menu Hamburger Button (visible <= 768px) */}
-        <button
-          type="button"
-          className="top-pill-btn mobile-menu-toggle-btn"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label={isMobileMenuOpen ? "Close menu" : "Open studio menu"}
-          title="Studio options and tools"
+        {/* 2. TOP CENTER MODE ISLAND (Unified Operator & Compose matching Screenshot 1) */}
+        <div
+          className={`top-center-mode-island-wrap ${topMode === 'compose' ? 'is-compose-mode' : 'is-operator-mode'}`}
+          data-guide="top-mode-island"
         >
-          {isMobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
-        </button>
-      </div>
+          <TopModeIsland
+            isComposeActive={topMode === 'compose'}
+            onToggleCompose={() => {
+              const nextMode = topMode === 'operator' ? 'compose' : 'operator';
+              setTopMode(nextMode);
+              if (nextMode === 'compose') {
+                setIsMarkingRegion(true);
+                setGuideStepIndex((prev) => (prev === 3 ? 4 : prev));
+                if (isGuideOpen) {
+                  if (interestRegions.length === 0) {
+                    setGuidePhase('compose_draw');
+                  } else {
+                    setGuidePhase('compose_action');
+                  }
+                }
+              } else {
+                setIsMarkingRegion(false);
+                if (isGuideOpen && (guidePhase === 'compose_draw' || guidePhase === 'compose_action')) {
+                  setGuidePhase('compose_operator');
+                }
+              }
+            }}
+            onCloseCompose={handleCloseCompose}
+            onComposeMacro={() => {
+              handleCompose();
+              if (isGuideOpen) {
+                setGuidePhase('preview');
+              }
+            }}
+            isMarkingRegion={isMarkingRegion}
+            onToggleMarkingRegion={() => setIsMarkingRegion(!isMarkingRegion)}
+            onClearRegions={() => {
+              setInterestRegions([]);
+              if (isGuideOpen && topMode === 'compose') {
+                setGuidePhase('compose_draw');
+              }
+            }}
+            regionsCount={interestRegions.length}
+            isGuideOpen={isGuideOpen}
+            guidePhase={guidePhase}
+            onGuideAdvance={handleGuideAdvance}
+          />
+        </div>
+
+        {/* 3. TOP-RIGHT TOOLBAR */}
+        <div className="top-right-toolbar">
+          {/* Beginner Guide / Tour Pill (Strict Black & White) */}
+          <button
+            type="button"
+            className={`top-pill-btn desktop-only-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
+            onClick={() => {
+              if (isGuideOpen) {
+                setIsGuideOpen(false);
+              } else {
+                setIsGuideOpen(true);
+                setGuidePhase('start');
+                handleSelectClip('P01');
+              }
+            }}
+            title="Interactive Beginner Guide & Feature Tour"
+          >
+            <Sparkles size={13} color="#ffffff" />
+            <span>Guide</span>
+            <span className="guide-tour-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="top-pill-btn desktop-only-btn"
+            onClick={handleResetScene}
+            title="Reset scene"
+          >
+            <RotateCcw size={14} />
+          </button>
+
+          <button
+            type="button"
+            className="top-pill-btn desktop-only-btn"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+          >
+            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
+
+          {/* Share Live Link Pill */}
+          <button
+            type="button"
+            className="top-pill-btn desktop-only-btn"
+            onClick={handleShareLink}
+            title="Share live studio link (https://zetashot.vercel.app)"
+          >
+            {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
+            <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
+          </button>
+
+          {/* Export & Support Creator Group */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <button
+              type="button"
+              className="top-pill-btn top-upgrade-btn"
+              data-guide="export-button"
+              onClick={() => handleExport(exportFormat, exportFps)}
+              disabled={isProcessing}
+              title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
+            >
+              <Zap size={13} />
+              <span className="export-btn-label">
+                {isProcessing
+                  ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
+                  : `Export ${exportFormat.toUpperCase()} • ${exportFps}fps`}
+              </span>
+              <span className="export-btn-label-mobile">
+                {isProcessing ? `${exportProgress}%` : 'Export'}
+              </span>
+            </button>
+            <a
+              href="https://paypal.me/zetabyteIN"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="support-creator-pill-link desktop-only-btn"
+              title="Support Creator on PayPal (@zetabyteIN)"
+            >
+              <Heart size={11} stroke="currentColor" fill="none" />
+              <span>Support Creator</span>
+            </a>
+          </div>
+
+          {/* Mobile Menu Hamburger Button (visible <= 768px) */}
+          <button
+            type="button"
+            className="top-pill-btn mobile-menu-toggle-btn"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open studio menu"}
+            title="Studio options and tools"
+          >
+            {isMobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+          </button>
+        </div>
+      </header>
 
       {/* MOBILE STUDIO DRAWER / SHEET */}
       {isMobileMenuOpen && (
@@ -2487,29 +2487,38 @@ export function App() {
             </div>
 
             <div className="mobile-drawer-content">
-              {/* Studio Settings Hierarchy Entry */}
+              {/* Option to Disable Guide on Mobile Devices */}
               <div className="mobile-drawer-section">
-                <button
-                  type="button"
-                  className="mobile-drawer-action-btn"
+                <span className="mobile-drawer-section-title">Guide & Onboarding</span>
+                <div
                   style={{
-                    width: '100%',
-                    justifyContent: 'center',
-                    background: 'rgba(56, 189, 248, 0.12)',
-                    borderColor: 'rgba(56, 189, 248, 0.35)',
-                    color: '#38bdf8',
-                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '12px',
                   }}
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setSettingsTab('canvas');
-                    setIsSettingsDrawerOpen(true);
-                  }}
-                  data-testid="mobile-drawer-settings-btn"
                 >
-                  <SlidersHorizontal size={16} />
-                  <span>Studio Settings Hierarchy</span>
-                </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
+                      Guide on Mobile
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                      {isMobileGuideDisabled ? 'Disabled (tips hidden)' : 'Enabled (showing tips)'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`settings-switch ${!isMobileGuideDisabled ? 'is-on' : ''}`}
+                    onClick={() => handleToggleMobileGuide(!isMobileGuideDisabled)}
+                    aria-label="Toggle Beginner Guide on Mobile"
+                    title={isMobileGuideDisabled ? "Enable guide on mobile" : "Disable guide on mobile"}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
               </div>
 
               {/* Media Section */}
@@ -2605,12 +2614,13 @@ export function App() {
 
                   <button
                     type="button"
-                    className={`mobile-drawer-list-btn ${isGuideOpen ? 'is-active' : ''}`}
+                    className={`mobile-drawer-list-btn ${isGuideOpen && !isMobileGuideDisabled ? 'is-active' : ''}`}
                     onClick={() => {
                       setIsMobileMenuOpen(false);
-                      if (isGuideOpen) {
+                      if (isGuideOpen && !isMobileGuideDisabled) {
                         setIsGuideOpen(false);
                       } else {
+                        handleToggleMobileGuide(false);
                         setIsGuideOpen(true);
                         setGuidePhase('start');
                         handleSelectClip('P01');
@@ -2619,7 +2629,9 @@ export function App() {
                   >
                     <Sparkles size={16} />
                     <span>Beginner Guide & Tour</span>
-                    <span className="mobile-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
+                    <span className="mobile-badge">
+                      {isMobileGuideDisabled ? 'Disabled' : isGuideOpen ? 'Active' : 'Start'}
+                    </span>
                   </button>
 
                   <button
@@ -2756,61 +2768,6 @@ export function App() {
         onApplyCrop={(newCrop) => setCropRect(newCrop)}
       />
 
-      {/* 5b. UNIFIED STUDIO SETTINGS HIERARCHY DRAWER */}
-      <StudioSettingsDrawer
-        isOpen={isSettingsDrawerOpen}
-        onClose={() => setIsSettingsDrawerOpen(false)}
-        activeTab={settingsTab}
-        onTabChange={setSettingsTab}
-        aspectRatio={aspectRatio}
-        onAspectRatioChange={setAspectRatio}
-        background={background}
-        onBackgroundChange={setBackground}
-        showGrid={showGrid}
-        onToggleGrid={() => setShowGrid(!showGrid)}
-        theme={theme}
-        onThemeChange={setTheme}
-        camera={camera}
-        onCameraChange={handleCameraChange}
-        dragMode={dragMode}
-        onDragModeChange={setDragMode}
-        blurAmount={blurAmount}
-        onBlurChange={handleBlurChange}
-        autoFocus={autoFocus}
-        onAutoFocusChange={setAutoFocus}
-        onApplyPreset={(presetId) => {
-          const newClips = buildCameraClipsFromPreset(presetId, totalDuration);
-          handleClipsChange(newClips);
-          const first = newClips[0];
-          if (first) {
-            handleSelectClip(first.id);
-            setCamera(first.camera);
-          }
-        }}
-        onResetCamera={handleResetScene}
-        activeMedia={activeMedia}
-        onOpenMediaLibrary={() => {
-          setMediaLibraryMode('select');
-          setIsMediaLibraryOpen(true);
-        }}
-        onUploadFile={handleUploadFile}
-        onOpenCrop={() => setIsCropModalOpen(true)}
-        borderRadius={borderRadius}
-        onBorderRadiusChange={setBorderRadius}
-        shadowDepth={shadowDepth}
-        onShadowDepthChange={setShadowDepth}
-        soundEnabled={soundEnabled}
-        onSoundEnabledChange={setSoundEnabled}
-        exportFormat={exportFormat}
-        onExportFormatChange={setExportFormat}
-        exportFps={exportFps}
-        onExportFpsChange={setExportFps}
-        isProcessing={isProcessing}
-        exportProgress={exportProgress}
-        onExport={() => handleExport(exportFormat, exportFps)}
-        onCapturePhoto={() => handleExport(exportFormat)}
-      />
-
       {/* 6. 3D STAGE & COMPOSITION CANVAS */}
       <div 
         className="stage-wrap" 
@@ -2856,17 +2813,6 @@ export function App() {
               title={showGrid ? "Hide 3x3 Grid Guides" : "Show 3x3 Grid Guides"}
             >
               <Grid size={13} style={{ color: showGrid ? '#38bdf8' : '#94a3b8' }} />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSettingsTab('canvas');
-                setIsSettingsDrawerOpen(true);
-              }}
-              title="Canvas & Format Settings"
-            >
-              <SlidersHorizontal size={12} style={{ color: '#94a3b8' }} />
             </button>
           </div>
 
@@ -3252,10 +3198,6 @@ export function App() {
             selectedClipId={selectedClipId}
             onGuideAdvance={handleGuideAdvance}
             onRulerActiveChange={setIsCameraRulerOpen}
-            onOpenSettings={() => {
-              setSettingsTab('camera');
-              setIsSettingsDrawerOpen(true);
-            }}
           />
         </div>
       </div>
@@ -3394,6 +3336,8 @@ export function App() {
         currentStepIndex={guideStepIndex}
         onStepChange={setGuideStepIndex}
         onCompleteTour={handleCompleteTour}
+        isMobileGuideDisabled={isMobileGuideDisabled}
+        onDisableMobileGuide={() => handleToggleMobileGuide(true)}
         activeMediaName={activeMedia.name}
         isMediaLibraryOpen={isMediaLibraryOpen}
         onOpenMediaLibrary={() => {

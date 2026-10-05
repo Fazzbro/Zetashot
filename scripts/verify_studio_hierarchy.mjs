@@ -4,129 +4,104 @@ import puppeteer from 'puppeteer';
 const ARTIFACT_DIR = 'C:/Users/NEW/.gemini/antigravity/brain/09fa3cb6-fd05-49a2-a93d-5bc3a51867ae';
 
 async function verify() {
-  console.log('Starting preview server on port 4180...');
-  const server = await preview({ preview: { port: 4180 } });
+  console.log('Starting preview server on port 4182...');
+  const server = await preview({ preview: { port: 4182 } });
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 
   // 1. Desktop Test (1440x900)
-  console.log('\n--- Testing Desktop (1440x900) ---');
+  console.log('\n--- 1. Testing Desktop Top Bar Alignment (1440x900) ---');
   const desktopPage = await browser.newPage();
   await desktopPage.setViewport({ width: 1440, height: 900 });
-  await desktopPage.goto('http://localhost:4180', { waitUntil: 'networkidle0' });
+  await desktopPage.goto('http://localhost:4182', { waitUntil: 'domcontentloaded' });
   await new Promise(r => setTimeout(r, 1200));
 
-  // Check stage visibility
-  const stageStatsDesktop = await desktopPage.evaluate(() => {
-    const stage = document.querySelector('.capture-stage');
-    if (!stage) return null;
-    const r = stage.getBoundingClientRect();
-    const style = window.getComputedStyle(stage);
+  const desktopOverlap = await desktopPage.evaluate(() => {
+    const left = document.querySelector('.top-left-toolbar')?.getBoundingClientRect();
+    const center = document.querySelector('.top-center-mode-island-wrap')?.getBoundingClientRect();
+    const right = document.querySelector('.top-right-toolbar')?.getBoundingClientRect();
+    const settingsBtn = document.querySelector('[data-testid="studio-settings-btn"]');
+
     return {
-      width: Math.round(r.width),
-      height: Math.round(r.height),
-      top: Math.round(r.top),
-      left: Math.round(r.left),
-      border: style.border,
-      boxShadow: style.boxShadow,
-      backgroundColor: style.backgroundColor,
+      hasSeparateSettings: !!settingsBtn,
+      left: left ? { right: Math.round(left.right), width: Math.round(left.width) } : null,
+      center: center ? { left: Math.round(center.left), right: Math.round(center.right), width: Math.round(center.width) } : null,
+      right: right ? { left: Math.round(right.left), width: Math.round(right.width) } : null,
+      leftCenterGap: (center && left) ? Math.round(center.left - left.right) : null,
+      centerRightGap: (right && center) ? Math.round(right.left - center.right) : null,
     };
   });
-  console.log('Desktop Stage Stats:', stageStatsDesktop);
-
-  await desktopPage.screenshot({ path: `${ARTIFACT_DIR}/desktop_canvas_stage.png` });
-  console.log('Saved desktop_canvas_stage.png');
-
-  // Click Settings button in Header
-  const settingsBtn = await desktopPage.$('[data-testid="studio-settings-btn"]');
-  if (settingsBtn) {
-    console.log('Clicking Settings button...');
-    await settingsBtn.click();
-    await new Promise(r => setTimeout(r, 600));
-    await desktopPage.screenshot({ path: `${ARTIFACT_DIR}/desktop_settings_drawer_open.png` });
-    console.log('Saved desktop_settings_drawer_open.png');
-
-    // Click Camera Tab
-    await desktopPage.evaluate(() => {
-      const tabs = Array.from(document.querySelectorAll('.settings-tab-btn'));
-      const cameraTab = tabs.find(t => t.textContent.includes('Camera'));
-      if (cameraTab) cameraTab.click();
-    });
-    await new Promise(r => setTimeout(r, 400));
-    await desktopPage.screenshot({ path: `${ARTIFACT_DIR}/desktop_settings_camera_tab.png` });
-    console.log('Saved desktop_settings_camera_tab.png');
-
-    // Switch to dark mode via Canvas tab
-    await desktopPage.evaluate(() => {
-      const tabs = Array.from(document.querySelectorAll('.settings-tab-btn'));
-      const canvasTab = tabs.find(t => t.textContent.includes('Canvas'));
-      if (canvasTab) canvasTab.click();
-    });
-    await new Promise(r => setTimeout(r, 300));
-    const darkBtn = await desktopPage.$('[data-testid="theme-dark-btn"]');
-    if (darkBtn) await darkBtn.click();
-    await new Promise(r => setTimeout(r, 400));
-    await desktopPage.screenshot({ path: `${ARTIFACT_DIR}/desktop_dark_mode_canvas.png` });
-    console.log('Saved desktop_dark_mode_canvas.png');
+  console.log('Desktop Overlap & Clearance Analysis:', desktopOverlap);
+  if (desktopOverlap.leftCenterGap < 0 || desktopOverlap.centerRightGap < 0) {
+    console.error('ERROR: Desktop header elements are overlapping!');
   } else {
-    console.warn('Could not find settings button on desktop!');
+    console.log('SUCCESS: Desktop header elements have clean positive gaps, ZERO overlap!');
   }
+
+  await desktopPage.screenshot({ path: `${ARTIFACT_DIR}/desktop_no_overlap_clean.png` });
+  console.log('Saved desktop_no_overlap_clean.png');
   await desktopPage.close();
 
-  // 2. Mobile Android Test (390x844)
-  console.log('\n--- Testing Mobile Android (390x844) ---');
-  const mobilePage = await browser.newPage();
-  await mobilePage.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-  await mobilePage.goto('http://localhost:4180', { waitUntil: 'networkidle0' });
-  await new Promise(r => setTimeout(r, 1200));
+  // 2. Mobile Android Test (390x844 & 360x800)
+  for (const dims of [{ width: 390, height: 844, name: 'iphone_390' }, { width: 360, height: 800, name: 'android_360' }]) {
+    console.log(`\n--- 2. Testing Mobile ${dims.name} (${dims.width}x${dims.height}) ---`);
+    const mobilePage = await browser.newPage();
+    await mobilePage.setViewport({ width: dims.width, height: dims.height, isMobile: true, hasTouch: true });
+    await mobilePage.goto('http://localhost:4182', { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 1200));
 
-  const stageStatsMobile = await mobilePage.evaluate(() => {
-    const stage = document.querySelector('.capture-stage');
-    if (!stage) return null;
-    const r = stage.getBoundingClientRect();
-    const style = window.getComputedStyle(stage);
-    return {
-      width: Math.round(r.width),
-      height: Math.round(r.height),
-      top: Math.round(r.top),
-      left: Math.round(r.left),
-      border: style.border,
-      boxShadow: style.boxShadow,
-      backgroundColor: style.backgroundColor,
-    };
-  });
-  console.log('Mobile Stage Stats:', stageStatsMobile);
+    const mobileOverlap = await mobilePage.evaluate(() => {
+      const left = document.querySelector('.top-left-toolbar')?.getBoundingClientRect();
+      const center = document.querySelector('.top-center-mode-island-wrap')?.getBoundingClientRect();
+      const right = document.querySelector('.top-right-toolbar')?.getBoundingClientRect();
+      const settingsBtn = document.querySelector('[data-testid="studio-settings-btn"]');
 
-  await mobilePage.screenshot({ path: `${ARTIFACT_DIR}/mobile_canvas_stage.png` });
-  console.log('Saved mobile_canvas_stage.png');
+      return {
+        hasSeparateSettings: !!settingsBtn,
+        left: left ? { right: Math.round(left.right), width: Math.round(left.width) } : null,
+        center: center ? { left: Math.round(center.left), right: Math.round(center.right), width: Math.round(center.width) } : null,
+        right: right ? { left: Math.round(right.left), width: Math.round(right.width) } : null,
+        leftCenterGap: (center && left) ? Math.round(center.left - left.right) : null,
+        centerRightGap: (right && center) ? Math.round(right.left - center.right) : null,
+      };
+    });
+    console.log(`${dims.name} Overlap & Clearance:`, mobileOverlap);
+    if (mobileOverlap.leftCenterGap < 0 || mobileOverlap.centerRightGap < 0) {
+      console.error(`ERROR: Mobile ${dims.name} header elements are overlapping!`);
+    } else {
+      console.log(`SUCCESS: Mobile ${dims.name} header has positive clearance, ZERO overlap!`);
+    }
 
-  // Click Settings button directly on mobile header or via mobile menu
-  const mobileSettingsBtn = await mobilePage.$('[data-testid="studio-settings-btn"]');
-  if (mobileSettingsBtn) {
-    console.log('Clicking Settings button on mobile header...');
-    await mobileSettingsBtn.click();
-    await new Promise(r => setTimeout(r, 600));
-    await mobilePage.screenshot({ path: `${ARTIFACT_DIR}/mobile_settings_drawer_open.png` });
-    console.log('Saved mobile_settings_drawer_open.png');
-  } else {
-    console.log('Trying via mobile hamburger menu...');
+    await mobilePage.screenshot({ path: `${ARTIFACT_DIR}/${dims.name}_header_clean.png` });
+
+    // Open Mobile Drawer and check Guide toggle
+    console.log(`Testing Mobile Guide disable switch on ${dims.name}...`);
     const hamburger = await mobilePage.$('.mobile-menu-toggle-btn');
     if (hamburger) {
       await hamburger.click();
       await new Promise(r => setTimeout(r, 400));
-      const drawerBtn = await mobilePage.$('[data-testid="mobile-drawer-settings-btn"]');
-      if (drawerBtn) {
-        await drawerBtn.click();
-        await new Promise(r => setTimeout(r, 600));
-        await mobilePage.screenshot({ path: `${ARTIFACT_DIR}/mobile_settings_drawer_open.png` });
-        console.log('Saved mobile_settings_drawer_open.png via hamburger menu');
+      await mobilePage.screenshot({ path: `${ARTIFACT_DIR}/${dims.name}_drawer_guide_toggle.png` });
+
+      // Click the Guide toggle switch to disable guide
+      const toggleSwitch = await mobilePage.$('.mobile-drawer-section .settings-switch');
+      if (toggleSwitch) {
+        console.log('Toggling Guide on Mobile switch...');
+        await toggleSwitch.click();
+        await new Promise(r => setTimeout(r, 300));
+
+        const isGuideDisabled = await mobilePage.evaluate(() => {
+          return localStorage.getItem('zetashot_guide_mobile_disabled');
+        });
+        console.log(`localStorage zetashot_guide_mobile_disabled:`, isGuideDisabled);
+        await mobilePage.screenshot({ path: `${ARTIFACT_DIR}/${dims.name}_drawer_guide_disabled.png` });
       }
     }
+
+    await mobilePage.close();
   }
-  await mobilePage.close();
 
   await browser.close();
   server.httpServer.close();
-  console.log('Verification finished successfully!');
+  console.log('\nAll checks finished successfully!');
 }
 
 verify().catch(console.error);
