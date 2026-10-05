@@ -2041,6 +2041,47 @@ export function App() {
     }
   };
 
+  // Delete user uploaded media from library
+  const handleDeleteMediaItem = useCallback((mediaId: string) => {
+    setMediaList((prev) => {
+      const filtered = prev.filter((item) => item.id !== mediaId);
+      return filtered.length > 0 ? filtered : [DEFAULT_BLANK_MEDIA];
+    });
+
+    if (activeMedia.id === mediaId) {
+      setActiveMedia(DEFAULT_BLANK_MEDIA);
+      setCropRect({ x: 0, y: 0, width: 100, height: 100 });
+      setInterestRegions([]);
+      setIsComposed(false);
+      isComposedRef.current = false;
+    }
+
+    setMediaClips((prev) =>
+      prev.map((c) =>
+        c.mediaId === mediaId
+          ? {
+              ...c,
+              mediaId: DEFAULT_BLANK_MEDIA.id,
+              name: DEFAULT_BLANK_MEDIA.name,
+              type: DEFAULT_BLANK_MEDIA.type,
+              url: DEFAULT_BLANK_MEDIA.url,
+              modelTransform: undefined,
+            }
+          : c
+      )
+    );
+  }, [activeMedia.id, DEFAULT_BLANK_MEDIA]);
+
+  // Reset media sequence & active media to default
+  const handleResetToDefaultMedia = useCallback(() => {
+    setActiveMedia(DEFAULT_BLANK_MEDIA);
+    setCropRect({ x: 0, y: 0, width: 100, height: 100 });
+    setInterestRegions([]);
+    setIsComposed(false);
+    isComposedRef.current = false;
+    setStudioMode('video');
+  }, [DEFAULT_BLANK_MEDIA]);
+
   // Capture / Video Export Handler (Supports MP4 & WebM, 24/30/60 FPS)
   const handleExport = async (format: 'mp4' | 'webm' = exportFormat, fps: 24 | 30 | 60 = exportFps) => {
     if (!stageRef.current || isProcessing) return;
@@ -2778,6 +2819,7 @@ export function App() {
             );
           });
         }}
+        onDeleteMediaItem={handleDeleteMediaItem}
         onUploadFile={handleUploadFile}
       />
 
@@ -3244,6 +3286,7 @@ export function App() {
             onCompose={handleCompose}
             onTotalDurationChange={(newDur) => setTotalDuration(newDur)}
             onMediaDurationChange={handleMediaDurationChange}
+            onResetToDefaultMedia={handleResetToDefaultMedia}
             mediaThumbnailUrl={activeMedia.type === 'image' ? activeMedia.url : undefined}
             mediaThumbnails={videoThumbnails}
             mediaDuration={mediaDuration}

@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus, Box } from 'lucide-react';
+import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus, Box, Trash2 } from 'lucide-react';
 import { Model3DTextureConfig } from '../types/model3D';
 
 export interface MediaItem {
@@ -41,6 +41,7 @@ interface MediaLibraryModalProps {
   onModeChange?: (mode: 'select' | 'add') => void;
   onSelectMedia: (item: MediaItem) => void;
   onAddMediaClip?: (item: MediaItem) => void;
+  onDeleteMediaItem?: (id: string) => void;
   onUploadFile: (file: File) => void;
 }
 
@@ -53,6 +54,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   onModeChange,
   onSelectMedia,
   onAddMediaClip,
+  onDeleteMediaItem,
   onUploadFile,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -235,6 +237,22 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                   >
                     <Plus size={13} />
                     <span>Add Clip</span>
+                  </button>
+                )}
+
+                {/* Delete button for user uploaded assets */}
+                {!BUILTIN_MEDIA_ITEMS.some((b) => b.id === item.id) && onDeleteMediaItem && (
+                  <button
+                    type="button"
+                    className="source-library-card-delete-btn"
+                    title={`Delete ${item.name} from library`}
+                    aria-label={`Delete ${item.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteMediaItem(item.id);
+                    }}
+                  >
+                    <Trash2 size={13} />
                   </button>
                 )}
               </div>
