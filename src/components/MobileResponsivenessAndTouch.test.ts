@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { clampRotation } from '../utils/camera3D';
+import { getDefaultTimelineDuration } from '../utils/viewportPresets';
 
 describe('Mobile Responsiveness and Touch Gestures Logic', () => {
   it('correctly clamps rotation values during touch dragging for X/Y and Z axes', () => {
@@ -66,5 +67,20 @@ describe('Mobile Responsiveness and Touch Gestures Logic', () => {
     expect(shouldCollapseTimeline(1024)).toBe(false);
     expect(shouldCollapseTimeline(1440)).toBe(false);
     expect(shouldCollapseTimeline(1920)).toBe(false);
+  });
+
+  it('enforces default timeline duration of 10s on mobile devices and 12s on desktop', () => {
+    // Mobile devices (<= 768px): 10.0s
+    expect(getDefaultTimelineDuration(320)).toBe(10.0);
+    expect(getDefaultTimelineDuration(360)).toBe(10.0);
+    expect(getDefaultTimelineDuration(390)).toBe(10.0);
+    expect(getDefaultTimelineDuration(412)).toBe(10.0);
+    expect(getDefaultTimelineDuration(768)).toBe(10.0);
+
+    // Desktop and larger devices (> 768px): 12.0s
+    expect(getDefaultTimelineDuration(769)).toBe(12.0);
+    expect(getDefaultTimelineDuration(1024)).toBe(12.0);
+    expect(getDefaultTimelineDuration(1440)).toBe(12.0);
+    expect(getDefaultTimelineDuration(1920)).toBe(12.0);
   });
 });

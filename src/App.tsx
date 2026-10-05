@@ -70,6 +70,7 @@ import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyfr
 import { Model3DControlsIsland } from './components/Model3DControlsIsland';
 import { decodeProjectFromUrl, encodeProjectToUrl, ZetashotSharedProject } from './utils/projectUrlEncoder';
 import { buildCameraClipsFromPreset } from './utils/cameraPresets';
+import { getDefaultTimelineDuration } from './utils/viewportPresets';
 
 import './styles/index.css';
 import './styles/uicamera.css';
@@ -303,9 +304,9 @@ export function App() {
   const [isCropModalOpen, setIsCropModalOpen] = useState<boolean>(false);
   const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, width: 100, height: 100 });
 
-  // 8. Video Playback & Timeline Scrubber (12s visible workspace ruler)
+  // 8. Video Playback & Timeline Scrubber (10s on mobile devices, 12s on desktop)
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [totalDuration, setTotalDuration] = useState<number>(12.0);
+  const [totalDuration, setTotalDuration] = useState<number>(() => getDefaultTimelineDuration());
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   // Synchronous Refs for guaranteed zero-race-condition playback
@@ -332,6 +333,22 @@ export function App() {
   useEffect(() => {
     totalDurationRef.current = totalDuration;
   }, [totalDuration]);
+
+  // Adapt default duration on window resize between mobile and desktop if user hasn't explicitly extended it
+  useEffect(() => {
+    const handleResize = () => {
+      const targetDefault = getDefaultTimelineDuration();
+      setTotalDuration((prev) => {
+        if (prev === 10.0 || prev === 12.0) {
+          totalDurationRef.current = targetDefault;
+          return targetDefault;
+        }
+        return prev;
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -1064,9 +1081,10 @@ export function App() {
 
       const composedDuration = Number((interestRegions.length * defaultDurationPerRegion).toFixed(2));
 
-      // Visual timeline ruler stays 12.0s
-      setTotalDuration(12.0);
-      totalDurationRef.current = 12.0;
+      // Visual timeline ruler stays at default duration (10s on mobile, 12s on desktop)
+      const defaultDuration = getDefaultTimelineDuration();
+      setTotalDuration(defaultDuration);
+      totalDurationRef.current = defaultDuration;
 
       const clipStart = mediaClipsRef.current
         .slice(0, actualClipIdx)
@@ -1174,10 +1192,11 @@ export function App() {
     setTopMode('operator');
   };
 
-  // Close compose handler: keep visual timeline ruler at 12.0s
+  // Close compose handler: keep visual timeline ruler at default duration (10s on mobile, 12s on desktop)
   const handleCloseCompose = () => {
-    setTotalDuration(12.0);
-    totalDurationRef.current = 12.0;
+    const defaultDuration = getDefaultTimelineDuration();
+    setTotalDuration(defaultDuration);
+    totalDurationRef.current = defaultDuration;
     if (interestRegions.length > 0) {
       setIsComposed(true);
       isComposedRef.current = true;
@@ -1881,9 +1900,10 @@ export function App() {
       const newSeqDur = calculateMediaSequenceDuration(updated);
       setMediaDuration(newSeqDur);
       mediaDurationRef.current = newSeqDur;
+      const defaultDuration = getDefaultTimelineDuration();
       if (newSeqDur > totalDurationRef.current) {
-        setTotalDuration(Math.max(12.0, Math.ceil(newSeqDur)));
-        totalDurationRef.current = Math.max(12.0, Math.ceil(newSeqDur));
+        setTotalDuration(Math.max(defaultDuration, Math.ceil(newSeqDur)));
+        totalDurationRef.current = Math.max(defaultDuration, Math.ceil(newSeqDur));
       }
       setSelectedMediaClipId(newClip.id);
       return updated;

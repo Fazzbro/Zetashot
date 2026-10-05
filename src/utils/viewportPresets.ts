@@ -44,3 +44,24 @@ export function findPresetByDimensions(width: number, height: number): ViewportP
 export function getPresetsByCategory(category: ViewportPreset['category']): ViewportPreset[] {
   return VIEWPORT_PRESETS.filter((p) => p.category === category);
 }
+
+/**
+ * Returns true if the viewport width represents a mobile device (<= 768px).
+ */
+export function isMobileDeviceViewport(width?: number): boolean {
+  if (typeof width === 'number') {
+    return width <= 768;
+  }
+  if (typeof window === 'undefined') return false;
+  return (
+    window.innerWidth <= 768 ||
+    (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches)
+  );
+}
+
+/**
+ * Default visual timeline duration: 10.0s for mobile devices, 12.0s for desktop.
+ */
+export function getDefaultTimelineDuration(width?: number): number {
+  return isMobileDeviceViewport(width) ? 10.0 : 12.0;
+}

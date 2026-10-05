@@ -51,6 +51,7 @@ import {
 } from '../utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from '../types/audioTrack';
 import { AudioManagerModal } from './AudioManagerModal';
+import { getDefaultTimelineDuration } from '../utils/viewportPresets';
 
 export interface TimelinePositionClip {
   id: string;
@@ -211,8 +212,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     return () => window.removeEventListener('pointerdown', handleOutsideClick);
   }, [activeVolumePopoverTrackId]);
 
-  // Visible Timeline Ruler Duration: at least 12.0s by default for expansive workspace view
-  const rulerDuration = Math.max(12.0, totalDuration || 12.0);
+  // Visible Timeline Ruler Duration: 10.0s on mobile devices, 12.0s on desktop by default
+  const defaultRulerDur = getDefaultTimelineDuration();
+  const rulerDuration = Math.max(defaultRulerDur, totalDuration || defaultRulerDur);
 
   // Popovers for Transitions
   const [activeTransitionPopover, setActiveTransitionPopover] = useState<{
@@ -2637,13 +2639,15 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             <div className="playhead-time-bubble">{currentTime.toFixed(1)}</div>
           </div>
 
-          {/* Time Ruler Ticks (0s to 12s workspace view) */}
+          {/* Time Ruler Ticks (0s to 10s on mobile, 0s to 12s on desktop) */}
           <div className="timeline-time-ruler-row">
-            {Array.from({ length: 13 }).map((_, i) => {
-              const rawVal = (i / 12) * rulerDuration;
-              const secVal = Math.round(rawVal).toString();
-              return <span key={i}>{secVal}s</span>;
-            })}
+            {(() => {
+              const tickCount = Math.round(rulerDuration) + 1;
+              return Array.from({ length: tickCount }).map((_, i) => {
+                const secVal = Math.round((i / (tickCount - 1)) * rulerDuration).toString();
+                return <span key={i}>{secVal}s</span>;
+              });
+            })()}
           </div>
         </div>
       </div>
