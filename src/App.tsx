@@ -53,6 +53,8 @@ import {
   Menu,
   X,
   Sliders,
+  SlidersHorizontal,
+  Grid,
 } from 'lucide-react';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
@@ -68,6 +70,7 @@ import { interpolateModel3DTransform, setOrUpdateModelKeyframe, removeModelKeyfr
 import { Model3DControlsIsland } from './components/Model3DControlsIsland';
 import { decodeProjectFromUrl, encodeProjectToUrl, ZetashotSharedProject } from './utils/projectUrlEncoder';
 import { buildCameraClipsFromPreset } from './utils/cameraPresets';
+import { StudioSettingsDrawer, SettingsTab } from './components/StudioSettingsDrawer';
 
 import './styles/index.css';
 import './styles/uicamera.css';
@@ -483,6 +486,10 @@ export function App() {
 
   // Mobile navigation drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Unified Studio Settings Hierarchy Drawer state
+  const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('canvas');
 
   // Mobile touch gesture tracking (Drag & Pinch-to-Zoom)
   const touchStartRef = useRef<{
@@ -2400,6 +2407,22 @@ export function App() {
           <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
         </button>
 
+        {/* Studio Settings Hierarchy Button */}
+        <button
+          type="button"
+          className="top-pill-btn"
+          data-testid="studio-settings-btn"
+          aria-label="Studio Settings Hierarchy"
+          onClick={() => {
+            setSettingsTab('canvas');
+            setIsSettingsDrawerOpen(true);
+          }}
+          title="Studio Settings (Canvas, Camera, Device, Styling, Export)"
+        >
+          <SlidersHorizontal size={14} />
+          <span>Settings</span>
+        </button>
+
         {/* Export & Support Creator Group */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
           <button
@@ -2464,6 +2487,31 @@ export function App() {
             </div>
 
             <div className="mobile-drawer-content">
+              {/* Studio Settings Hierarchy Entry */}
+              <div className="mobile-drawer-section">
+                <button
+                  type="button"
+                  className="mobile-drawer-action-btn"
+                  style={{
+                    width: '100%',
+                    justifyContent: 'center',
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    borderColor: 'rgba(56, 189, 248, 0.35)',
+                    color: '#38bdf8',
+                    fontWeight: 600,
+                  }}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setSettingsTab('canvas');
+                    setIsSettingsDrawerOpen(true);
+                  }}
+                  data-testid="mobile-drawer-settings-btn"
+                >
+                  <SlidersHorizontal size={16} />
+                  <span>Studio Settings Hierarchy</span>
+                </button>
+              </div>
+
               {/* Media Section */}
               <div className="mobile-drawer-section">
                 <span className="mobile-drawer-section-title">Media & Assets</span>
@@ -2708,6 +2756,61 @@ export function App() {
         onApplyCrop={(newCrop) => setCropRect(newCrop)}
       />
 
+      {/* 5b. UNIFIED STUDIO SETTINGS HIERARCHY DRAWER */}
+      <StudioSettingsDrawer
+        isOpen={isSettingsDrawerOpen}
+        onClose={() => setIsSettingsDrawerOpen(false)}
+        activeTab={settingsTab}
+        onTabChange={setSettingsTab}
+        aspectRatio={aspectRatio}
+        onAspectRatioChange={setAspectRatio}
+        background={background}
+        onBackgroundChange={setBackground}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid(!showGrid)}
+        theme={theme}
+        onThemeChange={setTheme}
+        camera={camera}
+        onCameraChange={handleCameraChange}
+        dragMode={dragMode}
+        onDragModeChange={setDragMode}
+        blurAmount={blurAmount}
+        onBlurChange={handleBlurChange}
+        autoFocus={autoFocus}
+        onAutoFocusChange={setAutoFocus}
+        onApplyPreset={(presetId) => {
+          const newClips = buildCameraClipsFromPreset(presetId, totalDuration);
+          handleClipsChange(newClips);
+          const first = newClips[0];
+          if (first) {
+            handleSelectClip(first.id);
+            setCamera(first.camera);
+          }
+        }}
+        onResetCamera={handleResetScene}
+        activeMedia={activeMedia}
+        onOpenMediaLibrary={() => {
+          setMediaLibraryMode('select');
+          setIsMediaLibraryOpen(true);
+        }}
+        onUploadFile={handleUploadFile}
+        onOpenCrop={() => setIsCropModalOpen(true)}
+        borderRadius={borderRadius}
+        onBorderRadiusChange={setBorderRadius}
+        shadowDepth={shadowDepth}
+        onShadowDepthChange={setShadowDepth}
+        soundEnabled={soundEnabled}
+        onSoundEnabledChange={setSoundEnabled}
+        exportFormat={exportFormat}
+        onExportFormatChange={setExportFormat}
+        exportFps={exportFps}
+        onExportFpsChange={setExportFps}
+        isProcessing={isProcessing}
+        exportProgress={exportProgress}
+        onExport={() => handleExport(exportFormat, exportFps)}
+        onCapturePhoto={() => handleExport(exportFormat)}
+      />
+
       {/* 6. 3D STAGE & COMPOSITION CANVAS */}
       <div 
         className="stage-wrap" 
@@ -2737,8 +2840,36 @@ export function App() {
               : undefined,
             backgroundRepeat: 'no-repeat',
             aspectRatio: getAspectRatioCss(aspectRatio),
+            ['--stage-aspect-ratio' as any]: getAspectRatioCss(aspectRatio),
           }}
         >
+          {/* Canvas Artboard Header Badge */}
+          <div className="stage-artboard-badge">
+            <span className="badge-dot" />
+            <span>Canvas: {aspectRatio}</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowGrid(!showGrid);
+              }}
+              title={showGrid ? "Hide 3x3 Grid Guides" : "Show 3x3 Grid Guides"}
+            >
+              <Grid size={13} style={{ color: showGrid ? '#38bdf8' : '#94a3b8' }} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSettingsTab('canvas');
+                setIsSettingsDrawerOpen(true);
+              }}
+              title="Canvas & Format Settings"
+            >
+              <SlidersHorizontal size={12} style={{ color: '#94a3b8' }} />
+            </button>
+          </div>
+
           {/* Framing 3x3 Grid */}
           {showGrid && (
             <div className="framing-grid-overlay">
@@ -3121,6 +3252,10 @@ export function App() {
             selectedClipId={selectedClipId}
             onGuideAdvance={handleGuideAdvance}
             onRulerActiveChange={setIsCameraRulerOpen}
+            onOpenSettings={() => {
+              setSettingsTab('camera');
+              setIsSettingsDrawerOpen(true);
+            }}
           />
         </div>
       </div>

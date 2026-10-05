@@ -11,6 +11,7 @@ import {
   Layers,
   Move,
   RotateCw,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface CameraControlsIslandProps {
@@ -41,6 +42,7 @@ interface CameraControlsIslandProps {
   selectedClipId?: string;
   onGuideAdvance?: () => void;
   onRulerActiveChange?: (active: boolean) => void;
+  onOpenSettings?: () => void;
 }
 
 export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
@@ -71,6 +73,7 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   selectedClipId = 'P01',
   onGuideAdvance,
   onRulerActiveChange,
+  onOpenSettings,
 }) => {
   // activeSlider: null | 'blur' | 'perspective' | 'zoom'
   const [activeSlider, setActiveSlider] = useState<'blur' | 'perspective' | 'zoom' | null>(null);
@@ -366,6 +369,21 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
                 <span className="island-ratio-icon">{aspectRatio}</span>
               </button>
             </span>
+
+            {/* Studio Settings Drawer trigger */}
+            {onOpenSettings && (
+              <span className="top-setting-hit">
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  title="Open Full Studio Settings Hierarchy"
+                  aria-label="Studio Settings"
+                  style={{ color: '#38bdf8' }}
+                >
+                  <SlidersHorizontal size={15} />
+                </button>
+              </span>
+            )}
           </div>
         </div>
 
