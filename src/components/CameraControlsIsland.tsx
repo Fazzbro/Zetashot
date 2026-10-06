@@ -121,6 +121,52 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
 
   return (
     <div className="bottom-studio-controls">
+      {/* 0. Floating Ruler Slider Overlay for Perspective, Blur, Zoom (Unclipped) */}
+      {activeSlider && (
+        <div className="camera-active-slider-overlay" role="region" aria-label={`${activeSlider} adjustment slider`}>
+          {activeSlider === 'blur' ? (
+            <RulerSliderStrip
+              label="DEPTH BLUR"
+              valueText={
+                blurAmount > 0
+                  ? `ƒ ${(1.4 * Math.pow(2, ((50 - blurAmount) / 50) * 4)).toFixed(1)} · ${
+                      blurAmount > 35 ? 'Cinema Bokeh' : blurAmount > 15 ? 'Optical Depth' : 'Subtle Lens'
+                    }`
+                  : 'OFF'
+              }
+              value={blurAmount}
+              min={0}
+              max={50}
+              step={0.5}
+              onChange={onBlurChange}
+              onClose={() => setActiveSlider(null)}
+            />
+          ) : activeSlider === 'perspective' ? (
+            <RulerSliderStrip
+              label="PERSPECTIVE"
+              valueText={`${Math.round(camera.perspective || 1000)}px`}
+              value={camera.perspective || 1000}
+              min={300}
+              max={2500}
+              step={50}
+              onChange={(perspective) => onCameraChange({ ...camera, perspective: Math.round(perspective) })}
+              onClose={() => setActiveSlider(null)}
+            />
+          ) : activeSlider === 'zoom' ? (
+            <RulerSliderStrip
+              label="ZOOM"
+              valueText={`${(typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7).toFixed(1)}x`}
+              value={typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7}
+              min={0.25}
+              max={2.5}
+              step={0.05}
+              onChange={(zoom) => onCameraChange({ ...camera, zoom })}
+              onClose={() => setActiveSlider(null)}
+            />
+          ) : null}
+        </div>
+      )}
+
       <div className="bottom-chrome-row">
         {/* 1. PHOTO / VIDEO Toggle */}
         <div className="studio-mode-toggle photo-video-toggle" role="group" aria-label="Studio mode">
@@ -246,55 +292,8 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
           </div>
         )}
 
-        {/* 3. Horizontal Control Strip or Ruler Slider */}
-        <div className="camera-secondary-controls-wrap" style={{ position: 'relative' }}>
-          {activeSlider === 'blur' ? (
-            <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
-              <RulerSliderStrip
-                label="DEPTH BLUR"
-                valueText={
-                  blurAmount > 0
-                    ? `ƒ ${(1.4 * Math.pow(2, ((50 - blurAmount) / 50) * 4)).toFixed(1)} · ${
-                        blurAmount > 35 ? 'Cinema Bokeh' : blurAmount > 15 ? 'Optical Depth' : 'Subtle Lens'
-                      }`
-                    : 'OFF'
-                }
-                value={blurAmount}
-                min={0}
-                max={50}
-                step={0.5}
-                onChange={onBlurChange}
-                onClose={() => setActiveSlider(null)}
-              />
-            </div>
-          ) : activeSlider === 'perspective' ? (
-            <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
-              <RulerSliderStrip
-                label="PERSPECTIVE"
-                valueText={`${Math.round(camera.perspective || 1000)}px`}
-                value={camera.perspective || 1000}
-                min={300}
-                max={2500}
-                step={50}
-                onChange={(perspective) => onCameraChange({ ...camera, perspective: Math.round(perspective) })}
-                onClose={() => setActiveSlider(null)}
-              />
-            </div>
-          ) : activeSlider === 'zoom' ? (
-            <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px', zIndex: 100 }}>
-              <RulerSliderStrip
-                label="ZOOM"
-                valueText={`${(typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7).toFixed(1)}x`}
-                value={typeof camera?.zoom === "number" && !isNaN(camera.zoom) ? camera.zoom : 0.7}
-                min={0.25}
-                max={2.5}
-                step={0.05}
-                onChange={(zoom) => onCameraChange({ ...camera, zoom })}
-                onClose={() => setActiveSlider(null)}
-              />
-            </div>
-          ) : null}
-
+        {/* 3. Horizontal Control Strip for Camera Optics & Frame Styling */}
+        <div className="camera-secondary-controls-wrap">
           <div className="top-settings-island">
             {/* Backdrop Color & Image Swatch Button */}
             <span className="top-setting-hit">

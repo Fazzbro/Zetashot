@@ -55,6 +55,8 @@ import {
   Sliders,
   SlidersHorizontal,
   Grid,
+  Box,
+  ZoomIn,
 } from 'lucide-react';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
@@ -2650,6 +2652,161 @@ export function App() {
                       {ratio}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Camera Optics: 3D Perspective & Lens Blur Sliders */}
+              <div className="mobile-drawer-section">
+                <span className="mobile-drawer-section-title">Camera Optics & 3D Perspective</span>
+                <div className="mobile-camera-optics-card">
+                  {/* 1. 3D Perspective Scale */}
+                  <div className="mobile-optic-control">
+                    <div className="mobile-optic-header">
+                      <div className="mobile-optic-label-wrap">
+                        <Box size={14} color="#38bdf8" />
+                        <span className="mobile-optic-title">3D Perspective</span>
+                      </div>
+                      <span className="mobile-optic-value">
+                        {Math.round(camera.perspective || 1000)}px
+                        <span className="mobile-optic-desc">
+                          {(camera.perspective || 1000) <= 600
+                            ? ' · Wide'
+                            : (camera.perspective || 1000) >= 1600
+                            ? ' · Tele'
+                            : ' · Normal'}
+                        </span>
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="300"
+                      max="2500"
+                      step="50"
+                      value={camera.perspective || 1000}
+                      onChange={(e) => handleCameraChange({ ...camera, perspective: Number(e.target.value) })}
+                      className="mobile-range-slider"
+                      aria-label="3D Perspective Slider"
+                    />
+                    <div className="mobile-optic-preset-row">
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${(camera.perspective || 1000) === 500 ? 'is-active' : ''}`}
+                        onClick={() => handleCameraChange({ ...camera, perspective: 500 })}
+                      >
+                        Wide (500)
+                      </button>
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${(camera.perspective || 1000) === 1000 ? 'is-active' : ''}`}
+                        onClick={() => handleCameraChange({ ...camera, perspective: 1000 })}
+                      >
+                        Normal (1000)
+                      </button>
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${(camera.perspective || 1000) === 1800 ? 'is-active' : ''}`}
+                        onClick={() => handleCameraChange({ ...camera, perspective: 1800 })}
+                      >
+                        Tele (1800)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Lens Depth Blur (Bokeh / f-stop) */}
+                  <div className="mobile-optic-control">
+                    <div className="mobile-optic-header">
+                      <div className="mobile-optic-label-wrap">
+                        <span className="mobile-optic-f-icon">ƒ</span>
+                        <span className="mobile-optic-title">Lens Depth Blur</span>
+                      </div>
+                      <span className="mobile-optic-value">
+                        {blurAmount > 0
+                          ? `ƒ ${(1.4 * Math.pow(2, ((50 - blurAmount) / 50) * 4)).toFixed(1)} · ${
+                              blurAmount > 35 ? 'Bokeh' : blurAmount > 15 ? 'Depth' : 'Subtle'
+                            }`
+                          : 'OFF'}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="50"
+                      step="0.5"
+                      value={blurAmount}
+                      onChange={(e) => handleBlurChange(Number(e.target.value))}
+                      className="mobile-range-slider"
+                      aria-label="Lens Depth Blur Slider"
+                    />
+                    <div className="mobile-optic-preset-row">
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${blurAmount === 0 ? 'is-active' : ''}`}
+                        onClick={() => handleBlurChange(0)}
+                      >
+                        Off
+                      </button>
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${blurAmount === 15 ? 'is-active' : ''}`}
+                        onClick={() => handleBlurChange(15)}
+                      >
+                        Subtle (15)
+                      </button>
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${blurAmount === 38 ? 'is-active' : ''}`}
+                        onClick={() => handleBlurChange(38)}
+                      >
+                        Cinema (38)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Camera Zoom */}
+                  <div className="mobile-optic-control">
+                    <div className="mobile-optic-header">
+                      <div className="mobile-optic-label-wrap">
+                        <ZoomIn size={14} color="#38bdf8" />
+                        <span className="mobile-optic-title">Camera Zoom</span>
+                      </div>
+                      <span className="mobile-optic-value">
+                        {(typeof camera?.zoom === 'number' && !isNaN(camera.zoom) ? camera.zoom : 0.7).toFixed(2)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.25"
+                      max="2.5"
+                      step="0.05"
+                      value={typeof camera?.zoom === 'number' && !isNaN(camera.zoom) ? camera.zoom : 0.7}
+                      onChange={(e) => handleCameraChange({ ...camera, zoom: Number(e.target.value) })}
+                      className="mobile-range-slider"
+                      aria-label="Camera Zoom Slider"
+                    />
+                    <div className="mobile-optic-preset-row">
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${Math.abs((camera.zoom || 0.7) - 0.7) < 0.05 ? 'is-active' : ''}`}
+                        onClick={() => handleCameraChange({ ...camera, zoom: 0.7 })}
+                      >
+                        0.7x
+                      </button>
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${Math.abs((camera.zoom || 0.7) - 1.0) < 0.05 ? 'is-active' : ''}`}
+                        onClick={() => handleCameraChange({ ...camera, zoom: 1.0 })}
+                      >
+                        1.0x
+                      </button>
+                      <button
+                        type="button"
+                        className={`mobile-optic-preset-btn ${Math.abs((camera.zoom || 0.7) - 1.5) < 0.05 ? 'is-active' : ''}`}
+                        onClick={() => handleCameraChange({ ...camera, zoom: 1.5 })}
+                      >
+                        1.5x
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -854,11 +854,35 @@
 }
 
 /* RULER SLIDER STRIP (Blur, Perspective, Zoom) */
+.camera-active-slider-overlay {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+  animation: cameraSliderPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cameraSliderPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
 .ruler-slider-strip {
   width: 320px;
-  height: 36px;
-  background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  height: 38px;
+  background: #09090b;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 9999px;
   display: flex;
   align-items: center;
@@ -866,6 +890,7 @@
   padding: 0 14px;
   cursor: ew-resize;
   overflow: hidden;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .ruler-ticks-track {
@@ -901,17 +926,37 @@
   right: 10px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   background: #18181b;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   padding: 2px 8px;
   border-radius: 6px;
   font-family: 'JetBrains Mono', monospace;
   cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.ruler-readout-badge:hover {
+  background: #27272a;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .ruler-label { font-size: 8px; color: #a1a1aa; }
 .ruler-val { font-size: 11px; color: #ffffff; font-weight: 600; }
+
+.ruler-close-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  margin-left: 2px;
+  transition: color 0.15s ease;
+}
+
+.ruler-readout-badge:hover .ruler-close-icon {
+  color: #ef4444;
+}
 
 /* Clean Monochrome Shutter Button */
 .pill-capture-button {
@@ -6423,6 +6468,110 @@
   color: #ffffff;
 }
 
+/* Mobile Camera Optics Card in Drawer */
+.mobile-camera-optics-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.mobile-optic-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-optic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-optic-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-optic-f-icon {
+  font-family: serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 15px;
+  color: #38bdf8;
+  line-height: 1;
+}
+
+.mobile-optic-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.mobile-optic-value {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.mobile-optic-desc {
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.mobile-range-slider {
+  width: 100%;
+  height: 28px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mobile-optic-preset-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mobile-optic-preset-row::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-optic-preset-btn {
+  flex: 1;
+  min-height: 36px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.mobile-optic-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.mobile-optic-preset-btn.is-active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
 .mobile-drawer-list {
   display: flex;
   flex-direction: column;
@@ -6643,17 +6792,17 @@
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .drag-tool-toggle {
+  .bottom-chrome-row .camera-secondary-controls-wrap {
     order: 2;
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .pill-capture-wrap {
+  .bottom-chrome-row .bottom-axis-controls {
     order: 3;
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .bottom-axis-controls {
+  .bottom-chrome-row .drag-tool-toggle {
     order: 4;
     flex-shrink: 0;
   }
@@ -6663,9 +6812,14 @@
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .camera-secondary-controls-wrap {
+  .bottom-chrome-row .pill-capture-wrap {
     order: 6;
     flex-shrink: 0;
+  }
+
+  /* In video mode on mobile, timeline already has dedicated 48px PREVIEW pill */
+  .bottom-chrome-row .pill-capture-wrap:has(.pill-preview-button) {
+    display: none;
   }
 
   .studio-mode-toggle button {
@@ -6700,6 +6854,47 @@
     min-width: 40px !important;
     min-height: 40px !important;
     touch-action: manipulation;
+  }
+
+  /* Mobile Floating Camera Slider Overlay (Blur, Perspective, Zoom) - Fully Visible & Unclipped */
+  .camera-active-slider-overlay {
+    position: fixed !important;
+    bottom: calc(var(--timeline-height, 0px) + 72px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: min(340px, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+    z-index: 1000 !important;
+    pointer-events: auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .camera-active-slider-overlay .ruler-slider-strip {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 44px !important;
+    background: #09090b !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+    touch-action: none;
+  }
+
+  .camera-active-slider-overlay .ruler-tick {
+    height: 10px !important;
+  }
+
+  .camera-active-slider-overlay .ruler-tick.major {
+    height: 18px !important;
+  }
+
+  .camera-active-slider-overlay .ruler-readout-badge {
+    padding: 3px 10px !important;
+  }
+
+  .camera-active-slider-overlay .ruler-val {
+    font-size: 12px !important;
   }
 
   .ruler-slider-strip {

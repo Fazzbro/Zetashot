@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { X } from 'lucide-react';
 
 interface RulerSliderStripProps {
   label: string;
@@ -26,6 +27,7 @@ export const RulerSliderStrip: React.FC<RulerSliderStripProps> = ({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    if ((e.target as HTMLElement)?.closest('.ruler-readout-badge')) return;
     e.preventDefault();
     setIsDragging(true);
 
@@ -85,9 +87,26 @@ export const RulerSliderStrip: React.FC<RulerSliderStripProps> = ({
       <div className="ruler-indicator-needle" style={{ left: `${progress * 100}%` }} />
 
       {/* Value Readout Tag */}
-      <div className="ruler-readout-badge" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <div
+        className="ruler-readout-badge"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        title="Tap to close slider"
+        role="button"
+        tabIndex={0}
+        aria-label={`Close ${label} slider`}
+      >
         <span className="ruler-label">{label}</span>
         <strong className="ruler-val">{valueText}</strong>
+        <span className="ruler-close-icon" aria-hidden="true">
+          <X size={10} />
+        </span>
       </div>
     </div>
   );

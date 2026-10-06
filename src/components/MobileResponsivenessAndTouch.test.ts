@@ -83,4 +83,36 @@ describe('Mobile Responsiveness and Touch Gestures Logic', () => {
     expect(getDefaultTimelineDuration(1440)).toBe(12.0);
     expect(getDefaultTimelineDuration(1920)).toBe(12.0);
   });
+
+  it('validates 3D perspective bounds, stepping, and lens categorization', () => {
+    const clampPerspective = (val: number) => Math.max(300, Math.min(2500, Math.round(val)));
+    const getPerspectiveCategory = (perspective: number) => {
+      if (perspective <= 600) return 'Wide';
+      if (perspective >= 1600) return 'Tele';
+      return 'Normal';
+    };
+
+    expect(clampPerspective(200)).toBe(300);
+    expect(clampPerspective(1000)).toBe(1000);
+    expect(clampPerspective(3000)).toBe(2500);
+
+    expect(getPerspectiveCategory(500)).toBe('Wide');
+    expect(getPerspectiveCategory(1000)).toBe('Normal');
+    expect(getPerspectiveCategory(1800)).toBe('Tele');
+  });
+
+  it('validates optical lens depth blur f-stop formatting and bokeh progression', () => {
+    const formatFStop = (blurAmount: number) => {
+      if (blurAmount <= 0) return 'OFF';
+      const f = 1.4 * Math.pow(2, ((50 - blurAmount) / 50) * 4);
+      const desc = blurAmount > 35 ? 'Bokeh' : blurAmount > 15 ? 'Depth' : 'Subtle';
+      return `ƒ ${f.toFixed(1)} · ${desc}`;
+    };
+
+    expect(formatFStop(0)).toBe('OFF');
+    expect(formatFStop(10)).toContain('Subtle');
+    expect(formatFStop(25)).toContain('Depth');
+    expect(formatFStop(45)).toContain('Bokeh');
+  });
 });
+
