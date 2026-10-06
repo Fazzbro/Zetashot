@@ -165,6 +165,17 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const [isMobileCollapsed, setIsMobileCollapsed] = useState(() => {
     return typeof window !== 'undefined' && window.innerWidth <= 768;
   });
+  const [isMobileView, setIsMobileView] = useState(() => {
+    return typeof window !== 'undefined' && window.innerWidth <= 768;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Dynamically sync timeline tray height to CSS variable --timeline-height
   // Ensures floating control panel (CameraControlsIsland) and canvas stage adapt seamlessly
@@ -1975,8 +1986,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                             onSeek(seekTime);
                           }}
                         >
-                          {/* Start Transition Triangle on first subblock */}
-                          {isFirst && (
+                          {/* Start Transition Triangle on first subblock (Desktop only to prevent text collision on mobile) */}
+                          {isFirst && !isMobileView && (
                             <button
                               type="button"
                               className={`clip-triangle-btn start-triangle ${subClip.transition && subClip.transition !== 'cut' ? 'has-transition' : ''}`}
@@ -1994,12 +2005,23 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                             </button>
                           )}
 
-                          <span className="clip-name-label" style={{ margin: isFirst ? '0 auto 0 8px' : isLast ? '0 8px 0 auto' : '0 auto' }}>
+                          <span
+                            className="clip-name-label"
+                            style={{
+                              margin: isMobileView
+                                ? '0 auto'
+                                : isFirst
+                                ? '0 auto 0 8px'
+                                : isLast
+                                ? '0 8px 0 auto'
+                                : '0 auto',
+                            }}
+                          >
                             {subClip.name}
                           </span>
 
-                          {/* Exit Transition Triangle on last subblock */}
-                          {isLast && (
+                          {/* Exit Transition Triangle on last subblock (Desktop only to prevent text collision on mobile) */}
+                          {isLast && !isMobileView && (
                             <button
                               type="button"
                               className={`clip-triangle-btn exit-triangle ${subClip.exitTransition && subClip.exitTransition !== 'cut' ? 'has-transition' : ''}`}
@@ -2102,21 +2124,23 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
                     {/* Only Sub-block */}
                     <div className={`sequence-keyframe-subblock ${c.id === selectedClipId ? 'is-active-subblock' : ''}`}>
-                      <button
-                        type="button"
-                        className={`clip-triangle-btn start-triangle ${c.transition && c.transition !== 'cut' ? 'has-transition' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveTransitionPopover(
-                            activeTransitionPopover?.clipId === c.id && activeTransitionPopover?.type === 'start'
-                              ? null
-                              : { type: 'start', clipId: c.id }
-                          );
-                        }}
-                        title="Start Transition animation"
-                      >
-                        <span className="triangle-shape triangle-right-pointing" />
-                      </button>
+                      {!isMobileView && (
+                        <button
+                          type="button"
+                          className={`clip-triangle-btn start-triangle ${c.transition && c.transition !== 'cut' ? 'has-transition' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveTransitionPopover(
+                              activeTransitionPopover?.clipId === c.id && activeTransitionPopover?.type === 'start'
+                                ? null
+                                : { type: 'start', clipId: c.id }
+                            );
+                          }}
+                          title="Start Transition animation"
+                        >
+                          <span className="triangle-shape triangle-right-pointing" />
+                        </button>
+                      )}
 
                       <span className="clip-name-label">{c.name}</span>
                     </div>
@@ -2421,15 +2445,15 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                         >
                           {mClip.transition === 'gradient' ? (
                             <span className="transition-badge-fx-label">
-                              ⚡ Grad{mClip.transitionScope === 'clip' ? ' • Clip' : ''}
+                              ⚡ Grad{!isMobileView && mClip.transitionScope === 'clip' ? ' • Clip' : ''}
                             </span>
                           ) : mClip.transition === 'blocks' ? (
                             <span className="transition-badge-fx-label">
-                              ▦ Blocks{mClip.transitionScope === 'clip' ? ' • Clip' : ''}
+                              ▦ Blocks{!isMobileView && mClip.transitionScope === 'clip' ? ' • Clip' : ''}
                             </span>
                           ) : mClip.transition && mClip.transition !== 'cut' ? (
                             <span className="transition-badge-fx-label">
-                              {mClip.transition.toUpperCase()}{mClip.transitionScope === 'clip' ? ' • Clip' : ''}
+                              {mClip.transition.toUpperCase()}{!isMobileView && mClip.transitionScope === 'clip' ? ' • Clip' : ''}
                             </span>
                           ) : (
                             <span className="transition-badge-cut-icon">⧗</span>
@@ -2439,11 +2463,13 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     )}
 
                     <div
-                      className={`multiclip-card ${isSelected ? 'is-active-clip' : ''}`}
+                      className={`multiclip-card ${isSelected ? 'is-active-clip' : ''} ${
+                        idx > 0 ? 'has-incoming-transition' : ''
+                      } ${idx < mediaClips.length - 1 ? 'has-outgoing-transition' : ''}`}
                       style={{
                         left: `${leftPct}%`,
                         width: `${widthPct}%`,
-                        minWidth: '70px',
+                        minWidth: isMobileView ? 0 : '70px',
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2514,7 +2540,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                             })}
                           </div>
                         )}
-                        {idx > 0 && (
+                        {!isMobileView && idx > 0 && (
                           <button
                             type="button"
                             className={`multiclip-card-transition-trigger ${
@@ -2532,7 +2558,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                             <span>{mClip.transition && mClip.transition !== 'cut' ? mClip.transition.toUpperCase() : 'TRANSITION'}</span>
                           </button>
                         )}
-                        {isSelected ? (
+                        {isSelected && !isMobileView ? (
                           <div className="multiclip-dur-stepper" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
@@ -2565,7 +2591,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
                       <button
                         type="button"
-                        className="multiclip-delete-btn"
+                        className={`multiclip-delete-btn ${isMobileView && !isSelected ? 'mobile-hidden' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (mediaClips.length > 1) {
@@ -2601,7 +2627,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                   <button
                     type="button"
                     className="multiclip-add-btn"
-                    style={{ left: `${nextLeftPct}%` }}
+                    style={{ left: `calc(${nextLeftPct}% + 8px)` }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenMediaLibrary('add');

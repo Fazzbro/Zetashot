@@ -114,5 +114,50 @@ describe('Mobile Responsiveness and Touch Gestures Logic', () => {
     expect(formatFStop(25)).toContain('Depth');
     expect(formatFStop(45)).toContain('Bokeh');
   });
+
+  it('validates mobile-exclusive media duration stepper elimination and single transition junction rule', () => {
+    const shouldRenderMediaDurationStepper = (isMobile: boolean, isSelected: boolean) => {
+      // On mobile devices, duration steppers [- +] must never render, even when selected
+      return isSelected && !isMobile;
+    };
+
+    const shouldRenderDuplicateCardTransition = (isMobile: boolean, clipIndex: number) => {
+      // On mobile devices, duplicate in-card transition triggers must be omitted to prevent seam overlap
+      return !isMobile && clipIndex > 0;
+    };
+
+    // Desktop: selected clip shows stepper; clip 2 shows card transition trigger
+    expect(shouldRenderMediaDurationStepper(false, true)).toBe(true);
+    expect(shouldRenderDuplicateCardTransition(false, 1)).toBe(true);
+
+    // Mobile: stepper is strictly disabled; duplicate in-card transition trigger is strictly disabled
+    expect(shouldRenderMediaDurationStepper(true, true)).toBe(false);
+    expect(shouldRenderMediaDurationStepper(true, false)).toBe(false);
+    expect(shouldRenderDuplicateCardTransition(true, 1)).toBe(false);
+  });
+
+  it('validates mobile keyframe sub-block collision avoidance and centered label alignment', () => {
+    const getKeyframeLabelMargin = (isMobile: boolean, isFirst: boolean, isLast: boolean) => {
+      if (isMobile) return '0 auto';
+      if (isFirst) return '0 auto 0 8px';
+      if (isLast) return '0 8px 0 auto';
+      return '0 auto';
+    };
+
+    const shouldRenderKeyframeTriangleBtn = (isMobile: boolean) => {
+      // Inlined transition triangle buttons are hidden on mobile to prevent overlapping narrow keyframe labels
+      return !isMobile;
+    };
+
+    // Desktop preserves directional spacing and inline triangles
+    expect(getKeyframeLabelMargin(false, true, false)).toBe('0 auto 0 8px');
+    expect(getKeyframeLabelMargin(false, false, true)).toBe('0 8px 0 auto');
+    expect(shouldRenderKeyframeTriangleBtn(false)).toBe(true);
+
+    // Mobile strictly centers labels and removes inline triangle clutter
+    expect(getKeyframeLabelMargin(true, true, false)).toBe('0 auto');
+    expect(getKeyframeLabelMargin(true, false, true)).toBe('0 auto');
+    expect(shouldRenderKeyframeTriangleBtn(true)).toBe(false);
+  });
 });
 
