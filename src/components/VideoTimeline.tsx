@@ -1354,8 +1354,10 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
               className={`timeline-mobile-collapsed-play-btn ${isPlaying ? 'is-playing' : ''}`}
               onClick={onPlayPause}
               title={isPlaying ? 'Pause Preview' : 'Play Preview'}
+              aria-label={isPlaying ? 'Pause Preview' : 'Play Preview'}
             >
-              {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+              {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
+              <span className="timeline-mobile-play-text">{isPlaying ? 'PAUSE' : 'PREVIEW'}</span>
             </button>
             <span className="timeline-mobile-collapsed-time">
               {currentTime.toFixed(1)}s / {totalDuration.toFixed(1)}s

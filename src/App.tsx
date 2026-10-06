@@ -57,6 +57,8 @@ import {
   Grid,
   Box,
   ZoomIn,
+  Play,
+  Pause,
 } from 'lucide-react';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
@@ -2835,6 +2837,22 @@ export function App() {
               <div className="mobile-drawer-section">
                 <span className="mobile-drawer-section-title">Studio Actions</span>
                 <div className="mobile-drawer-list">
+                  <button
+                    type="button"
+                    className={`mobile-drawer-list-btn ${isPlaying ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      handlePlayPause();
+                    }}
+                    aria-label={isPlaying ? "Pause Preview" : "Play 60fps Preview"}
+                  >
+                    {isPlaying ? <Pause size={16} color="#f59e0b" fill="currentColor" /> : <Play size={16} color="#38bdf8" fill="currentColor" />}
+                    <span>{isPlaying ? 'Pause Animation' : 'Play 60fps Preview'}</span>
+                    <span className="mobile-badge" style={isPlaying ? { background: '#f59e0b', color: '#000000' } : undefined}>
+                      {isPlaying ? 'PAUSE' : 'PREVIEW'}
+                    </span>
+                  </button>
+
                   <button
                     type="button"
                     className={`mobile-drawer-list-btn ${topMode === 'compose' ? 'is-active' : ''}`}

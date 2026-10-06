@@ -6792,34 +6792,57 @@
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .camera-secondary-controls-wrap {
+  .bottom-chrome-row .pill-capture-wrap {
     order: 2;
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .bottom-axis-controls {
+  .bottom-chrome-row .camera-secondary-controls-wrap {
     order: 3;
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .drag-tool-toggle {
+  .bottom-chrome-row .bottom-axis-controls {
     order: 4;
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .reference-guide-pill-wrapper {
+  .bottom-chrome-row .drag-tool-toggle {
     order: 5;
     flex-shrink: 0;
   }
 
-  .bottom-chrome-row .pill-capture-wrap {
+  .bottom-chrome-row .reference-guide-pill-wrapper {
     order: 6;
     flex-shrink: 0;
   }
 
-  /* In video mode on mobile, timeline already has dedicated 48px PREVIEW pill */
-  .bottom-chrome-row .pill-capture-wrap:has(.pill-preview-button) {
-    display: none;
+  .pill-preview-button {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    touch-action: manipulation !important;
+    white-space: nowrap !important;
+  }
+
+  .pill-capture-button {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    touch-action: manipulation !important;
+    white-space: nowrap !important;
   }
 
   .studio-mode-toggle button {
@@ -6915,7 +6938,10 @@
     min-height: 48px !important;
     height: 48px !important;
     padding: 4px 12px max(6px, env(safe-area-inset-bottom)) !important;
+    background: #09090b !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.14) !important;
     overflow: hidden;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.7) !important;
   }
 
   .timeline-mobile-header-strip {
@@ -6960,33 +6986,56 @@
     gap: 8px;
   }
 
-  .timeline-mobile-collapsed-play-btn,
+  .timeline-mobile-collapsed-play-btn {
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 12px !important;
+    border-radius: 9999px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    background: #2563eb !important;
+    border: 1px solid rgba(59, 130, 246, 0.6) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+    letter-spacing: 0.05em !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.45) !important;
+    flex-shrink: 0 !important;
+  }
+
   .timeline-mobile-collapsed-skip-btn {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    min-height: 42px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-    cursor: pointer;
-    touch-action: manipulation;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #f1f5f9 !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+    flex-shrink: 0 !important;
   }
 
   .timeline-mobile-collapsed-play-btn.is-playing {
-    background: #2563eb;
-    border-color: #3b82f6;
+    background: #f59e0b !important;
+    border-color: rgba(245, 158, 11, 0.7) !important;
+    color: #000000 !important;
+    animation: previewPulse 1.6s infinite ease-in-out !important;
   }
 
   .timeline-mobile-collapsed-time {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    color: #f1f5f9;
+    color: #cbd5e1;
   }
 
   .timeline-action-bar {
