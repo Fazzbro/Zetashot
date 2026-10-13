@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Crop,
   Spline,
@@ -235,6 +236,19 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const [activeMediaTransitionPopover, setActiveMediaTransitionPopover] = useState<{
     clipId: string;
   } | null>(null);
+
+  // Escape key closes transition sheet modals cleanly
+  useEffect(() => {
+    if (!activeTransitionPopover && !activeMediaTransitionPopover) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveTransitionPopover(null);
+        setActiveMediaTransitionPopover(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTransitionPopover, activeMediaTransitionPopover]);
 
   // High-performance snapshot refs to eliminate drag jitter and listener churn
   const clipsRef = useRef(clips);
@@ -1485,9 +1499,16 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           {/* Transition FX tool button */}
           <button
             type="button"
-            className="timeline-tool-btn transition-tool-btn"
+            className={`timeline-tool-btn transition-tool-btn ${
+              activeMediaTransitionPopover || activeTransitionPopover ? 'is-active' : ''
+            }`}
             onClick={(e) => {
               e.stopPropagation();
+              if (activeMediaTransitionPopover || activeTransitionPopover) {
+                setActiveMediaTransitionPopover(null);
+                setActiveTransitionPopover(null);
+                return;
+              }
               if (mediaClips && mediaClips.length > 1) {
                 const targetClip = mediaClips.find((c) => c.id === selectedMediaClipId) || mediaClips[1];
                 setActiveMediaTransitionPopover({ clipId: targetClip.id });
@@ -1748,7 +1769,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         const targetMedia = mediaClipsRef.current?.find((c) => c.id === activeMediaTransitionPopover.clipId);
         if (!targetMedia) return null;
 
-        return (
+        const modalNode = (
           <div className="transition-sheet-backdrop" onClick={() => setActiveMediaTransitionPopover(null)}>
             <div className="transition-sheet-modal" onClick={(e) => e.stopPropagation()}>
               <div className="transition-sheet-header">
@@ -1837,6 +1858,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             </div>
           </div>
         );
+
+        return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
       })()}
 
       {/* Root-Level Keyframe Transition Selector */}
@@ -1852,7 +1875,7 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
           }
         }
 
-        return (
+        const modalNode = (
           <div className="transition-sheet-backdrop" onClick={() => setActiveTransitionPopover(null)}>
             <div className="transition-sheet-modal" onClick={(e) => e.stopPropagation()}>
               <div className="transition-sheet-header">
@@ -1911,6 +1934,8 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
             </div>
           </div>
         );
+
+        return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
       })()}
 
       {/* 2. Main Timeline Track */}
