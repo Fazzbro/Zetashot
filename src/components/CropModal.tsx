@@ -13,7 +13,7 @@ interface CropModalProps {
   onClose: () => void;
   mediaName: string;
   mediaUrl: string;
-  mediaType: 'demo' | 'video' | 'image' | '3d';
+  mediaType: 'demo' | 'video' | 'image' | '3d' | 'blank';
   currentCrop: CropRect;
   onApplyCrop: (crop: CropRect) => void;
 }
@@ -169,6 +169,23 @@ export const CropModal: React.FC<CropModalProps> = ({
               </div>
             ) : mediaType === 'video' ? (
               <video src={mediaUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : mediaType === 'blank' ? (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  background: '#090d16',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                }}
+              >
+                BLANK CANVAS
+              </div>
             ) : (
               <img src={mediaUrl} alt="Crop preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             )}

@@ -15,7 +15,7 @@ export interface ZetashotSharedProject {
   textLayers?: TextLayerOverlay[];
   duration?: number;
   mediaUrl?: string;
-  mediaType?: 'image' | 'video' | '3d';
+  mediaType?: 'image' | 'video' | '3d' | 'blank';
   mediaName?: string;
   autoExport?: boolean;
 }

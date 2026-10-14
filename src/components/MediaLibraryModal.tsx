@@ -1,11 +1,11 @@
 import React, { useRef } from 'react';
-import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus, Box, Trash2 } from 'lucide-react';
+import { Upload, X, Film, Image as ImageIcon, Sparkles, Plus, Box, Trash2, Square } from 'lucide-react';
 import { Model3DTextureConfig } from '../types/model3D';
 
 export interface MediaItem {
   id: string;
   name: string;
-  type: 'demo' | 'video' | 'image' | '3d';
+  type: 'demo' | 'video' | 'image' | '3d' | 'blank';
   url: string;
   dimensions: string;
   format: string;
@@ -13,7 +13,20 @@ export interface MediaItem {
   modelTextures?: Model3DTextureConfig;
 }
 
+export const BLANK_CANVAS_DATA_URL =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><rect width="100%" height="100%" fill="%23090d16"/></svg>';
+
+export const BLANK_CANVAS_ITEM: MediaItem = {
+  id: 'blank-canvas',
+  name: 'Blank Canvas',
+  type: 'blank',
+  url: BLANK_CANVAS_DATA_URL,
+  dimensions: '1920 × 1080',
+  format: 'Clean Canvas',
+};
+
 export const BUILTIN_MEDIA_ITEMS: MediaItem[] = [
+  BLANK_CANVAS_ITEM,
   {
     id: 'default-screen-image',
     name: 'Codex Dashboard',
@@ -41,6 +54,7 @@ interface MediaLibraryModalProps {
   onModeChange?: (mode: 'select' | 'add') => void;
   onSelectMedia: (item: MediaItem) => void;
   onAddMediaClip?: (item: MediaItem) => void;
+  onAddBlankCanvas?: (withoutOtherClips: boolean) => void;
   onDeleteMediaItem?: (id: string) => void;
   onUploadFile: (file: File) => void;
 }
@@ -54,6 +68,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   onModeChange,
   onSelectMedia,
   onAddMediaClip,
+  onAddBlankCanvas,
   onDeleteMediaItem,
   onUploadFile,
 }) => {
@@ -73,6 +88,17 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   const displayList = mediaItems && mediaItems.length > 0 ? mediaItems : BUILTIN_MEDIA_ITEMS;
 
   const handleCardClick = (item: MediaItem) => {
+    if (item.type === 'blank') {
+      if (mode === 'add') {
+        if (onAddMediaClip) onAddMediaClip(item);
+        else if (onAddBlankCanvas) onAddBlankCanvas(false);
+      } else {
+        if (onAddBlankCanvas) onAddBlankCanvas(true);
+        else onSelectMedia(item);
+      }
+      onClose();
+      return;
+    }
     if (mode === 'add' && onAddMediaClip) {
       onAddMediaClip(item);
     } else {
@@ -112,6 +138,20 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
           >
             <span>Replace Active Clip</span>
           </button>
+          {onAddBlankCanvas && (
+            <button
+              type="button"
+              className="source-library-mode-pill is-blank-pill"
+              onClick={() => {
+                onAddBlankCanvas(true);
+                onClose();
+              }}
+              title="Start fresh with a clean blank canvas without other media clips"
+            >
+              <Square size={12} />
+              <span>Blank Canvas (Solo)</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -174,9 +214,14 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
               onClick={() => handleCardClick(item)}
               title={mode === 'add' ? `Add ${item.name} to sequence` : `Select ${item.name}`}
             >
-              <div className={`source-library-card ${isSelected ? 'is-selected' : ''}`}>
-                {/* Real visual preview for images and videos */}
-                {item.type === 'image' && item.url ? (
+              <div className={`source-library-card ${isSelected ? 'is-selected' : ''} ${item.type === 'blank' ? 'is-blank-canvas-card' : ''}`}>
+                {/* Real visual preview for blank canvas, images, and videos */}
+                {item.type === 'blank' ? (
+                  <div className="blank-canvas-preview-surface">
+                    <Square size={26} color="#38bdf8" />
+                    <span className="blank-canvas-preview-text">BLANK CANVAS</span>
+                  </div>
+                ) : item.type === 'image' && item.url ? (
                   <img
                     src={item.url}
                     alt={item.name}
@@ -207,7 +252,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 {/* Fallback shell icon */}
                 <div
                   className="source-library-preview-shell"
-                  style={{ display: item.type === 'demo' || item.type === '3d' || !item.url ? 'flex' : 'none' }}
+                  style={{ display: item.type === 'demo' || item.type === '3d' || (item.type !== 'blank' && !item.url) ? 'flex' : 'none' }}
                 >
                   {item.type === 'video' ? (
                     <Film size={28} color="#ffffff" />
@@ -221,7 +266,26 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 </div>
 
                 {/* Media format badge */}
-                <span className="source-library-type-badge">{item.type.toUpperCase()}</span>
+                <span className={`source-library-type-badge ${item.type === 'blank' ? 'badge-blank' : ''}`}>
+                  {item.type.toUpperCase()}
+                </span>
+
+                {/* Blank Canvas Solo Quick Button (Without other clips) */}
+                {item.type === 'blank' && onAddBlankCanvas && (
+                  <button
+                    type="button"
+                    className="source-library-card-solo-btn"
+                    title="Open blank canvas without other media clips"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddBlankCanvas(true);
+                      onClose();
+                    }}
+                  >
+                    <Square size={11} />
+                    <span>Solo (No clips)</span>
+                  </button>
+                )}
 
                 {/* Dedicated "+ Add Clip" quick button */}
                 {onAddMediaClip && (
@@ -231,7 +295,11 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                     title="Add as next clip in timeline"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAddMediaClip(item);
+                      if (item.type === 'blank' && onAddBlankCanvas) {
+                        onAddBlankCanvas(false);
+                      } else {
+                        onAddMediaClip(item);
+                      }
                       onClose();
                     }}
                   >

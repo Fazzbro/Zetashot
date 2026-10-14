@@ -39,7 +39,7 @@ import { DEFAULT_MODEL_3D_TRANSFORM, Model3DTextureConfig } from '../types/model
 export interface VideoExportOptions {
   mediaName?: string;
   projectName?: string;
-  mediaType: 'image' | 'video' | 'demo' | '3d';
+  mediaType: 'image' | 'video' | 'demo' | '3d' | 'blank';
   mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | null;
   mediaUrl?: string;
   modelTextures?: Model3DTextureConfig;
@@ -419,7 +419,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
       // Determine active media element and type (multi-clip vs single media)
       let activeElement: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | null = null;
-      let activeType: 'video' | 'image' | 'demo' | '3d' = options.mediaType;
+      let activeType: 'video' | 'image' | 'demo' | '3d' | 'blank' = options.mediaType;
 
       if (options.mediaClips && options.mediaClips.length > 0) {
         const currentClip = getActiveMediaClipAtTime(options.mediaClips, time);
@@ -552,6 +552,9 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
             frameCtx.drawImage(canvasElem, 0, 0, frameW, frameH);
           }
         }
+      } else if (activeType === 'blank') {
+        frameCtx.fillStyle = '#090d16';
+        frameCtx.fillRect(0, 0, frameW, frameH);
       } else {
         frameCtx.fillStyle = '#0f172a';
         frameCtx.fillRect(0, 0, frameW, frameH);

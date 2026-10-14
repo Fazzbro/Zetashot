@@ -4,7 +4,7 @@ import { CameraControlsIsland } from './components/CameraControlsIsland';
 import { VideoTimeline, TimelinePositionClip } from './components/VideoTimeline';
 import { TopModeIsland } from './components/TopModeIsland';
 import { InterestRegionOverlay } from './components/InterestRegionOverlay';
-import { MediaLibraryModal, BUILTIN_MEDIA_ITEMS, MediaItem } from './components/MediaLibraryModal';
+import { MediaLibraryModal, BUILTIN_MEDIA_ITEMS, MediaItem, BLANK_CANVAS_ITEM } from './components/MediaLibraryModal';
 import { CropModal, CropRect } from './components/CropModal';
 import { InteractiveDemoUI } from './components/InteractiveDemoUI';
 import { BeginnerGuide } from './components/BeginnerGuide';
@@ -59,6 +59,8 @@ import {
   ZoomIn,
   Play,
   Pause,
+  Square,
+  ChevronDown,
 } from 'lucide-react';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
@@ -191,6 +193,27 @@ export function App() {
   }, [mediaDuration]);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [mediaLibraryMode, setMediaLibraryMode] = useState<'select' | 'add'>('select');
+  const [isAddMediaMenuOpen, setIsAddMediaMenuOpen] = useState(false);
+  const addMediaMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isAddMediaMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addMediaMenuRef.current && !addMediaMenuRef.current.contains(e.target as Node)) {
+        setIsAddMediaMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsAddMediaMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAddMediaMenuOpen]);
+
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounterRef = useRef(0);
   const directUploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -886,7 +909,7 @@ export function App() {
       model3DTransform,
       mediaUrl: activeMedia.url.startsWith('http') || activeMedia.url.startsWith('/') ? activeMedia.url : undefined,
       mediaName: activeMedia.name,
-      mediaType: activeMedia.type === 'video' ? 'video' : 'image',
+      mediaType: activeMedia.type === 'video' ? 'video' : activeMedia.type === '3d' ? '3d' : activeMedia.type === 'blank' ? 'blank' : 'image',
     };
     const p = encodeProjectToUrl(payload);
     return p ? `${origin}/?p=${p}` : origin;
@@ -1935,6 +1958,91 @@ export function App() {
     setCurrentTime(newClipStartTime);
   }, []);
 
+  // Add Blank Canvas: either Solo without other media clips, or appended as next clip
+  const handleCreateBlankCanvas = useCallback(
+    (withoutOtherClips: boolean = false) => {
+      // Ensure BLANK_CANVAS_ITEM is present in mediaList
+      setMediaList((prev) => {
+        if (prev.some((m) => m.id === BLANK_CANVAS_ITEM.id)) {
+          return prev;
+        }
+        return [BLANK_CANVAS_ITEM, ...prev.filter((m) => m.id !== 'blank-media')];
+      });
+
+      const dur = 4.0;
+      const newClipId = `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+      if (withoutOtherClips) {
+        // SOLO BLANK CANVAS: Clear all other media clips!
+        const singleClip: MediaTimelineClip = {
+          id: newClipId,
+          mediaId: BLANK_CANVAS_ITEM.id,
+          name: BLANK_CANVAS_ITEM.name,
+          type: 'blank',
+          url: BLANK_CANVAS_ITEM.url,
+          startTime: 0,
+          duration: dur,
+        };
+
+        const newKeyframes: TimelinePositionClip[] = [
+          {
+            id: 'P01',
+            name: 'P01',
+            startTime: 0,
+            duration: dur / 2,
+            color: 'yellow',
+            camera: { ...DEFAULT_STATIC_CAMERA },
+            transition: 'cut',
+            blockId: 'block_0',
+            mediaClipId: newClipId,
+          },
+          {
+            id: 'P02',
+            name: 'P02',
+            startTime: dur / 2,
+            duration: dur / 2,
+            color: 'yellow',
+            camera: { ...DEFAULT_STATIC_CAMERA },
+            transition: 'cut',
+            blockId: 'block_0',
+            mediaClipId: newClipId,
+          },
+        ];
+
+        setMediaClips([singleClip]);
+        mediaClipsRef.current = [singleClip];
+        setMediaDuration(dur);
+        mediaDurationRef.current = dur;
+        const defaultDuration = getDefaultTimelineDuration();
+        setTotalDuration(Math.max(defaultDuration, dur));
+        totalDurationRef.current = Math.max(defaultDuration, dur);
+        setSelectedMediaClipId(newClipId);
+
+        setClips(newKeyframes);
+        clipsRef.current = newKeyframes;
+        setSelectedClipId('P01');
+        selectedClipIdRef.current = 'P01';
+
+        setIsComposed(false);
+        isComposedRef.current = false;
+        setInterestRegions([]);
+        setActiveMedia(BLANK_CANVAS_ITEM);
+        setCropRect({ x: 0, y: 0, width: 100, height: 100 });
+        setStudioMode('video');
+        setCamera({ ...DEFAULT_STATIC_CAMERA });
+        currentTimeRef.current = 0;
+        setCurrentTime(0);
+      } else {
+        // Append blank canvas clip to existing sequence
+        handleAddMediaClip(BLANK_CANVAS_ITEM);
+      }
+
+      setIsAddMediaMenuOpen(false);
+      setIsMediaLibraryOpen(false);
+    },
+    [handleAddMediaClip]
+  );
+
   // Upload user file
   const handleUploadFile = async (file: File) => {
     const fileName = file.name.toLowerCase();
@@ -2122,7 +2230,7 @@ export function App() {
           borderRadius,
           blurAmount,
           shadowDepth,
-          mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
+          mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : activeMedia.type === 'blank' ? null : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
           mediaType: activeMedia.type,
           cropRect,
           textLayers,
@@ -2168,7 +2276,7 @@ export function App() {
           width: stageDims.width,
           height: stageDims.height,
           background,
-          mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
+          mediaElement: activeMedia.type === 'video' ? videoRef.current : activeMedia.type === '3d' ? model3DCanvasRef.current : activeMedia.type === 'blank' ? null : (document.getElementById('mockup-image-player') as HTMLImageElement | null),
           mediaUrl: activeMedia.url,
           mediaType: activeMedia.type,
           modelTextures: getActiveMediaClipAtTime(mediaClips, currentTime)?.modelTextures || model3DTextures,
@@ -2358,18 +2466,113 @@ export function App() {
       <header className="studio-top-bar">
         {/* 1. TOP-LEFT TOOLBAR */}
         <div className="top-left-toolbar">
-          <button
-            type="button"
-            className="top-pill-btn"
-            data-guide="add-media"
-            onClick={() => {
-              setMediaLibraryMode('add');
-              setIsMediaLibraryOpen(true);
-            }}
-          >
-            <Plus size={14} />
-            <span>Add media</span>
-          </button>
+          <div className="add-media-button-group" ref={addMediaMenuRef}>
+            <button
+              type="button"
+              className="top-pill-btn add-media-primary-btn"
+              data-guide="add-media"
+              onClick={() => {
+                setMediaLibraryMode('add');
+                setIsMediaLibraryOpen(true);
+              }}
+              title="Add media (Library, Blank Canvas, Upload)"
+            >
+              <Plus size={14} />
+              <span>Add media</span>
+            </button>
+            <button
+              type="button"
+              className={`top-pill-btn add-media-dropdown-trigger ${isAddMediaMenuOpen ? 'is-active' : ''}`}
+              aria-label="Add media options"
+              title="Add media options (Blank Canvas, Upload, Library)"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsAddMediaMenuOpen((prev) => !prev);
+              }}
+            >
+              <ChevronDown size={13} className={`chevron-dropdown-icon ${isAddMediaMenuOpen ? 'is-open' : ''}`} />
+            </button>
+
+            {isAddMediaMenuOpen && (
+              <div className="add-media-dropdown-menu" role="menu">
+                <div className="add-media-dropdown-header">
+                  <span>Add Media to Project</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="add-media-dropdown-item highlight-item"
+                  role="menuitem"
+                  onClick={() => handleCreateBlankCanvas(true)}
+                >
+                  <div className="dropdown-item-icon-wrap is-blank">
+                    <Square size={14} />
+                  </div>
+                  <div className="dropdown-item-text">
+                    <div className="dropdown-item-title-row">
+                      <span className="dropdown-item-title">Blank Canvas (Solo)</span>
+                      <span className="dropdown-item-badge">Clean</span>
+                    </div>
+                    <span className="dropdown-item-desc">Start fresh with only a blank canvas — no other clips</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="add-media-dropdown-item"
+                  role="menuitem"
+                  onClick={() => handleCreateBlankCanvas(false)}
+                >
+                  <div className="dropdown-item-icon-wrap is-blank-add">
+                    <Plus size={14} />
+                  </div>
+                  <div className="dropdown-item-text">
+                    <span className="dropdown-item-title">+ Add Blank Canvas Clip</span>
+                    <span className="dropdown-item-desc">Append a blank canvas clip to current timeline</span>
+                  </div>
+                </button>
+
+                <div className="add-media-dropdown-divider" />
+
+                <button
+                  type="button"
+                  className="add-media-dropdown-item"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsAddMediaMenuOpen(false);
+                    setMediaLibraryMode('add');
+                    setIsMediaLibraryOpen(true);
+                  }}
+                >
+                  <div className="dropdown-item-icon-wrap">
+                    <Sparkles size={14} />
+                  </div>
+                  <div className="dropdown-item-text">
+                    <span className="dropdown-item-title">Browse Media Library...</span>
+                    <span className="dropdown-item-desc">Choose from built-in mockups and templates</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="add-media-dropdown-item"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsAddMediaMenuOpen(false);
+                    directUploadInputRef.current?.click();
+                  }}
+                >
+                  <div className="dropdown-item-icon-wrap">
+                    <Upload size={14} />
+                  </div>
+                  <div className="dropdown-item-text">
+                    <span className="dropdown-item-title">Upload File...</span>
+                    <span className="dropdown-item-desc">Import video, image, or 3D FBX directly</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
@@ -2625,6 +2828,17 @@ export function App() {
                   >
                     <Plus size={16} />
                     <span>Media Library</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-drawer-action-btn"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      handleCreateBlankCanvas(true);
+                    }}
+                  >
+                    <Square size={16} color="#c084fc" />
+                    <span>Blank Canvas</span>
                   </button>
                   <button
                     type="button"
@@ -2951,7 +3165,16 @@ export function App() {
         mode={mediaLibraryMode}
         onModeChange={setMediaLibraryMode}
         onAddMediaClip={handleAddMediaClip}
+        onAddBlankCanvas={handleCreateBlankCanvas}
         onSelectMedia={(item) => {
+          if (item.type === 'blank') {
+            if (mediaLibraryMode === 'add') {
+              handleCreateBlankCanvas(false);
+            } else {
+              handleCreateBlankCanvas(true);
+            }
+            return;
+          }
           if (mediaLibraryMode === 'add') {
             handleAddMediaClip(item);
             return;
@@ -3203,6 +3426,44 @@ export function App() {
                         background: 'transparent',
                       }}
                     />
+                  ) : activeMedia.type === 'blank' ? (
+                    <div
+                      id="mockup-blank-canvas"
+                      className="mockup-blank-canvas"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#090d16',
+                        position: 'relative',
+                        userSelect: 'none',
+                        color: 'rgba(255, 255, 255, 0.4)',
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                      }}
+                    >
+                      <div className="mockup-blank-canvas-pattern" />
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          letterSpacing: '0.02em',
+                          zIndex: 2,
+                        }}
+                      >
+                        <Square size={16} style={{ color: '#a855f7' }} />
+                        <span style={{ color: '#e2e8f0' }}>Blank Canvas</span>
+                      </div>
+                    </div>
                   ) : (
                     <img
                       id="mockup-image-player"

@@ -30,7 +30,7 @@ export interface PhotoMockupOptions {
   blurAmount?: number;
   shadowDepth?: 'none' | 'small' | 'medium' | 'large';
   mediaElement?: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | null;
-  mediaType?: 'video' | 'image' | 'demo' | '3d';
+  mediaType?: 'video' | 'image' | 'demo' | '3d' | 'blank';
   cropRect?: { x: number; y: number; width: number; height: number };
   projectName?: string;
   stageElement?: HTMLElement | null;
@@ -220,6 +220,9 @@ export class CaptureEngine {
       } else {
         frameCtx.drawImage(imageElem, coords.sx, coords.sy, coords.sw, coords.sh, 0, 0, frameW, frameH);
       }
+    } else if (options.mediaType === 'blank') {
+      frameCtx.fillStyle = '#090d16';
+      frameCtx.fillRect(0, 0, frameW, frameH);
     } else {
       frameCtx.fillStyle = '#0f172a';
       frameCtx.fillRect(0, 0, frameW, frameH);

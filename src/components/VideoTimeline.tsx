@@ -27,6 +27,7 @@ import {
   Zap,
   Box,
   Sparkles,
+  Square,
 } from 'lucide-react';
 import { Camera3DState } from '../utils/camera3D';
 import { EasingCurveModal } from './EasingCurveModal';
@@ -2514,7 +2515,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                         <div
                           className="multiclip-thumb-preview"
                           style={
-                            mClip.thumbnails?.[0] || (mClip.type === 'image' ? mClip.url : undefined)
+                            mClip.type === 'blank'
+                              ? { backgroundColor: '#090d16' }
+                              : mClip.thumbnails?.[0] || (mClip.type === 'image' ? mClip.url : undefined)
                               ? { backgroundImage: `url(${mClip.thumbnails?.[0] || mClip.url})` }
                               : {}
                           }
@@ -2523,12 +2526,15 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                             <Video size={10} color="#94a3b8" />
                           ) : mClip.type === '3d' ? (
                             <Box size={10} color="#38bdf8" />
+                          ) : mClip.type === 'blank' ? (
+                            <Square size={10} color="#a855f7" />
                           ) : (
                             <ImageIcon size={10} color="#94a3b8" />
                           )}
                         </div>
                         <span className="multiclip-card-name">
                           {mClip.type === '3d' && <span style={{ color: '#38bdf8', fontSize: '9px', fontWeight: 700, marginRight: '4px' }}>3D</span>}
+                          {mClip.type === 'blank' && <span style={{ color: '#a855f7', fontSize: '9px', fontWeight: 700, marginRight: '4px' }}>CANVAS</span>}
                           {mClip.name}
                         </span>
                         {/* 3D Model Keyframe Dots */}

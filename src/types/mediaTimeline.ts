@@ -7,7 +7,7 @@ export interface MediaTimelineClip {
   id: string;
   mediaId: string;
   name: string;
-  type: 'video' | 'image' | 'demo' | '3d';
+  type: 'video' | 'image' | 'demo' | '3d' | 'blank';
   url: string;
   startTime: number; // in seconds on master timeline
   duration: number; // in seconds

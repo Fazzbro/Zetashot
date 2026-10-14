@@ -48,6 +48,31 @@ describe('projectUrlEncoder', () => {
     expect(decoded?.cameraClips?.[1].camera.zoom).toBe(1.25);
   });
 
+  it('correctly encodes and decodes blank canvas projects with mediaType: blank', () => {
+    const blankProject: ZetashotSharedProject = {
+      version: '1.0.0',
+      mediaName: 'Blank Canvas',
+      mediaType: 'blank',
+      aspectRatio: '16:9',
+      duration: 4.0,
+      cameraClips: [
+        {
+          id: 'p1',
+          name: 'P01',
+          startTime: 0,
+          duration: 2.0,
+          camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.9, panX: 0, panY: 0, perspective: 1000 },
+        },
+      ],
+    };
+
+    const encoded = encodeProjectToUrl(blankProject);
+    const decoded = decodeProjectFromUrl(encoded);
+    expect(decoded).not.toBeNull();
+    expect(decoded?.mediaType).toBe('blank');
+    expect(decoded?.mediaName).toBe('Blank Canvas');
+  });
+
   it('gracefully returns null for empty or invalid parameter strings without throwing', () => {
     expect(decodeProjectFromUrl('')).toBeNull();
     expect(decodeProjectFromUrl('invalid-base64-garbage!')).toBeNull();
