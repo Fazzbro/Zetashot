@@ -119,30 +119,29 @@ export function getTiltShiftMask(
 
 export function App() {
   // 1. Media & Project State
-  const DEFAULT_BLANK_MEDIA: MediaItem = BUILTIN_MEDIA_ITEMS[0] || {
-    id: 'default-screen-image',
-    name: 'Codex Dashboard',
-    type: 'image',
-    url: '/default-codex-image.png',
-    dimensions: '1920 × 1080',
-    format: 'PNG',
-  };
+  const DEFAULT_BLANK_MEDIA: MediaItem =
+    BUILTIN_MEDIA_ITEMS.find((m) => m.id === 'default-screen-image') || {
+      id: 'default-screen-image',
+      name: 'Codex Dashboard',
+      type: 'image',
+      url: '/default-codex-image.png',
+      dimensions: '1920 × 1080',
+      format: 'PNG',
+    };
 
   const [mediaList, setMediaList] = useState<MediaItem[]>(
     BUILTIN_MEDIA_ITEMS.length > 0 ? BUILTIN_MEDIA_ITEMS : [DEFAULT_BLANK_MEDIA]
   );
-  const [activeMedia, setActiveMedia] = useState<MediaItem>(
-    BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA
-  );
+  const [activeMedia, setActiveMedia] = useState<MediaItem>(DEFAULT_BLANK_MEDIA);
 
   // 1b. Multi-Clip Media Timeline Sequence State
   const [mediaClips, setMediaClips] = useState<MediaTimelineClip[]>([
     {
       id: 'clip_init',
-      mediaId: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).id,
-      name: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).name,
-      type: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).type,
-      url: (BUILTIN_MEDIA_ITEMS[0] || DEFAULT_BLANK_MEDIA).url,
+      mediaId: DEFAULT_BLANK_MEDIA.id,
+      name: DEFAULT_BLANK_MEDIA.name,
+      type: DEFAULT_BLANK_MEDIA.type,
+      url: DEFAULT_BLANK_MEDIA.url,
       startTime: 0,
       duration: 3.0,
     },
@@ -2371,6 +2370,8 @@ export function App() {
   const isCropped = isCropActive(cropRect);
   const mockupDims = calculateCroppedDimensions(baseMockupDims, cropRect);
   const cropOffset = calculateMediaCropOffset(baseMockupDims, cropRect, stageScale);
+  const currentActiveClip = mediaClips.length > 0 ? getActiveMediaClipAtTime(mediaClips, currentTime) : null;
+  const isBlankActive = activeMedia.type === 'blank' || currentActiveClip?.type === 'blank';
 
   return (
     <div
@@ -3300,7 +3301,11 @@ export function App() {
             onTouchMove={handleSceneTouchMove}
             onTouchEnd={handleSceneTouchEnd}
             onTouchCancel={handleSceneTouchEnd}
-            style={{ perspective: `${(camera.perspective || 1000) * stageScale}px`, touchAction: 'none' }}
+            style={{
+              perspective: `${(camera.perspective || 1000) * stageScale}px`,
+              touchAction: 'none',
+              pointerEvents: isBlankActive ? 'none' : undefined,
+            }}
           >
             {/* Ambient warm lighting spill around device frame during gradient transition */}
             <div
@@ -3309,13 +3314,14 @@ export function App() {
               style={{ display: 'none', opacity: 0 }}
             />
 
-            {/* 3D Rotated Frame Scene with zero-stutter dynamic transition */}
+            {/* 3D Rotated Frame Scene: completely hidden when Blank Canvas is active so ONLY the clean background is shown */}
             <div
               ref={frameSceneRef}
               className={`frame-scene shadow-${shadowDepth} ${
                 isPlaying || isDraggingScene ? 'is-moving' : ''
               } ${activeMedia.type === '3d' ? 'is-3d' : ''}`}
               style={{
+                display: isBlankActive ? 'none' : undefined,
                 transform: transform3D,
                 borderRadius: `${borderRadius * stageScale}px`,
                 opacity: frameOpacity,
@@ -3426,45 +3432,7 @@ export function App() {
                         background: 'transparent',
                       }}
                     />
-                  ) : activeMedia.type === 'blank' ? (
-                    <div
-                      id="mockup-blank-canvas"
-                      className="mockup-blank-canvas"
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: '#090d16',
-                        position: 'relative',
-                        userSelect: 'none',
-                        color: 'rgba(255, 255, 255, 0.4)',
-                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                      }}
-                    >
-                      <div className="mockup-blank-canvas-pattern" />
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '8px 16px',
-                          borderRadius: '8px',
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          letterSpacing: '0.02em',
-                          zIndex: 2,
-                        }}
-                      >
-                        <Square size={16} style={{ color: '#a855f7' }} />
-                        <span style={{ color: '#e2e8f0' }}>Blank Canvas</span>
-                      </div>
-                    </div>
-                  ) : (
+                  ) : activeMedia.type === 'blank' ? null : (
                     <img
                       id="mockup-image-player"
                       src={activeMedia.url}

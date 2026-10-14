@@ -73,21 +73,22 @@ async function runVerification() {
   });
   await new Promise((r) => setTimeout(r, 800));
 
-  // 5. Verify stage displays Blank Canvas and timeline has exactly 1 blank clip
+  // 5. Verify stage displays ONLY background (frame-scene hidden) and timeline has exactly 1 blank clip
   const soloState = await page.evaluate(() => {
-    const blankStage = document.querySelector('#mockup-blank-canvas');
+    const frameScene = document.querySelector('.frame-scene');
+    const isFrameHidden = frameScene ? window.getComputedStyle(frameScene).display === 'none' : true;
     const cards = Array.from(document.querySelectorAll('.multiclip-card'));
     const cardNames = cards.map(c => c.querySelector('.multiclip-card-name')?.textContent?.trim() || '');
     return {
-      blankCanvasRendered: !!blankStage,
+      isFrameHidden,
       clipCount: cards.length,
       cardNames,
     };
   });
   console.log('[E2E] State after Blank Canvas (Solo):', JSON.stringify(soloState, null, 2));
 
-  if (!soloState.blankCanvasRendered) {
-    throw new Error('Mockup blank canvas surface was not rendered on stage!');
+  if (!soloState.isFrameHidden) {
+    throw new Error('Expected .frame-scene to be hidden with display: none so only the pure background displays!');
   }
   if (soloState.clipCount !== 1) {
     throw new Error(`Expected exactly 1 solo clip in timeline, but found ${soloState.clipCount}`);

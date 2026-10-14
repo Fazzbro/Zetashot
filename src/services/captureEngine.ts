@@ -275,24 +275,26 @@ export class CaptureEngine {
     // 7. Composite onto Main Canvas
     drawBackground(ctx, options.background || { type: 'solid', color: '#ffffff' }, width, height, bgImgElem);
 
-    // Drop shadow pass: isolated offscreen cast so only the blurred shadow lands on (0,0) without double-drawing the frame
-    const shadowDepth = options.shadowDepth || 'medium';
-    if (shadowDepth !== 'none') {
-      ctx.save();
-      const shadowBlur = (shadowDepth === 'small' ? 20 : shadowDepth === 'medium' ? 35 : 55) * (baseScale * 0.8);
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-      ctx.shadowBlur = shadowBlur;
-      const offX = -options.camera.rotY * 1.5 * baseScale;
-      const offY = (25 + options.camera.rotX * 1.5) * baseScale;
-      const FAR_OFFSET = 10000;
-      ctx.shadowOffsetX = offX + FAR_OFFSET;
-      ctx.shadowOffsetY = offY;
-      ctx.drawImage(webglRenderer.getCanvas(), -FAR_OFFSET, 0);
-      ctx.restore();
-    }
+    // Drop shadow and 3D frame passes (Skipped entirely when mediaType is 'blank' so only pure background renders)
+    if (options.mediaType !== 'blank') {
+      const shadowDepth = options.shadowDepth || 'medium';
+      if (shadowDepth !== 'none') {
+        ctx.save();
+        const shadowBlur = (shadowDepth === 'small' ? 20 : shadowDepth === 'medium' ? 35 : 55) * (baseScale * 0.8);
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = shadowBlur;
+        const offX = -options.camera.rotY * 1.5 * baseScale;
+        const offY = (25 + options.camera.rotX * 1.5) * baseScale;
+        const FAR_OFFSET = 10000;
+        ctx.shadowOffsetX = offX + FAR_OFFSET;
+        ctx.shadowOffsetY = offY;
+        ctx.drawImage(webglRenderer.getCanvas(), -FAR_OFFSET, 0);
+        ctx.restore();
+      }
 
-    // Main 3D frame pass: single crisp render with zero corner-radius ghosting
-    ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+      // Main 3D frame pass: single crisp render with zero corner-radius ghosting
+      ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+    }
 
     // Text Overlays Pass
     if (options.textLayers && options.textLayers.length > 0) {
