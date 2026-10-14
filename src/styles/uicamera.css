@@ -129,6 +129,90 @@
   color: #f8fafc;
 }
 
+/* Segmented Utility Capsule (Reset Scene + Sound Toggle) */
+.top-segmented-capsule {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.studio-root.dark-theme .top-segmented-capsule {
+  background: #181d2e;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.top-segmented-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.top-segmented-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.studio-root.dark-theme .top-segmented-item {
+  color: #94a3b8;
+}
+
+.studio-root.dark-theme .top-segmented-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.top-segmented-item.is-muted {
+  color: #ef4444 !important;
+}
+
+.top-segmented-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.studio-root.dark-theme .top-segmented-divider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Support Creator Pill */
+.top-support-pill {
+  text-decoration: none;
+  color: #1e293b;
+}
+
+.studio-root.dark-theme .top-support-pill {
+  color: #f8fafc;
+}
+
+.top-support-heart-icon {
+  color: #ec4899;
+  fill: rgba(236, 72, 153, 0.18);
+  transition: transform 0.15s ease, fill 0.15s ease;
+}
+
+.top-support-pill:hover .top-support-heart-icon {
+  transform: scale(1.2);
+  fill: #ec4899;
+}
+
 /* Top Center Mode / Operator Wrapper */
 .top-center-mode-island-wrap {
   position: relative;

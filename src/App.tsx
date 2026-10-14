@@ -917,6 +917,24 @@ export function App() {
   const handleShareLink = async () => {
     const url = getShareUrl();
     try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: 'Zetashot Studio',
+            text: 'Check out this 3D mockup animation created with Zetashot',
+            url,
+          });
+          setIsCopiedLink(true);
+          setTimeout(() => setIsCopiedLink(false), 2500);
+          return;
+        } catch (shareErr: unknown) {
+          if (shareErr instanceof Error && shareErr.name === 'AbortError') {
+            return;
+          }
+          // Fall through to clipboard copy if share dialog failed
+        }
+      }
+
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(url);
       } else {
@@ -2649,9 +2667,9 @@ export function App() {
           />
         </div>
 
-        {/* 3. TOP-RIGHT TOOLBAR */}
+        {/* 3. TOP-RIGHT TOOLBAR: Unified Single-Row Hierarchy */}
         <div className="top-right-toolbar">
-          {/* Beginner Guide / Tour Pill (Strict Black & White) */}
+          {/* A. Onboarding / Guide Pill (Tutorial Category) */}
           <button
             type="button"
             className={`top-pill-btn desktop-only-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
@@ -2671,36 +2689,52 @@ export function App() {
             <span className="guide-tour-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
           </button>
 
-          <button
-            type="button"
-            className="top-pill-btn desktop-only-btn"
-            onClick={handleResetScene}
-            title="Reset scene"
+          {/* B. Scene & Audio Utilities (Compact Segmented Capsule) */}
+          <div className="top-segmented-capsule desktop-only-btn" role="group" aria-label="Scene and audio utilities">
+            <button
+              type="button"
+              className="top-segmented-item"
+              onClick={handleResetScene}
+              title="Reset scene camera angle"
+              aria-label="Reset scene camera angle"
+            >
+              <RotateCcw size={13} />
+            </button>
+            <div className="top-segmented-divider" />
+            <button
+              type="button"
+              className={`top-segmented-item ${!soundEnabled ? 'is-muted' : ''}`}
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+              aria-label={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            >
+              {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+            </button>
+          </div>
+
+          {/* C. Social & Support Pills (Aligned on Same Horizontal Baseline) */}
+          <a
+            href="https://paypal.me/zetabyteIN"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="top-pill-btn top-support-pill desktop-only-btn"
+            title="Support Creator on PayPal (@zetabyteIN)"
           >
-            <RotateCcw size={14} />
-          </button>
+            <Heart size={12} className="top-support-heart-icon" />
+            <span>Support</span>
+          </a>
 
           <button
             type="button"
-            className="top-pill-btn desktop-only-btn"
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-          >
-            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-          </button>
-
-          {/* Share Live Link Pill */}
-          <button
-            type="button"
-            className="top-pill-btn desktop-only-btn"
+            className="top-pill-btn top-share-pill desktop-only-btn"
             onClick={handleShareLink}
             title="Share live studio link (https://zetashot.vercel.app)"
           >
-            {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
+            {isCopiedLink ? <Check size={13} color="#10b981" /> : <Share2 size={13} />}
             <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
           </button>
 
-          {/* Direct 1-Click Guide Disable Button (Visible on mobile & desktop whenever guide is active) */}
+          {/* D. Direct 1-Click Guide Disable Button (Visible on mobile & desktop whenever guide is active) */}
           {isGuideOpen && !isMobileGuideDisabled && (
             <button
               type="button"
@@ -2715,39 +2749,27 @@ export function App() {
             </button>
           )}
 
-          {/* Export & Support Creator Group */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-            <button
-              type="button"
-              className="top-pill-btn top-upgrade-btn"
-              data-guide="export-button"
-              onClick={() => handleExport(exportFormat, exportFps)}
-              disabled={isProcessing}
-              title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
-            >
-              <Zap size={13} />
-              <span className="export-btn-label">
-                {isProcessing
-                  ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
-                  : `Export ${exportFormat.toUpperCase()} • ${exportFps}fps`}
-              </span>
-              <span className="export-btn-label-mobile">
-                {isProcessing ? `${exportProgress}%` : 'Export'}
-              </span>
-            </button>
-            <a
-              href="https://paypal.me/zetabyteIN"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="support-creator-pill-link desktop-only-btn"
-              title="Support Creator on PayPal (@zetabyteIN)"
-            >
-              <Heart size={11} stroke="currentColor" fill="none" />
-              <span>Support Creator</span>
-            </a>
-          </div>
+          {/* E. Primary Export CTA (Standalone, Prominent, Single Row Baseline) */}
+          <button
+            type="button"
+            className="top-pill-btn top-upgrade-btn"
+            data-guide="export-button"
+            onClick={() => handleExport(exportFormat, exportFps)}
+            disabled={isProcessing}
+            title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
+          >
+            <Zap size={13} />
+            <span className="export-btn-label">
+              {isProcessing
+                ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
+                : `Export ${exportFormat.toUpperCase()} • ${exportFps}fps`}
+            </span>
+            <span className="export-btn-label-mobile">
+              {isProcessing ? `${exportProgress}%` : 'Export'}
+            </span>
+          </button>
 
-          {/* Mobile Menu Hamburger Button (visible <= 768px) */}
+          {/* F. Mobile Menu Hamburger Button (visible <= 768px) */}
           <button
             type="button"
             className="top-pill-btn mobile-menu-toggle-btn"
