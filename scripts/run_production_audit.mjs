@@ -11,17 +11,7 @@ const VIEWPORTS = [
   { name: 'Mobile_Android', width: 360, height: 800, isMobile: true, hasTouch: true },
 ];
 
-function isOverlapping(rect1, rect2, tolerance = 1) {
-  if (!rect1 || !rect2) return false;
-  return !(
-    rect1.right - tolerance <= rect2.left ||
-    rect1.left + tolerance >= rect2.right ||
-    rect1.bottom - tolerance <= rect2.top ||
-    rect1.top + tolerance >= rect2.bottom
-  );
-}
-
-async function auditViewport(page, vp) {
+async function auditViewport(page, vp, baseUrl) {
   console.log(`\n======================================================`);
   console.log(`  AUDITING VIEWPORT: ${vp.name} (${vp.width}x${vp.height})`);
   console.log(`======================================================`);
@@ -32,7 +22,6 @@ async function auditViewport(page, vp) {
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
       const text = msg.text();
-      // Ignore favicon or benign resource 404s
       if (!text.includes('favicon.ico') && !text.includes('404')) {
         consoleErrors.push(text);
       }
@@ -50,8 +39,9 @@ async function auditViewport(page, vp) {
     hasTouch: vp.hasTouch,
   });
 
-  await page.goto('http://localhost:4192', { waitUntil: 'networkidle0' });
-  await new Promise((r) => setTimeout(r, 1200));
+  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#root .studio-top-bar', { timeout: 10000 });
+  await new Promise((r) => setTimeout(r, 1000));
 
   // --- CHECK 1: Header Non-Overlap & Viewport Containment ---
   const headerCheck = await page.evaluate((vw) => {
@@ -275,7 +265,6 @@ async function auditViewport(page, vp) {
     try {
       await page.waitForFunction(() => !document.querySelector('.transition-sheet-backdrop'), { timeout: 3000 });
     } catch {
-      console.warn('Transition backdrop wait timed out; clicking backdrop directly');
       await page.evaluate(() => {
         const b = document.querySelector('.transition-sheet-backdrop');
         if (b) (b).click();
@@ -428,8 +417,11 @@ async function auditViewport(page, vp) {
 }
 
 async function runProductionAudit() {
-  console.log('>>> STARTING VITE PRODUCTION PREVIEW ON PORT 4192 <<<');
-  const server = await preview({ preview: { port: 4192 } });
+  console.log('>>> STARTING VITE PRODUCTION PREVIEW WITH DYNAMIC PORT <<<');
+  const server = await preview({ preview: { port: 0 } });
+  const port = server.httpServer.address().port;
+  const baseUrl = `http://localhost:${port}`;
+  console.log(`>>> PREVIEW SERVER READY AT ${baseUrl} <<<`);
 
   console.log('>>> LAUNCHING HEADLESS CHROME WITH FULL HARDWARE SIMULATION <<<');
   const browser = await puppeteer.launch({
@@ -442,7 +434,7 @@ async function runProductionAudit() {
 
   for (const vp of VIEWPORTS) {
     const page = await browser.newPage();
-    const result = await auditViewport(page, vp);
+    const result = await auditViewport(page, vp, baseUrl);
     results.push(result);
     await page.close();
   }

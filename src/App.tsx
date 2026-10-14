@@ -917,24 +917,6 @@ export function App() {
   const handleShareLink = async () => {
     const url = getShareUrl();
     try {
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        try {
-          await navigator.share({
-            title: 'Zetashot Studio',
-            text: 'Check out this 3D mockup animation created with Zetashot',
-            url,
-          });
-          setIsCopiedLink(true);
-          setTimeout(() => setIsCopiedLink(false), 2500);
-          return;
-        } catch (shareErr: unknown) {
-          if (shareErr instanceof Error && shareErr.name === 'AbortError') {
-            return;
-          }
-          // Fall through to clipboard copy if share dialog failed
-        }
-      }
-
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(url);
       } else {
@@ -2667,9 +2649,32 @@ export function App() {
           />
         </div>
 
-        {/* 3. TOP-RIGHT TOOLBAR: Unified Single-Row Hierarchy */}
+        {/* 3. TOP-RIGHT TOOLBAR: Structured in clear hierarchy (Utilities -> Secondary Actions -> Primary CTA) */}
         <div className="top-right-toolbar">
-          {/* A. Onboarding / Guide Pill (Tutorial Category) */}
+          {/* Tier 1: Scene & Audio Utilities (Unified Segmented Pill Group) */}
+          <div className="top-utility-group desktop-only-btn" title="Scene camera & audio utilities">
+            <button
+              type="button"
+              className="top-utility-btn"
+              onClick={handleResetScene}
+              title="Reset scene camera angle"
+              aria-label="Reset scene camera angle"
+            >
+              <RotateCcw size={14} />
+            </button>
+            <div className="top-utility-divider" />
+            <button
+              type="button"
+              className="top-utility-btn"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              title={soundEnabled ? 'Mute sound effects' : 'Enable sound effects'}
+              aria-label={soundEnabled ? 'Mute sound effects' : 'Enable sound effects'}
+            >
+              {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            </button>
+          </div>
+
+          {/* Tier 2: Beginner Guide Interactive Tour Pill */}
           <button
             type="button"
             className={`top-pill-btn desktop-only-btn ${isGuideOpen ? 'is-active-guide' : ''}`}
@@ -2684,72 +2689,37 @@ export function App() {
             }}
             title="Interactive Beginner Guide & Feature Tour"
           >
-            <Sparkles size={13} color="#ffffff" />
+            <Sparkles size={13} color="#38bdf8" />
             <span>Guide</span>
-            <span className="guide-tour-badge">{isGuideOpen ? 'Active' : 'Start'}</span>
+            <span className={`guide-tour-badge ${isGuideOpen ? 'is-active' : ''}`}>
+              {isGuideOpen ? 'Active' : 'Start'}
+            </span>
           </button>
 
-          {/* B. Scene & Audio Utilities (Compact Segmented Capsule) */}
-          <div className="top-segmented-capsule desktop-only-btn" role="group" aria-label="Scene and audio utilities">
-            <button
-              type="button"
-              className="top-segmented-item"
-              onClick={handleResetScene}
-              title="Reset scene camera angle"
-              aria-label="Reset scene camera angle"
-            >
-              <RotateCcw size={13} />
-            </button>
-            <div className="top-segmented-divider" />
-            <button
-              type="button"
-              className={`top-segmented-item ${!soundEnabled ? 'is-muted' : ''}`}
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-              aria-label={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-            >
-              {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            </button>
-          </div>
+          {/* Tier 2: Share Live Project Pill */}
+          <button
+            type="button"
+            className="top-pill-btn desktop-only-btn"
+            onClick={handleShareLink}
+            title="Share live studio link (https://zetashot.vercel.app)"
+          >
+            {isCopiedLink ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
+            <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
+          </button>
 
-          {/* C. Social & Support Pills (Aligned on Same Horizontal Baseline) */}
+          {/* Tier 2: Support Creator Link (Horizontal baseline aligned) */}
           <a
             href="https://paypal.me/zetabyteIN"
             target="_blank"
             rel="noopener noreferrer"
-            className="top-pill-btn top-support-pill desktop-only-btn"
+            className="top-pill-btn support-creator-pill-link desktop-only-btn"
             title="Support Creator on PayPal (@zetabyteIN)"
           >
-            <Heart size={12} className="top-support-heart-icon" />
+            <Heart size={12} stroke="currentColor" fill="none" color="#ec4899" />
             <span>Support</span>
           </a>
 
-          <button
-            type="button"
-            className="top-pill-btn top-share-pill desktop-only-btn"
-            onClick={handleShareLink}
-            title="Share live studio link (https://zetashot.vercel.app)"
-          >
-            {isCopiedLink ? <Check size={13} color="#10b981" /> : <Share2 size={13} />}
-            <span>{isCopiedLink ? 'Copied Link!' : 'Share'}</span>
-          </button>
-
-          {/* D. Direct 1-Click Guide Disable Button (Visible on mobile & desktop whenever guide is active) */}
-          {isGuideOpen && !isMobileGuideDisabled && (
-            <button
-              type="button"
-              className="top-pill-btn guide-disable-quick-btn"
-              onClick={handleDisableGuide}
-              title="Disable guide tips"
-              aria-label="Disable guide"
-            >
-              <X size={13} />
-              <span className="guide-disable-text-desktop">Disable Guide</span>
-              <span className="guide-disable-text-mobile">Guide Off</span>
-            </button>
-          )}
-
-          {/* E. Primary Export CTA (Standalone, Prominent, Single Row Baseline) */}
+          {/* Tier 3: Primary Action - Export Video Hero Button */}
           <button
             type="button"
             className="top-pill-btn top-upgrade-btn"
@@ -2758,7 +2728,7 @@ export function App() {
             disabled={isProcessing}
             title={`Export video as ${exportFormat.toUpperCase()} at ${exportFps} FPS`}
           >
-            <Zap size={13} />
+            <Zap size={14} />
             <span className="export-btn-label">
               {isProcessing
                 ? `Exporting ${exportFormat.toUpperCase()} (${exportFps}fps) ${exportProgress}%`
@@ -2769,7 +2739,7 @@ export function App() {
             </span>
           </button>
 
-          {/* F. Mobile Menu Hamburger Button (visible <= 768px) */}
+          {/* Mobile Studio Menu Toggle (visible <= 768px, generous 40px+ tap area) */}
           <button
             type="button"
             className="top-pill-btn mobile-menu-toggle-btn"
@@ -2802,6 +2772,32 @@ export function App() {
             </div>
 
             <div className="mobile-drawer-content">
+              {/* Quick Mobile Export Banner */}
+              <div className="mobile-drawer-section">
+                <button
+                  type="button"
+                  className="mobile-drawer-export-hero-btn"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleExport(exportFormat, exportFps);
+                  }}
+                  disabled={isProcessing}
+                  title="Export Video"
+                >
+                  <div className="mobile-drawer-export-icon">
+                    <Zap size={18} />
+                  </div>
+                  <div className="mobile-drawer-export-info">
+                    <span className="mobile-drawer-export-title">
+                      {isProcessing ? `Exporting Video (${exportProgress}%)` : `Export ${exportFormat.toUpperCase()} Video`}
+                    </span>
+                    <span className="mobile-drawer-export-desc">
+                      Render 60 FPS animation • High definition
+                    </span>
+                  </div>
+                </button>
+              </div>
+
               {/* Option to Disable Guide on Mobile Devices */}
               <div className="mobile-drawer-section">
                 <span className="mobile-drawer-section-title">Guide & Onboarding</span>
