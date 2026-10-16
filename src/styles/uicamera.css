@@ -8724,4 +8724,221 @@
   pointer-events: none;
 }
 
+/* =========================================================================
+   PER-CLIP SEPARATE BACKGROUND STYLING
+   ========================================================================= */
+
+/* Trigger button on timeline clip cards */
+.multiclip-card-bg-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 1px 6px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.multiclip-card-bg-trigger:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.multiclip-card-bg-trigger.has-custom-bg {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(14, 165, 233, 0.14);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}
+
+.multiclip-bg-swatch-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.multiclip-bg-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #cbd5e1;
+  letter-spacing: 0.02em;
+}
+
+.multiclip-card-bg-trigger.has-custom-bg .multiclip-bg-label {
+  color: #38bdf8;
+}
+
+/* Island backdrop icon custom clip indicator */
+.island-background-icon.has-custom-clip-bg {
+  box-shadow: 0 0 0 1.5px #38bdf8, 0 0 8px rgba(56, 189, 248, 0.5) !important;
+}
+
+/* Scope switch inside BackgroundSelectorPill */
+.bg-pill-scope-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.bg-pill-scope-pill {
+  display: inline-flex;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  padding: 2px;
+  gap: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.bg-scope-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bg-scope-btn:hover {
+  color: #ffffff;
+}
+
+.bg-scope-btn.is-active {
+  background: #27272a;
+  color: #f8fafc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.bg-scope-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.bg-scope-text strong {
+  color: #ffffff;
+}
+
+.bg-scope-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.bg-scope-tag.custom {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+}
+
+.bg-clip-actions {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.bg-clip-action-link {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.bg-clip-action-link:hover {
+  color: #ffffff;
+}
+
+.bg-clip-action-link.highlight {
+  color: #38bdf8;
+}
+
+.bg-clip-action-link.highlight:hover {
+  color: #7dd3fc;
+}
+
+/* Clip Background Modal Container */
+.clip-background-modal {
+  width: 520px;
+  max-width: 94vw;
+}
+
+.clip-background-pill-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.clip-background-pill-container .backdrop-selector-pill-wrap {
+  position: static;
+  transform: none;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+.clip-background-pill-container .backdrop-selector-pill {
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.clip-background-pill-container .backdrop-image-adjust-strip {
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .multiclip-card-bg-trigger {
+    height: 18px;
+    padding: 1px 4px;
+    gap: 0;
+  }
+
+  .clip-background-modal {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .bg-pill-scope-pill {
+    max-width: 92vw;
+    overflow-x: auto;
+  }
+
+  .bg-scope-btn {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+}
+
+
 

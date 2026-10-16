@@ -295,6 +295,11 @@ export function App() {
     type: 'solid',
     color: '#ffffff',
   });
+  const backgroundRef = useRef<BackgroundConfig>(background);
+  useEffect(() => {
+    backgroundRef.current = background;
+  }, [background]);
+  const lastActiveClipIdRef = useRef<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<string>('16:9');
   const [shadowDepth, setShadowDepth] = useState<'none' | 'small' | 'medium' | 'large'>('large');
   const [borderRadius, setBorderRadius] = useState<number>(12);
@@ -1448,6 +1453,21 @@ export function App() {
           format: clipAtTime.type === 'video' ? 'MP4' : 'PNG',
         });
       }
+      if (stageRef.current && clipAtTime) {
+        const effBg = clipAtTime.background || backgroundRef.current;
+        stageRef.current.style.backgroundColor = effBg.type === 'solid' ? (effBg.color || '#ffffff') : '';
+        stageRef.current.style.backgroundImage = effBg.type === 'image' && effBg.imageUrl
+          ? `url("${effBg.imageUrl}")`
+          : effBg.type === 'gradient'
+          ? generateBackgroundCss(effBg)
+          : '';
+        stageRef.current.style.backgroundSize = effBg.imageUrl
+          ? (effBg.imageFit === 'contain' ? 'contain' : (effBg.imageScale && effBg.imageScale !== 1 ? `${Math.round(effBg.imageScale * 100)}%` : 'cover'))
+          : '';
+        stageRef.current.style.backgroundPosition = effBg.imageUrl
+          ? (effBg.position ? `${effBg.position.x}% ${effBg.position.y}%` : 'center')
+          : '';
+      }
     }
 
     if (videoRef.current && activeMediaRef.current.type === 'video') {
@@ -1619,15 +1639,33 @@ export function App() {
       // Multi-Clip active switch on stage
       if (mediaClipsRef.current.length > 0) {
         const clipAtTime = getActiveMediaClipAtTime(mediaClipsRef.current, nextTime);
-        if (clipAtTime && clipAtTime.url !== activeMediaRef.current.url) {
-          setActiveMedia({
-            id: clipAtTime.mediaId,
-            name: clipAtTime.name,
-            type: clipAtTime.type,
-            url: clipAtTime.url,
-            dimensions: '1920 × 1080',
-            format: clipAtTime.type === 'video' ? 'MP4' : 'PNG',
-          });
+        if (clipAtTime) {
+          if (clipAtTime.url !== activeMediaRef.current.url) {
+            setActiveMedia({
+              id: clipAtTime.mediaId,
+              name: clipAtTime.name,
+              type: clipAtTime.type,
+              url: clipAtTime.url,
+              dimensions: '1920 × 1080',
+              format: clipAtTime.type === 'video' ? 'MP4' : 'PNG',
+            });
+          }
+          if (stageRef.current && lastActiveClipIdRef.current !== clipAtTime.id) {
+            lastActiveClipIdRef.current = clipAtTime.id;
+            const effBg = clipAtTime.background || backgroundRef.current;
+            stageRef.current.style.backgroundColor = effBg.type === 'solid' ? (effBg.color || '#ffffff') : '';
+            stageRef.current.style.backgroundImage = effBg.type === 'image' && effBg.imageUrl
+              ? `url("${effBg.imageUrl}")`
+              : effBg.type === 'gradient'
+              ? generateBackgroundCss(effBg)
+              : '';
+            stageRef.current.style.backgroundSize = effBg.imageUrl
+              ? (effBg.imageFit === 'contain' ? 'contain' : (effBg.imageScale && effBg.imageScale !== 1 ? `${Math.round(effBg.imageScale * 100)}%` : 'cover'))
+              : '';
+            stageRef.current.style.backgroundPosition = effBg.imageUrl
+              ? (effBg.position ? `${effBg.position.x}% ${effBg.position.y}%` : 'center')
+              : '';
+          }
         }
       }
 
@@ -2056,6 +2094,42 @@ export function App() {
     [handleAddMediaClip]
   );
 
+  const handleUpdateMediaClipBackground = useCallback(
+    (clipId: string, bg: BackgroundConfig | null) => {
+      setMediaClips((prev) => {
+        const updated = prev.map((c) => {
+          if (c.id === clipId) {
+            if (bg === null) {
+              const { background: _, ...rest } = c;
+              return rest;
+            }
+            return { ...c, background: bg };
+          }
+          return c;
+        });
+        mediaClipsRef.current = updated;
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleApplyBackgroundToAllClips = useCallback(
+    (bg: BackgroundConfig) => {
+      setBackground(bg);
+      backgroundRef.current = bg;
+      setMediaClips((prev) => {
+        const updated = prev.map((c) => ({
+          ...c,
+          background: bg,
+        }));
+        mediaClipsRef.current = updated;
+        return updated;
+      });
+    },
+    []
+  );
+
   // Upload user file
   const handleUploadFile = async (file: File) => {
     const fileName = file.name.toLowerCase();
@@ -2236,8 +2310,10 @@ export function App() {
       setExportProgress(0);
 
       if (studioMode === 'photo') {
+        const activeClipForExport = mediaClips.length > 0 ? getActiveMediaClipAtTime(mediaClips, currentTime) : null;
+        const exportBg = activeClipForExport?.background || background;
         const result = await CaptureEngine.capturePhotoMockup({
-          background,
+          background: exportBg,
           camera,
           aspectRatio,
           borderRadius,
@@ -2378,13 +2454,14 @@ export function App() {
     }
   }, [guidePhase, handleSelectClip, handlePlayPause, handleCompose, handleExport, exportFormat, exportFps]);
 
-  const bgStyle = generateBackgroundCss(background);
+  const currentActiveClip = mediaClips.length > 0 ? getActiveMediaClipAtTime(mediaClips, currentTime) : null;
+  const effectiveBackground: BackgroundConfig = currentActiveClip?.background || background;
+  const bgStyle = generateBackgroundCss(effectiveBackground);
   const transform3D = calculate3DTransform(camera, stageScale);
   const baseMockupDims = getMockupDimensions(aspectRatio);
   const isCropped = isCropActive(cropRect);
   const mockupDims = calculateCroppedDimensions(baseMockupDims, cropRect);
   const cropOffset = calculateMediaCropOffset(baseMockupDims, cropRect, stageScale);
-  const currentActiveClip = mediaClips.length > 0 ? getActiveMediaClipAtTime(mediaClips, currentTime) : null;
   const isBlankActive = activeMedia.type === 'blank' || currentActiveClip?.type === 'blank';
 
   return (
@@ -3300,17 +3377,17 @@ export function App() {
           onTouchCancel={handleSceneTouchEnd}
           style={{
             touchAction: 'none',
-            backgroundColor: background.type === 'solid' ? (background.color || '#ffffff') : undefined,
-            backgroundImage: background.type === 'image' && background.imageUrl
-              ? `url("${background.imageUrl}")`
-              : background.type === 'gradient'
+            backgroundColor: effectiveBackground.type === 'solid' ? (effectiveBackground.color || '#ffffff') : undefined,
+            backgroundImage: effectiveBackground.type === 'image' && effectiveBackground.imageUrl
+              ? `url("${effectiveBackground.imageUrl}")`
+              : effectiveBackground.type === 'gradient'
               ? bgStyle
               : undefined,
-            backgroundSize: background.imageUrl
-              ? (background.imageFit === 'contain' ? 'contain' : (background.imageScale && background.imageScale !== 1 ? `${Math.round(background.imageScale * 100)}%` : 'cover'))
+            backgroundSize: effectiveBackground.imageUrl
+              ? (effectiveBackground.imageFit === 'contain' ? 'contain' : (effectiveBackground.imageScale && effectiveBackground.imageScale !== 1 ? `${Math.round(effectiveBackground.imageScale * 100)}%` : 'cover'))
               : undefined,
-            backgroundPosition: background.imageUrl
-              ? (background.position ? `${background.position.x}% ${background.position.y}%` : 'center')
+            backgroundPosition: effectiveBackground.imageUrl
+              ? (effectiveBackground.position ? `${effectiveBackground.position.x}% ${effectiveBackground.position.y}%` : 'center')
               : undefined,
             backgroundRepeat: 'no-repeat',
             aspectRatio: getAspectRatioCss(aspectRatio),
@@ -3685,6 +3762,14 @@ export function App() {
             onCameraChange={handleCameraChange}
             background={background}
             onBackgroundChange={setBackground}
+            selectedMediaClip={
+              (selectedMediaClipId
+                ? mediaClips.find((c) => c.id === selectedMediaClipId)
+                : null) || currentActiveClip
+            }
+            onClipBackgroundChange={handleUpdateMediaClipBackground}
+            onApplyBackgroundToAllClips={handleApplyBackgroundToAllClips}
+            allClipsCount={mediaClips.length}
             aspectRatio={aspectRatio}
             onAspectRatioChange={setAspectRatio}
             shadowDepth={shadowDepth}
@@ -3799,6 +3884,9 @@ export function App() {
             onAudioTracksChange={setAudioTracks}
             selectedAudioTrackId={selectedAudioTrackId}
             onSelectAudioTrack={setSelectedAudioTrackId}
+            background={background}
+            onUpdateMediaClipBackground={handleUpdateMediaClipBackground}
+            onApplyBackgroundToAllClips={handleApplyBackgroundToAllClips}
           />
         </div>
       )}

@@ -231,16 +231,28 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     }
   }
 
-  // Preload background image if any
-  let bgImgElem: HTMLImageElement | null = null;
+  // Preload background images (global and per-clip backgrounds)
+  const bgImagesMap = new Map<string, HTMLImageElement>();
+  const bgUrlsToPreload = new Set<string>();
   if (options.background?.type === 'image' && options.background.imageUrl) {
-    bgImgElem = new Image();
-    bgImgElem.crossOrigin = 'anonymous';
-    bgImgElem.src = options.background.imageUrl;
+    bgUrlsToPreload.add(options.background.imageUrl);
+  }
+  if (options.mediaClips) {
+    for (const c of options.mediaClips) {
+      if (c.background?.type === 'image' && c.background.imageUrl) {
+        bgUrlsToPreload.add(c.background.imageUrl);
+      }
+    }
+  }
+  for (const url of bgUrlsToPreload) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = url;
     await new Promise<void>((resolve) => {
-      bgImgElem!.onload = () => resolve();
-      bgImgElem!.onerror = () => resolve();
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
     });
+    bgImagesMap.set(url, img);
   }
 
   // 3. Composite Output Canvas
@@ -648,7 +660,15 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
       webglRenderer.render(frameCanvas, frameW, frameH, camera, baseScale, 1.0, options.blurAmount || 0, focusPoint, cornerRadius);
 
       // --- C. Composite onto Main Export Canvas ---
-      drawBackground(ctx, options.background || { type: 'solid', color: '#ffffff' }, width, height, bgImgElem);
+      const activeClip = options.mediaClips && options.mediaClips.length > 0
+        ? getActiveMediaClipAtTime(options.mediaClips, time)
+        : null;
+      const currentBg = activeClip?.background || options.background || { type: 'solid', color: '#ffffff' };
+      const currentBgImg = currentBg.type === 'image' && currentBg.imageUrl
+        ? bgImagesMap.get(currentBg.imageUrl) || null
+        : null;
+
+      drawBackground(ctx, currentBg, width, height, currentBgImg);
 
       // Drop shadow and 3D frame passes (Skipped entirely when activeType is 'blank' so only pure background renders)
       if (activeType !== 'blank') {

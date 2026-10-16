@@ -4,6 +4,7 @@ import { RulerSliderStrip } from './RulerSliderStrip';
 import { BackgroundSelectorPill } from './BackgroundSelectorPill';
 import { Camera3DState, PERSPECTIVE_PRESETS, PerspectivePreset } from '../utils/camera3D';
 import { BackgroundConfig } from '../utils/gradientUtils';
+import type { MediaTimelineClip } from '../types/mediaTimeline';
 import {
   Grid,
   Box,
@@ -26,6 +27,10 @@ interface CameraControlsIslandProps {
   onCameraChange: (camera: Camera3DState) => void;
   background: BackgroundConfig;
   onBackgroundChange: (bg: BackgroundConfig) => void;
+  selectedMediaClip?: MediaTimelineClip | null;
+  onClipBackgroundChange?: (clipId: string, bg: BackgroundConfig | null) => void;
+  onApplyBackgroundToAllClips?: (bg: BackgroundConfig) => void;
+  allClipsCount?: number;
   aspectRatio: string;
   onAspectRatioChange: (ratio: string) => void;
   shadowDepth: 'none' | 'small' | 'medium' | 'large';
@@ -59,6 +64,10 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   onCameraChange,
   background,
   onBackgroundChange,
+  selectedMediaClip,
+  onClipBackgroundChange,
+  onApplyBackgroundToAllClips,
+  allClipsCount = 1,
   aspectRatio,
   onAspectRatioChange,
   shadowDepth,
@@ -85,6 +94,8 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
   // activeSlider: null | 'blur' | 'perspective' | 'zoom'
   const [activeSlider, setActiveSlider] = useState<'blur' | 'perspective' | 'zoom' | null>(null);
   const [activePopover, setActivePopover] = useState<string | null>(null);
+
+  const effectiveBg = selectedMediaClip?.background || background;
 
   useEffect(() => {
     onRulerActiveChange?.(activeSlider !== null);
@@ -301,17 +312,21 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
                 type="button"
                 className={activePopover === 'backdrop' ? 'is-active' : ''}
                 onClick={() => togglePopover('backdrop')}
-                title="Backdrop color, color wheel & custom image"
+                title={
+                  selectedMediaClip?.background
+                    ? `Backdrop: Custom for "${selectedMediaClip.name}" (Click to change)`
+                    : 'Backdrop color, color wheel & custom image'
+                }
                 aria-label="Backdrop selector"
               >
                 <span
-                  className="island-background-icon"
+                  className={`island-background-icon ${selectedMediaClip?.background ? 'has-custom-clip-bg' : ''}`}
                   style={{
                     background:
-                      background.type === 'solid'
-                        ? background.color
-                        : background.type === 'image' && background.imageUrl
-                        ? `url("${background.imageUrl}") center/cover no-repeat`
+                      effectiveBg.type === 'solid'
+                        ? effectiveBg.color
+                        : effectiveBg.type === 'image' && effectiveBg.imageUrl
+                        ? `url("${effectiveBg.imageUrl}") center/cover no-repeat`
                         : 'linear-gradient(135deg, #6366f1, #ec4899)',
                   }}
                 />
@@ -451,6 +466,10 @@ export const CameraControlsIsland: React.FC<CameraControlsIslandProps> = ({
           background={background}
           onBackgroundChange={onBackgroundChange}
           onClose={() => setActivePopover(null)}
+          selectedClip={selectedMediaClip}
+          onClipBackgroundChange={onClipBackgroundChange}
+          onApplyToAllClips={onApplyBackgroundToAllClips}
+          allClipsCount={allClipsCount}
         />
       )}
 

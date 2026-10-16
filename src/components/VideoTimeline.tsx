@@ -43,6 +43,8 @@ import {
   splitMediaClipAtTime,
   getActiveMediaClipAtTime,
 } from '../types/mediaTimeline';
+import { BackgroundConfig, generateBackgroundCss } from '../utils/gradientUtils';
+import { BackgroundSelectorPill } from './BackgroundSelectorPill';
 import {
   calculatePlaybackRate,
   syncMediaClipsToKeyframeDuration,
@@ -115,6 +117,9 @@ interface VideoTimelineProps {
   onSelectAudioTrack?: (trackId: string | null) => void;
   onDisableGuide?: () => void;
   onResetToDefaultMedia?: () => void;
+  background?: BackgroundConfig;
+  onUpdateMediaClipBackground?: (clipId: string, bg: BackgroundConfig | null) => void;
+  onApplyBackgroundToAllClips?: (bg: BackgroundConfig) => void;
 }
 
 export const VideoTimeline: React.FC<VideoTimelineProps> = ({
@@ -162,6 +167,9 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   selectedAudioTrackId,
   onSelectAudioTrack,
   onResetToDefaultMedia,
+  background,
+  onUpdateMediaClipBackground,
+  onApplyBackgroundToAllClips,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const trayRef = useRef<HTMLDivElement | null>(null);
@@ -239,19 +247,45 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
   const [activeMediaTransitionPopover, setActiveMediaTransitionPopover] = useState<{
     clipId: string;
   } | null>(null);
+  const [activeMediaBackgroundPopover, setActiveMediaBackgroundPopover] = useState<{
+    clipId: string;
+  } | null>(null);
 
-  // Escape key closes transition sheet modals cleanly
+  // Escape key closes transition and background sheet modals cleanly
   useEffect(() => {
-    if (!activeTransitionPopover && !activeMediaTransitionPopover) return;
+    if (!activeTransitionPopover && !activeMediaTransitionPopover && !activeMediaBackgroundPopover) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setActiveTransitionPopover(null);
         setActiveMediaTransitionPopover(null);
+        setActiveMediaBackgroundPopover(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTransitionPopover, activeMediaTransitionPopover]);
+  }, [activeTransitionPopover, activeMediaTransitionPopover, activeMediaBackgroundPopover]);
+
+  const handleUpdateMediaClipBackground = useCallback(
+    (clipId: string, newBg: BackgroundConfig | null) => {
+      if (onUpdateMediaClipBackground) {
+        onUpdateMediaClipBackground(clipId, newBg);
+        return;
+      }
+      if (!mediaClipsRef.current || !onMediaClipsChange) return;
+      const updated = mediaClipsRef.current.map((c) => {
+        if (c.id === clipId) {
+          if (newBg === null) {
+            const { background: _, ...rest } = c;
+            return rest;
+          }
+          return { ...c, background: newBg };
+        }
+        return c;
+      });
+      onMediaClipsChange(updated);
+    },
+    [onUpdateMediaClipBackground, onMediaClipsChange]
+  );
 
   // High-performance snapshot refs to eliminate drag jitter and listener churn
   const clipsRef = useRef(clips);
@@ -1906,6 +1940,111 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
         return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
       })()}
 
+      {/* Root-Level Media Background Selector (Unclipped by track overflow) */}
+      {activeMediaBackgroundPopover && (() => {
+        const targetMedia = mediaClipsRef.current?.find((c) => c.id === activeMediaBackgroundPopover.clipId);
+        if (!targetMedia) return null;
+
+        const globalBg: BackgroundConfig = background || { type: 'solid', color: '#ffffff' };
+        const clipBg: BackgroundConfig = targetMedia.background || globalBg;
+
+        const modalNode = (
+          <div className="transition-sheet-backdrop" onClick={() => setActiveMediaBackgroundPopover(null)}>
+            <div className="transition-sheet-modal clip-background-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="transition-sheet-header">
+                <div className="transition-sheet-title-group">
+                  <span className="transition-sheet-badge">CLIP BACKGROUND</span>
+                  <strong className="transition-sheet-clip-name">{targetMedia.name}</strong>
+                  <span className={`transition-current-fx ${targetMedia.background ? 'is-custom' : ''}`}>
+                    {targetMedia.background ? 'CUSTOM BACKGROUND' : 'PROJECT DEFAULT'}
+                  </span>
+                </div>
+                <div className="transition-sheet-actions">
+                  {targetMedia.background && (
+                    <button
+                      type="button"
+                      className="transition-sheet-reset-btn"
+                      onClick={() => handleUpdateMediaClipBackground(targetMedia.id, null)}
+                      title="Reset this clip to use project default background"
+                    >
+                      Reset (Default)
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="transition-sheet-close-btn"
+                    onClick={() => setActiveMediaBackgroundPopover(null)}
+                    aria-label="Close background selector"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Embedded BackgroundSelectorPill */}
+              <div className="clip-background-pill-container">
+                <BackgroundSelectorPill
+                  background={clipBg}
+                  onBackgroundChange={(newBg) => {
+                    handleUpdateMediaClipBackground(targetMedia.id, newBg);
+                  }}
+                  selectedClip={targetMedia}
+                  onClipBackgroundChange={(clipId, newBg) => {
+                    handleUpdateMediaClipBackground(clipId, newBg);
+                  }}
+                  onApplyToAllClips={(newBg) => {
+                    if (onApplyBackgroundToAllClips) {
+                      onApplyBackgroundToAllClips(newBg);
+                    }
+                  }}
+                  allClipsCount={mediaClips?.length || 1}
+                />
+              </div>
+
+              <div className="transition-coverage-wrap">
+                <span className="transition-coverage-label">ASSIGNMENT:</span>
+                <div className="transition-coverage-toggle">
+                  <button
+                    type="button"
+                    className={`transition-coverage-pill ${targetMedia.background ? 'is-active' : ''}`}
+                    onClick={() => {
+                      if (!targetMedia.background) {
+                        handleUpdateMediaClipBackground(targetMedia.id, globalBg);
+                      }
+                    }}
+                    title="Separate custom background for this media clip only"
+                  >
+                    This Clip Only
+                  </button>
+                  <button
+                    type="button"
+                    className={`transition-coverage-pill ${!targetMedia.background ? 'is-active' : ''}`}
+                    onClick={() => {
+                      handleUpdateMediaClipBackground(targetMedia.id, null);
+                    }}
+                    title="Inherit global background from project settings"
+                  >
+                    Project Default
+                  </button>
+                </div>
+              </div>
+
+              <div className="transition-sheet-footer">
+                <button
+                  type="button"
+                  className="transition-sheet-done-btn"
+                  onClick={() => setActiveMediaBackgroundPopover(null)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+
+        return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
+      })()}
+
       {/* Root-Level Keyframe Transition Selector */}
       {activeTransitionPopover && (() => {
         const kfId = activeTransitionPopover.clipId;
@@ -2580,6 +2719,47 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                           {mClip.type === 'blank' && <span style={{ color: '#a855f7', fontSize: '9px', fontWeight: 700, marginRight: '4px' }}>CANVAS</span>}
                           {mClip.name}
                         </span>
+
+                        {/* Per-Clip Background Swatch Trigger */}
+                        <button
+                          type="button"
+                          className={`multiclip-card-bg-trigger ${mClip.background ? 'has-custom-bg' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectMediaClip?.(mClip.id);
+                            onSeek(mClip.startTime);
+                            setActiveMediaBackgroundPopover(
+                              activeMediaBackgroundPopover?.clipId === mClip.id ? null : { clipId: mClip.id }
+                            );
+                          }}
+                          title={`Background for "${mClip.name}": ${
+                            mClip.background ? 'Custom' : 'Project Default'
+                          } (Click to change)`}
+                          aria-label={`Set background for clip ${mClip.name}`}
+                        >
+                          <span
+                            className="multiclip-bg-swatch-thumb"
+                            style={{
+                              backgroundColor:
+                                (mClip.background || background)?.type === 'solid'
+                                  ? ((mClip.background || background)?.color || '#ffffff')
+                                  : undefined,
+                              backgroundImage:
+                                (mClip.background || background)?.type === 'image' && (mClip.background || background)?.imageUrl
+                                  ? `url("${(mClip.background || background)?.imageUrl}")`
+                                  : (mClip.background || background)?.type === 'gradient'
+                                  ? generateBackgroundCss(mClip.background || background || { type: 'solid', color: '#ffffff' })
+                                  : undefined,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                            }}
+                          />
+                          {!isMobileView && (
+                            <span className="multiclip-bg-label">
+                              {mClip.background ? 'BG • Custom' : 'BG'}
+                            </span>
+                          )}
+                        </button>
                         {/* 3D Model Keyframe Dots */}
                         {mClip.modelKeyframes && mClip.modelKeyframes.length > 0 && (
                           <div

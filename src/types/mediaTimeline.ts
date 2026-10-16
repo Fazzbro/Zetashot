@@ -1,4 +1,5 @@
 import { Model3DTransform, Model3DKeyframe, Model3DTextureConfig } from './model3D';
+import type { BackgroundConfig } from '../utils/gradientUtils';
 
 export type TransitionType = 'cut' | 'gradient' | 'blocks' | 'fade' | 'push' | 'zoom';
 export type TransitionScope = 'clip' | 'canvas';
@@ -21,6 +22,7 @@ export interface MediaTimelineClip {
   transition?: TransitionType;
   transitionDuration?: number;
   transitionScope?: TransitionScope;
+  background?: BackgroundConfig; // Separate background override for this media clip
   modelTransform?: Model3DTransform;
   modelKeyframes?: Model3DKeyframe[];
   modelTextures?: Model3DTextureConfig;
@@ -105,6 +107,7 @@ export function splitMediaClipAtTime(
   const firstClip: MediaTimelineClip = {
     ...target,
     duration: firstDuration,
+    background: target.background ? { ...target.background } : undefined,
   };
 
   const newClipId = `${target.mediaId || 'clip'}_part_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -116,6 +119,7 @@ export function splitMediaClipAtTime(
     duration: secondDuration,
     sourceStartTime: secondSourceStartTime,
     transition: 'cut',
+    background: target.background ? { ...target.background } : undefined,
   };
 
   const updated = [

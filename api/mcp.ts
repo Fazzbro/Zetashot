@@ -1488,6 +1488,24 @@ CRITICAL INSTRUCTIONS FOR AI:
               trimEnd: { type: 'number', description: 'Trim out offset in seconds' },
               transitionIn: { type: 'string', enum: ['cut', 'gradient', 'blocks', 'fade', 'push', 'zoom'], default: 'cut' },
               transitionDuration: { type: 'number', default: 0.45 },
+              background: {
+                type: 'object',
+                description: 'Optional separate background override for this media clip (solid, image, or gradient)',
+                properties: {
+                  type: { type: 'string', enum: ['solid', 'image', 'gradient'] },
+                  color: { type: 'string' },
+                  imageUrl: { type: 'string' },
+                  imageFit: { type: 'string', enum: ['cover', 'contain'] },
+                  imageScale: { type: 'number' },
+                  position: {
+                    type: 'object',
+                    properties: {
+                      x: { type: 'number' },
+                      y: { type: 'number' },
+                    },
+                  },
+                },
+              },
             },
             required: ['sourceUrl'],
           },
@@ -2039,7 +2057,7 @@ function handleConfigureTimelineClips(args: Record<string, unknown>, baseUrl: st
     }
 
     const clipId = `mclip_${idx + 1}`;
-    mediaClips.push({
+    const clipObj: any = {
       id: clipId,
       mediaId: `source_${idx + 1}`,
       name: c.name || `Shot 0${idx + 1}`,
@@ -2051,7 +2069,11 @@ function handleConfigureTimelineClips(args: Record<string, unknown>, baseUrl: st
       speed,
       transition: transitionIn,
       transitionDuration,
-    });
+    };
+    if (c.background) {
+      clipObj.background = c.background;
+    }
+    mediaClips.push(clipObj);
 
     const kf1Dur = Number((clipDur * 0.5).toFixed(2));
     const kf2Dur = Number((clipDur - kf1Dur).toFixed(2));
