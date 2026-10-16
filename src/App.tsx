@@ -839,6 +839,20 @@ export function App() {
         if (project?.textLayers && project.textLayers.length > 0) {
           setTextLayers(project.textLayers);
         }
+        if (project?.mediaClips && project.mediaClips.length > 0) {
+          setMediaClips(project.mediaClips);
+        }
+        if (project?.audioTracks && project.audioTracks.length > 0) {
+          setAudioTracks(project.audioTracks);
+        }
+        if (project?.visualEffects) {
+          if (typeof project.visualEffects.borderRadius === 'number') {
+            setBorderRadius(project.visualEffects.borderRadius);
+          }
+          if (typeof project.visualEffects.blurAmount === 'number') {
+            setBlurAmount(project.visualEffects.blurAmount);
+          }
+        }
         if (project?.model3DTransform) {
           setModel3DTransform(project.model3DTransform);
         }

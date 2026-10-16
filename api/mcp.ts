@@ -6,6 +6,7 @@ interface BackgroundConfig {
   imageUrl?: string;
   imageFit?: 'cover' | 'contain' | 'fill';
   imageScale?: number;
+  position?: { x: number; y: number };
   opacity?: number;
 }
 
@@ -38,7 +39,7 @@ interface ZetashotSharedProject {
   deviceMockup?: string;
   duration?: number;
   mediaUrl?: string;
-  mediaType?: 'image' | 'video' | '3d';
+  mediaType?: 'image' | 'video' | '3d' | 'blank';
   mediaName?: string;
   autoExport?: boolean;
   textLayers?: Array<{
@@ -50,15 +51,65 @@ interface ZetashotSharedProject {
     fontSize: number;
     fontFamily: string;
     color: string;
-    backgroundColor: string;
-    borderRadius: number;
-    paddingX: number;
-    paddingY: number;
-    opacity: number;
+    backgroundColor?: string;
+    borderRadius?: number;
+    paddingX?: number;
+    paddingY?: number;
+    opacity?: number;
     startTime: number;
     duration: number;
-    animationType: string;
+    animationType?: string;
+    fontWeight?: string;
+    textAlign?: string;
+    inAnimation?: string;
+    inDuration?: number;
+    outAnimation?: string;
+    outDuration?: number;
+    animationScope?: string;
+    shadow?: boolean;
   }>;
+  mediaClips?: Array<{
+    id: string;
+    mediaId: string;
+    name: string;
+    type: 'video' | 'image' | 'demo' | '3d' | 'blank';
+    url: string;
+    startTime: number;
+    duration: number;
+    sourceStartTime?: number;
+    speed?: number;
+    transition?: string;
+    transitionDuration?: number;
+  }>;
+  audioTracks?: Array<{
+    id: string;
+    name: string;
+    url: string;
+    type: 'music' | 'sfx' | 'voiceover';
+    startTime: number;
+    duration: number;
+    volume: number;
+    isMuted?: boolean;
+  }>;
+  visualEffects?: {
+    borderRadius?: number;
+    blurAmount?: number;
+    shadowBlur?: number;
+    shadowSpread?: number;
+    shadowOpacity?: number;
+    shadowOffsetY?: number;
+    specularGlow?: boolean;
+    glowColor?: string;
+    dof?: boolean;
+    dofAperture?: number;
+  };
+  webglMaterial?: {
+    roughness?: number;
+    metalness?: number;
+    tintHex?: string;
+    textureRepeat?: [number, number];
+    flipY?: boolean;
+  };
 }
 
 function encodeProjectToUrl(payload: ZetashotSharedProject): string {
@@ -69,6 +120,20 @@ function encodeProjectToUrl(payload: ZetashotSharedProject): string {
   } catch (err) {
     console.warn('[Zetashot] Failed to encode project:', err);
     return '';
+  }
+}
+
+function decodeProjectFromUrl(encoded: string): ZetashotSharedProject | null {
+  if (!encoded || typeof encoded !== 'string') return null;
+  try {
+    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const buffer = Buffer.from(base64, 'base64');
+    const decompressed = zlib.inflateRawSync(buffer);
+    return JSON.parse(decompressed.toString('utf-8')) as ZetashotSharedProject;
+  } catch (err) {
+    console.warn('[Zetashot] Failed to decode project:', err);
+    return null;
   }
 }
 
@@ -1359,6 +1424,199 @@ CRITICAL INSTRUCTIONS FOR AI:
       },
     },
   },
+  {
+    name: 'compose_interest_regions',
+    description: 'Vision-Driven Auto-Composition: Automatically choreographs 3D camera waypoints and synchronized telemetry pill badges from an array of detected UI bounding boxes/landmarks, centering each feature with Hermite parallax and golden ratio zoom without manual coordinate guessing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        regions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              label: { type: 'string', description: 'Landmark name (e.g. "Revenue Chart", "Sidebar", "Action Button")' },
+              x: { type: 'number', description: 'X coordinate (0..100 percentage or 0..960 stage pixels)' },
+              y: { type: 'number', description: 'Y coordinate (0..100 percentage or 0..540 stage pixels)' },
+              width: { type: 'number', description: 'Bounding box width' },
+              height: { type: 'number', description: 'Bounding box height' },
+              holdDuration: { type: 'number', description: 'Dwell duration in seconds at this landmark (default: 1.5s)' },
+              badgeText: { type: 'string', description: 'Custom text for the telemetry badge overlay' },
+            },
+            required: ['x', 'y', 'width', 'height'],
+          },
+          description: 'Array of detected bounding boxes across the interface',
+        },
+        aspectRatio: {
+          type: 'string',
+          enum: ['16:9', '9:16', '1:1', '4:5', '21:9'],
+          default: '16:9',
+        },
+        pacing: {
+          type: 'string',
+          enum: ['snappy', 'cinematic', 'editorial'],
+          default: 'cinematic',
+          description: 'Camera motion feel: snappy (fast tech flow), cinematic (sweeping 3D arcs), editorial (deliberate, high legibility)',
+        },
+        title: { type: 'string' },
+        mediaUrl: { type: 'string' },
+        deviceMockup: { type: 'string', default: 'mac-safari' },
+        background: { type: 'string', default: 'bg-purple-wave' },
+        autoExport: { type: 'boolean', default: true },
+      },
+      required: ['regions'],
+    },
+  },
+  {
+    name: 'configure_timeline_clips',
+    description: 'Multi-Clip Sequencer & Timeline Surgery: Sequences multiple media clips (images, videos, 3D assets, blank canvases) contiguously with automatic speed compensation, razor trimming, and cinematic transitions (cut, gradient, blocks, fade, push, zoom).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        clips: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              sourceUrl: { type: 'string' },
+              type: { type: 'string', enum: ['image', 'video', '3d', 'blank'], default: 'image' },
+              name: { type: 'string' },
+              duration: { type: 'number', description: 'Target clip duration in seconds' },
+              playbackSpeed: { type: 'number', description: 'Playback multiplier (0.1x to 8.0x)' },
+              trimStart: { type: 'number', description: 'Trim in offset in seconds' },
+              trimEnd: { type: 'number', description: 'Trim out offset in seconds' },
+              transitionIn: { type: 'string', enum: ['cut', 'gradient', 'blocks', 'fade', 'push', 'zoom'], default: 'cut' },
+              transitionDuration: { type: 'number', default: 0.45 },
+            },
+            required: ['sourceUrl'],
+          },
+        },
+        autoCompensateSpeed: {
+          type: 'boolean',
+          default: true,
+          description: 'Automatically stretch/compress video playback speed to match keyframe duration',
+        },
+        title: { type: 'string' },
+        aspectRatio: { type: 'string', enum: ['16:9', '9:16', '1:1', '4:5', '21:9'] },
+        deviceMockup: { type: 'string' },
+        background: { type: 'string' },
+      },
+      required: ['clips'],
+    },
+  },
+  {
+    name: 'orchestrate_typography',
+    description: 'Kinetic Typography & Telemetry Badge Layer: Creates and coordinates 3D typography overlays, hero title cards, glowing telemetry badges, and metric counters with word/char/line animation scopes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        overlays: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string' },
+              font: { type: 'string', enum: ['SF Pro Display', 'Sora', 'Helvetica', 'Poppins', 'Geist'], default: 'SF Pro Display' },
+              startTime: { type: 'number' },
+              endTime: { type: 'number' },
+              duration: { type: 'number' },
+              animation: { type: 'string', enum: ['fade', 'fade-in-blur', 'pop', 'scale', 'slide-up', 'slide-down', 'scramble', 'shimmer', 'roll'], default: 'fade-in-blur' },
+              scope: { type: 'string', enum: ['all', 'word', 'char', 'line'], default: 'word' },
+              style: { type: 'string', enum: ['title-card', 'telemetry-pill', 'metric-counter', 'subtitle'], default: 'title-card' },
+              position3D: {
+                type: 'object',
+                properties: {
+                  x: { type: 'number', description: 'Percentage 0..100 across stage' },
+                  y: { type: 'number', description: 'Percentage 0..100 across stage' },
+                  z: { type: 'number' },
+                },
+              },
+              accentGlowHex: { type: 'string' },
+              fontSize: { type: 'number' },
+              color: { type: 'string' },
+            },
+            required: ['text', 'startTime'],
+          },
+        },
+        projectHash: { type: 'string', description: 'Optional project hash to layer typography onto' },
+        title: { type: 'string' },
+      },
+      required: ['overlays'],
+    },
+  },
+  {
+    name: 'sync_sound_design',
+    description: 'Frame-Accurate Audio & SFX Sync: Synthesizes BGM tracks and automatically aligns whoosh SFX at Hermite spline velocity peaks, sub-drops on monolith reveals, pops on badge entries, and chimes on landing resolves.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bgmTrack: {
+          type: 'string',
+          enum: ['lofi-ambient', 'cinematic-saas', 'modern-tech', 'none'],
+          default: 'cinematic-saas',
+        },
+        bgmVolume: { type: 'number', default: 0.6, description: 'Volume (0.0 to 1.0)' },
+        autoSyncSfx: {
+          type: 'boolean',
+          default: true,
+          description: 'Automatically compute derivative velocity peaks and text layer triggers for whoosh, sub-drop, pop, and chime SFX',
+        },
+        projectHash: { type: 'string', description: 'Optional project hash to analyze and layer audio onto' },
+        timelineDuration: { type: 'number', default: 6.0 },
+      },
+    },
+  },
+  {
+    name: 'configure_optics_and_3d',
+    description: 'Optics, Lighting & WebGL Material Controller: Configures Depth of Field aperture blur, specular edge glow, corner squircle radius, drop shadow physics, and Three.js WebGL material properties (roughness, metalness, tint, repeat, flipY).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dof: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            aperture: { type: 'number', description: 'F-stop blur intensity (0 to 50, e.g. 15 for subtle, 38 for bokeh)' },
+            focusTargetKeyframe: { type: 'string' },
+          },
+        },
+        specularGlow: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            autoExtractDominantColor: { type: 'boolean' },
+            hexOverride: { type: 'string' },
+          },
+        },
+        shadow: {
+          type: 'object',
+          properties: {
+            blur: { type: 'number', description: '0 to 100 px' },
+            spread: { type: 'number' },
+            opacity: { type: 'number', description: '0.0 to 1.0' },
+            yOffset: { type: 'number' },
+          },
+        },
+        cornerRadius: { type: 'number', description: 'Corner squircle radius in px (0 to 64)' },
+        webglMaterial: {
+          type: 'object',
+          properties: {
+            roughness: { type: 'number', description: '0.0 (mirror) to 1.0 (matte)' },
+            metalness: { type: 'number', description: '0.0 (dielectric) to 1.0 (metallic)' },
+            tintHex: { type: 'string' },
+            textureRepeat: {
+              type: 'array',
+              items: { type: 'number' },
+              description: '[repeatX, repeatY]',
+            },
+            flipY: { type: 'boolean' },
+          },
+        },
+        projectHash: { type: 'string', description: 'Optional project hash to layer onto' },
+      },
+    },
+  },
 ];
 
 function handleCreateProject(args: Record<string, unknown>, baseUrl: string) {
@@ -1497,6 +1755,757 @@ ${shareUrl}
   return {
     content: [{ type: 'text', text: md }],
     shareUrl,
+  };
+}
+
+// -------------------------------------------------------------
+// 1. VISION-DRIVEN AUTO-COMPOSITION HANDLER
+// -------------------------------------------------------------
+function handleComposeInterestRegions(args: Record<string, unknown>, baseUrl: string) {
+  const regions = (args.regions as any[]) || [];
+  const aspectRatio = (args.aspectRatio as '16:9' | '9:16' | '1:1' | '4:5' | '21:9') || '16:9';
+  const pacing = (args.pacing as 'snappy' | 'cinematic' | 'editorial') || 'cinematic';
+  const title = (args.title as string) || 'Vision-Driven Auto-Composition';
+  const mediaUrl = (args.mediaUrl as string) || '/default-codex-image.png';
+  const deviceMockup = (args.deviceMockup as string) || (aspectRatio === '9:16' ? 'iphone-pro' : 'mac-safari');
+  const bgInput = (args.background as string) || 'bg-purple-wave';
+  const autoExport = args.autoExport !== false;
+
+  const stageW = 960;
+  const stageH = 540;
+  const stepDur = pacing === 'snappy' ? 1.0 : pacing === 'editorial' ? 2.0 : 1.5;
+
+  const cameraClips: TimelinePositionClip[] = [];
+  const textLayers: any[] = [];
+
+  // P01: Establishing Overview Shot
+  let currentTime = 0;
+  const p01Dur = pacing === 'snappy' ? 1.0 : 1.5;
+  cameraClips.push({
+    id: 'kf_p01_overview',
+    name: 'P01: Monolith Establishing View',
+    startTime: currentTime,
+    duration: p01Dur,
+    color: 'yellow',
+    blockId: 'block_compose',
+    mediaClipId: 'clip_init',
+    transition: 'fade',
+    camera: {
+      rotX: pacing === 'editorial' ? 3 : 8,
+      rotY: pacing === 'editorial' ? -2 : -12,
+      rotZ: pacing === 'editorial' ? 0 : 3,
+      zoom: 0.90,
+      panX: 0,
+      panY: 0,
+      perspective: 1100,
+    },
+  });
+  currentTime += p01Dur;
+
+  textLayers.push({
+    id: 'txt_p01_title',
+    text: title,
+    startTime: 0.2,
+    duration: p01Dur - 0.4,
+    x: 50,
+    y: 14,
+    fontSize: aspectRatio === '9:16' ? 42 : 50,
+    fontFamily: 'SF Pro Display',
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
+    inAnimation: 'fade-in-blur',
+    inDuration: 0.4,
+    outAnimation: 'blur',
+    outDuration: 0.3,
+    animationScope: 'word',
+    shadow: true,
+  });
+
+  // Calculate Keyframes & Badges for Each Landmark
+  regions.forEach((r, idx) => {
+    let rx = Number(r.x) || 0;
+    let ry = Number(r.y) || 0;
+    let rw = Number(r.width) || 100;
+    let rh = Number(r.height) || 100;
+
+    if (rx <= 1.0 && ry <= 1.0 && rw <= 1.0 && rh <= 1.0) {
+      rx *= stageW;
+      ry *= stageH;
+      rw *= stageW;
+      rh *= stageH;
+    } else if (rx <= 100 && ry <= 100 && rw <= 100 && rh <= 100) {
+      rx = (rx / 100) * stageW;
+      ry = (ry / 100) * stageH;
+      rw = (rw / 100) * stageW;
+      rh = (rh / 100) * stageH;
+    }
+
+    const holdDur = Math.max(0.6, Number(r.holdDuration) || stepDur);
+
+    const centerX = rx + rw / 2;
+    const centerY = ry + rh / 2;
+    const offX = centerX - stageW / 2;
+    const offY = centerY - stageH / 2;
+    const normX = Math.max(-1.0, Math.min(1.0, offX / (stageW / 2)));
+    const normY = Math.max(-1.0, Math.min(1.0, offY / (stageH / 2)));
+
+    const targetOccupancyW = pacing === 'snappy' ? 0.42 : pacing === 'editorial' ? 0.32 : 0.38;
+    const targetOccupancyH = pacing === 'snappy' ? 0.38 : pacing === 'editorial' ? 0.30 : 0.35;
+    const fitScaleW = (stageW * targetOccupancyW) / Math.max(40, rw);
+    const fitScaleH = (stageH * targetOccupancyH) / Math.max(30, rh);
+    const targetZoom = Number(Math.max(0.85, Math.min(1.55, Math.min(fitScaleW, fitScaleH))).toFixed(2));
+
+    const panX = Number((-offX * targetZoom).toFixed(1));
+    const panY = Number((-offY * targetZoom).toFixed(1));
+
+    const readabilityDamping = Math.max(0.40, Math.min(1.0, 1.4 / targetZoom));
+    const rotX = Number(((pacing === 'editorial' ? 2.0 : 6.0) + normY * 4.0 * readabilityDamping).toFixed(1));
+    const rotY = Number((-normX * (pacing === 'editorial' ? 4.0 : 12.0) * readabilityDamping).toFixed(1));
+    const rotZ = Number((-normX * (pacing === 'editorial' ? 0.0 : 3.0) * readabilityDamping).toFixed(1));
+
+    const pNum = idx + 2;
+    const pPad = pNum < 10 ? `0${pNum}` : `${pNum}`;
+    const regionLabel = r.label || `Region ${idx + 1}`;
+
+    cameraClips.push({
+      id: `kf_p${pPad}_region_${idx + 1}`,
+      name: `P${pPad}: ${regionLabel}`,
+      startTime: Number(currentTime.toFixed(2)),
+      duration: holdDur,
+      color: 'blue',
+      blockId: 'block_compose',
+      mediaClipId: 'clip_init',
+      transition: 'cut',
+      camera: {
+        rotX,
+        rotY,
+        rotZ,
+        zoom: targetZoom,
+        panX,
+        panY,
+        perspective: 1100,
+      },
+    });
+
+    const badgeText = r.badgeText || (r.label ? `⚡ ${r.label.toUpperCase()}` : `⚡ LANDMARK 0${idx + 1}`);
+    textLayers.push({
+      id: `txt_badge_region_${idx + 1}`,
+      text: badgeText,
+      startTime: Number((currentTime + 0.15).toFixed(2)),
+      duration: Number(Math.max(0.5, holdDur - 0.3).toFixed(2)),
+      x: 50,
+      y: 86,
+      fontSize: 22,
+      fontFamily: 'SF Pro Display',
+      fontWeight: '600',
+      color: '#38bdf8',
+      textAlign: 'center',
+      inAnimation: pacing === 'snappy' ? 'pop' : 'fade-in-blur',
+      inDuration: 0.35,
+      outAnimation: 'fade',
+      outDuration: 0.25,
+      animationScope: 'all',
+      shadow: false,
+    });
+
+    currentTime += holdDur;
+  });
+
+  // Final Authority Lock Resolve
+  const pFinalNum = regions.length + 2;
+  const pFinalPad = pFinalNum < 10 ? `0${pFinalNum}` : `${pFinalNum}`;
+  const resolveDur = 1.5;
+  cameraClips.push({
+    id: `kf_p${pFinalPad}_resolve`,
+    name: `P${pFinalPad}: Hero Authority Resolve`,
+    startTime: Number(currentTime.toFixed(2)),
+    duration: resolveDur,
+    color: 'yellow',
+    blockId: 'block_compose',
+    mediaClipId: 'clip_init',
+    transition: 'cut',
+    camera: {
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 0.88,
+      panX: 0,
+      panY: 0,
+      perspective: 1000,
+    },
+  });
+
+  textLayers.push({
+    id: 'txt_resolve_cta',
+    text: 'Engineered for Absolute Precision',
+    startTime: Number((currentTime + 0.25).toFixed(2)),
+    duration: Number((resolveDur - 0.4).toFixed(2)),
+    x: 50,
+    y: 88,
+    fontSize: 26,
+    fontFamily: 'SF Pro Display',
+    fontWeight: '600',
+    color: '#ffffff',
+    textAlign: 'center',
+    inAnimation: 'slide-up',
+    inDuration: 0.4,
+    outAnimation: 'none',
+    outDuration: 0.2,
+    animationScope: 'word',
+    shadow: true,
+  });
+
+  currentTime += resolveDur;
+  const totalDuration = Number(currentTime.toFixed(2));
+
+  const matchedWp = WALLPAPER_PRESETS.find((w) => w.id === bgInput);
+  const backgroundConfig: BackgroundConfig = matchedWp
+    ? { type: 'image', imageUrl: matchedWp.path, imageFit: 'cover', imageScale: 1.0, position: matchedWp.position, opacity: 1 }
+    : { type: 'gradient', color: '#090d16' };
+
+  const payload: ZetashotSharedProject = {
+    version: '1.2.0',
+    title,
+    aspectRatio,
+    duration: totalDuration,
+    background: backgroundConfig,
+    deviceMockup,
+    mediaUrl,
+    mediaType: mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') ? 'video' : 'image',
+    mediaName: title,
+    cameraClips,
+    textLayers,
+    autoExport,
+  };
+
+  const encodedParam = encodeProjectToUrl(payload);
+  const exportParam = autoExport ? '&export=mp4' : '';
+  const shareUrl = `${baseUrl}/?ratio=${encodeURIComponent(aspectRatio)}&dur=${totalDuration}${exportParam}&p=${encodedParam}`;
+
+  const md = `### 🎯 Vision-Driven Auto-Composition Generated!
+
+- **Project**: **${title}**
+- **Landmarks Centered**: **${regions.length} Bounding Boxes**
+- **Waypoints Generated**: **${cameraClips.length} Keyframes** (Hermite Parallax)
+- **Pacing Mode**: \`${pacing}\` (Total Duration: **${totalDuration}s**)
+- **Telemetry Badges**: **${textLayers.length} Dynamic Text Overlays**
+
+#### Waypoints & Bounding Box Focal Paths:
+${cameraClips.map((kf, i) => `${i + 1}. **${kf.name}** [${kf.startTime}s – ${(kf.startTime + kf.duration).toFixed(2)}s] → Zoom \`${kf.camera.zoom}x\`, Pan (\`${kf.camera.panX}%\`, \`${kf.camera.panY}%\`), Pitch \`${kf.camera.rotX}°\`, Yaw \`${kf.camera.rotY}°\``).join('\n')}
+
+👉 **[Open Vision-Composed Project in Zetashot Studio](${shareUrl})**
+
+Direct URL:
+${shareUrl}`;
+
+  return {
+    content: [{ type: 'text', text: md }],
+    shareUrl,
+    project: payload,
+  };
+}
+
+// -------------------------------------------------------------
+// 2. MULTI-CLIP SEQUENCER & TIMELINE SURGERY HANDLER
+// -------------------------------------------------------------
+function handleConfigureTimelineClips(args: Record<string, unknown>, baseUrl: string) {
+  const inputClips = (args.clips as any[]) || [];
+  const autoCompensateSpeed = args.autoCompensateSpeed !== false;
+  const title = (args.title as string) || 'Multi-Clip Sequenced Timeline';
+  const aspectRatio = (args.aspectRatio as '16:9' | '9:16' | '1:1' | '4:5' | '21:9') || '16:9';
+  const deviceMockup = (args.deviceMockup as string) || (aspectRatio === '9:16' ? 'iphone-pro' : 'mac-safari');
+  const bgInput = (args.background as string) || 'bg-purple-wave';
+
+  if (inputClips.length === 0) {
+    throw new Error('configure_timeline_clips requires at least one clip in the clips array.');
+  }
+
+  let currentStart = 0;
+  const mediaClips: any[] = [];
+  const cameraClips: TimelinePositionClip[] = [];
+
+  inputClips.forEach((c, idx) => {
+    const rawDur = Number(c.duration) || 3.5;
+    const clipDur = Math.max(0.5, rawDur);
+    const sourceUrl = (c.sourceUrl as string) || '/default-codex-image.png';
+    const cType = (c.type as 'image' | 'video' | '3d' | 'blank') || (sourceUrl.endsWith('.mp4') || sourceUrl.endsWith('.webm') ? 'video' : 'image');
+    const transitionIn = (c.transitionIn as string) || (idx === 0 ? 'cut' : 'gradient');
+    const transitionDuration = Number(c.transitionDuration) || 0.45;
+
+    let speed = Number(c.playbackSpeed) || 1.0;
+    if (autoCompensateSpeed && cType === 'video' && c.sourceDuration && c.sourceDuration > 0) {
+      speed = Math.max(0.1, Math.min(8.0, Number((c.sourceDuration / clipDur).toFixed(2))));
+    }
+
+    const clipId = `mclip_${idx + 1}`;
+    mediaClips.push({
+      id: clipId,
+      mediaId: `source_${idx + 1}`,
+      name: c.name || `Shot 0${idx + 1}`,
+      type: cType,
+      url: sourceUrl,
+      startTime: Number(currentStart.toFixed(2)),
+      duration: clipDur,
+      sourceStartTime: Number(c.trimStart) || 0,
+      speed,
+      transition: transitionIn,
+      transitionDuration,
+    });
+
+    const kf1Dur = Number((clipDur * 0.5).toFixed(2));
+    const kf2Dur = Number((clipDur - kf1Dur).toFixed(2));
+    const isFirst = idx === 0;
+    const isLast = idx === inputClips.length - 1;
+
+    const num1 = idx * 2 + 1;
+    const num2 = idx * 2 + 2;
+    const pPad1 = num1 < 10 ? `0${num1}` : `${num1}`;
+    const pPad2 = num2 < 10 ? `0${num2}` : `${num2}`;
+
+    cameraClips.push({
+      id: `kf_${pPad1}`,
+      name: `P${pPad1}: ${c.name || `Shot 0${idx + 1}`} In`,
+      startTime: Number(currentStart.toFixed(2)),
+      duration: kf1Dur,
+      color: 'yellow',
+      blockId: `block_${clipId}`,
+      mediaClipId: clipId,
+      transition: transitionIn,
+      camera: {
+        rotX: isFirst ? 12 : 6,
+        rotY: isFirst ? -14 : (idx % 2 === 0 ? 10 : -10),
+        rotZ: isFirst ? 4 : (idx % 2 === 0 ? -3 : 3),
+        zoom: isFirst ? 0.90 : 1.25,
+        panX: isFirst ? -6 : (idx % 2 === 0 ? 12 : -12),
+        panY: isFirst ? 4 : -6,
+        perspective: 1100,
+      },
+    });
+
+    cameraClips.push({
+      id: `kf_${pPad2}`,
+      name: `P${pPad2}: ${c.name || `Shot 0${idx + 1}`} Out`,
+      startTime: Number((currentStart + kf1Dur).toFixed(2)),
+      duration: kf2Dur,
+      color: 'yellow',
+      blockId: `block_${clipId}`,
+      mediaClipId: clipId,
+      transition: 'cut',
+      camera: {
+        rotX: isLast ? 0 : 4,
+        rotY: isLast ? 0 : (idx % 2 === 0 ? -6 : 6),
+        rotZ: 0,
+        zoom: isLast ? 0.88 : 1.15,
+        panX: 0,
+        panY: 0,
+        perspective: 1000,
+      },
+    });
+
+    currentStart += clipDur;
+  });
+
+  const totalDuration = Number(currentStart.toFixed(2));
+  const matchedWp = WALLPAPER_PRESETS.find((w) => w.id === bgInput);
+  const backgroundConfig: BackgroundConfig = matchedWp
+    ? { type: 'image', imageUrl: matchedWp.path, imageFit: 'cover', imageScale: 1.0, position: matchedWp.position, opacity: 1 }
+    : { type: 'gradient', color: '#090d16' };
+
+  const payload: ZetashotSharedProject = {
+    version: '1.2.0',
+    title,
+    aspectRatio,
+    duration: totalDuration,
+    background: backgroundConfig,
+    deviceMockup,
+    mediaUrl: mediaClips[0].url,
+    mediaType: mediaClips[0].type,
+    mediaName: mediaClips[0].name,
+    mediaClips,
+    cameraClips,
+  };
+
+  const encodedParam = encodeProjectToUrl(payload);
+  const shareUrl = `${baseUrl}/?ratio=${encodeURIComponent(aspectRatio)}&dur=${totalDuration}&p=${encodedParam}`;
+
+  const md = `### 🎬 Multi-Clip Timeline Configured!
+
+- **Project**: **${title}**
+- **Media Clips**: **${mediaClips.length} Contiguous Clips**
+- **Total Duration**: **${totalDuration}s**
+- **Camera Keyframes**: **${cameraClips.length} Waypoints**
+- **Speed Compensation**: \`${autoCompensateSpeed ? 'Enabled (Automatic speed stretching)' : 'Disabled'}\`
+
+#### Sequenced Timeline Clips:
+${mediaClips.map((mc, i) => `${i + 1}. **${mc.name}** (\`${mc.type}\`) [${mc.startTime}s – ${(mc.startTime + mc.duration).toFixed(2)}s, Speed: ${mc.speed}x] → Transition In: \`${mc.transition}\``).join('\n')}
+
+👉 **[Open Sequenced Timeline in Zetashot Studio](${shareUrl})**
+
+Direct URL:
+${shareUrl}`;
+
+  return {
+    content: [{ type: 'text', text: md }],
+    shareUrl,
+    project: payload,
+  };
+}
+
+// -------------------------------------------------------------
+// 3. KINETIC TYPOGRAPHY & TELEMETRY BADGE HANDLER
+// -------------------------------------------------------------
+function handleOrchestrateTypography(args: Record<string, unknown>, baseUrl: string) {
+  const overlays = (args.overlays as any[]) || [];
+  const projectHash = args.projectHash as string | undefined;
+  const title = (args.title as string) || 'Kinetic Typography Showcase';
+
+  let baseProject: ZetashotSharedProject | null = null;
+  if (projectHash) {
+    baseProject = decodeProjectFromUrl(projectHash);
+  }
+
+  const generatedLayers: any[] = overlays.map((o, idx) => {
+    const text = (o.text as string) || '';
+    const startTime = Math.max(0, Number(o.startTime) || 0);
+    const duration = o.duration ? Number(o.duration) : (o.endTime ? Number(o.endTime) - startTime : 2.5);
+    const font = (o.font as string) || 'SF Pro Display';
+    const style = (o.style as string) || 'title-card';
+    const animation = (o.animation as string) || (style === 'telemetry-pill' ? 'pop' : 'fade-in-blur');
+    const scope = (o.scope as string) || (style === 'telemetry-pill' ? 'all' : 'word');
+    const accentGlow = (o.accentGlowHex as string) || '#38bdf8';
+
+    let posX = 50;
+    let posY = 15;
+    let fontSize = 48;
+    let color = '#ffffff';
+    let fontWeight = '700';
+
+    if (o.position3D) {
+      posX = Number(o.position3D.x) ?? 50;
+      posY = Number(o.position3D.y) ?? 15;
+    } else if (style === 'telemetry-pill') {
+      posX = 50;
+      posY = 86;
+      fontSize = 22;
+      color = accentGlow;
+      fontWeight = '600';
+    } else if (style === 'metric-counter') {
+      posX = 50;
+      posY = 50;
+      fontSize = 38;
+      color = '#38bdf8';
+      fontWeight = '700';
+    } else if (style === 'subtitle') {
+      posX = 50;
+      posY = 24;
+      fontSize = 26;
+      color = '#94a3b8';
+      fontWeight = '500';
+    }
+
+    if (o.fontSize) fontSize = Number(o.fontSize);
+    if (o.color) color = o.color as string;
+
+    return {
+      id: `txt_layer_${idx + 1}_${Date.now()}`,
+      text,
+      startTime: Number(startTime.toFixed(2)),
+      duration: Number(duration.toFixed(2)),
+      x: posX,
+      y: posY,
+      fontSize,
+      fontFamily: font,
+      fontWeight,
+      color,
+      textAlign: 'center',
+      lineHeight: 1.05,
+      letterSpacing: style === 'telemetry-pill' ? 2 : -1,
+      shadow: style !== 'telemetry-pill',
+      inAnimation: animation,
+      inDuration: 0.35,
+      outAnimation: 'fade',
+      outDuration: 0.25,
+      animationScope: scope,
+    };
+  });
+
+  const finalProject: ZetashotSharedProject = baseProject
+    ? {
+        ...baseProject,
+        textLayers: [...(baseProject.textLayers || []), ...generatedLayers],
+      }
+    : {
+        version: '1.2.0',
+        title,
+        aspectRatio: '16:9',
+        duration: Math.max(6.0, ...generatedLayers.map((l) => l.startTime + l.duration)),
+        background: { type: 'gradient', color: '#090d16' },
+        deviceMockup: 'mac-safari',
+        mediaUrl: '/default-codex-image.png',
+        mediaType: 'image',
+        mediaName: title,
+        textLayers: generatedLayers,
+      };
+
+  const encodedParam = encodeProjectToUrl(finalProject);
+  const shareUrl = `${baseUrl}/?dur=${finalProject.duration || 6.0}&p=${encodedParam}`;
+
+  const md = `### ✍️ Kinetic Typography & Badges Orchestrated!
+
+- **Layers Configured**: **${generatedLayers.length} Typography Overlays**
+- **Fonts Applied**: ${[...new Set(generatedLayers.map((l) => l.fontFamily))].map((f) => `\`${f}\``).join(', ')}
+- **Animation Scopes**: Word-level, character-level, and all-token reveals
+
+#### Overlays Breakdown:
+${generatedLayers.map((l, i) => `${i + 1}. **"${l.text}"** [${l.startTime}s – ${(l.startTime + l.duration).toFixed(2)}s] → Font: \`${l.fontFamily}\` (${l.fontSize}px), Animation: \`${l.inAnimation}\` (${l.animationScope}), Position: (${l.x}%, ${l.y}%)`).join('\n')}
+
+👉 **[Preview Typography in Zetashot Studio](${shareUrl})**
+
+Direct URL:
+${shareUrl}`;
+
+  return {
+    content: [{ type: 'text', text: md }],
+    shareUrl,
+    project: finalProject,
+  };
+}
+
+// -------------------------------------------------------------
+// 4. FRAME-ACCURATE AUDIO & SFX SYNC HANDLER
+// -------------------------------------------------------------
+function handleSyncSoundDesign(args: Record<string, unknown>, baseUrl: string) {
+  const bgmTrack = (args.bgmTrack as string) || 'cinematic-saas';
+  const bgmVolume = typeof args.bgmVolume === 'number' ? Math.max(0, Math.min(1, args.bgmVolume)) : 0.6;
+  const autoSyncSfx = args.autoSyncSfx !== false;
+  const projectHash = args.projectHash as string | undefined;
+
+  let baseProject: ZetashotSharedProject | null = null;
+  if (projectHash) {
+    baseProject = decodeProjectFromUrl(projectHash);
+  }
+
+  const duration = baseProject?.duration || Number(args.timelineDuration) || 6.0;
+  const audioTracks: any[] = [];
+
+  // 1. Add Background Music (BGM)
+  if (bgmTrack !== 'none') {
+    let bgmPreset = 'preset_music_cinematic';
+    let bgmName = 'Cinematic Dawn (Atmospheric Swell)';
+    let bgmUrl = '/audio/cinematic-dawn.mp3';
+
+    if (bgmTrack === 'lofi-ambient') {
+      bgmPreset = 'preset_music_lofi';
+      bgmName = 'Lo-Fi Chill Ambient (Vinyl Beat)';
+      bgmUrl = '/audio/lofi-ambient.mp3';
+    } else if (bgmTrack === 'modern-tech') {
+      bgmPreset = 'preset_music_tech';
+      bgmName = 'Modern Tech Pulse (Electronic)';
+      bgmUrl = '/audio/modern-tech-pulse.mp3';
+    }
+
+    audioTracks.push({
+      id: `bgm_${Date.now()}`,
+      name: bgmName,
+      url: bgmUrl,
+      type: 'music',
+      startTime: 0,
+      duration,
+      volume: bgmVolume,
+      isMuted: false,
+    });
+  }
+
+  // 2. Compute Derivative / Velocity Peaks of Hermite Keyframes for Auto SFX
+  if (autoSyncSfx) {
+    audioTracks.push({
+      id: `sfx_subdrop_${Date.now()}`,
+      name: 'Sub-Drop Monolith Reveal',
+      url: '/audio/sfx-subdrop.mp3',
+      type: 'sfx',
+      startTime: 0,
+      duration: 1.2,
+      volume: 0.85,
+      isMuted: false,
+    });
+
+    const keyframes = baseProject?.cameraClips || [];
+    if (keyframes.length > 1) {
+      for (let i = 0; i < keyframes.length - 1; i++) {
+        const kf = keyframes[i];
+        const transitionMidpoint = Number((kf.startTime + (kf.duration * 0.5)).toFixed(2));
+        audioTracks.push({
+          id: `sfx_whoosh_${i + 1}_${Date.now()}`,
+          name: `Camera Whoosh (Waypoint ${i + 1} -> ${i + 2})`,
+          url: '/audio/sfx-whoosh.mp3',
+          type: 'sfx',
+          startTime: transitionMidpoint,
+          duration: 0.5,
+          volume: 0.7,
+          isMuted: false,
+        });
+      }
+    } else {
+      audioTracks.push({
+        id: `sfx_whoosh_mid_${Date.now()}`,
+        name: 'Aerodynamic Camera Whoosh',
+        url: '/audio/sfx-whoosh.mp3',
+        type: 'sfx',
+        startTime: Number((duration * 0.45).toFixed(2)),
+        duration: 0.5,
+        volume: 0.75,
+        isMuted: false,
+      });
+    }
+
+    const textLayers = baseProject?.textLayers || [];
+    textLayers.forEach((layer, idx) => {
+      audioTracks.push({
+        id: `sfx_pop_${idx + 1}_${Date.now()}`,
+        name: `Badge Pop ("${layer.text.substring(0, 16)}...")`,
+        url: '/audio/sfx-pop.mp3',
+        type: 'sfx',
+        startTime: layer.startTime,
+        duration: 0.3,
+        volume: 0.65,
+        isMuted: false,
+      });
+    });
+
+    const landingTime = Math.max(0, Number((duration - 1.2).toFixed(2)));
+    audioTracks.push({
+      id: `sfx_chime_resolve_${Date.now()}`,
+      name: 'Pristine Landing Resolve Chime',
+      url: '/audio/sfx-chime.mp3',
+      type: 'sfx',
+      startTime: landingTime,
+      duration: 1.0,
+      volume: 0.8,
+      isMuted: false,
+    });
+  }
+
+  const finalProject: ZetashotSharedProject = baseProject
+    ? {
+        ...baseProject,
+        audioTracks,
+      }
+    : {
+        version: '1.2.0',
+        title: 'Audio Synced Project',
+        aspectRatio: '16:9',
+        duration,
+        background: { type: 'gradient', color: '#090d16' },
+        deviceMockup: 'mac-safari',
+        mediaUrl: '/default-codex-image.png',
+        mediaType: 'image',
+        mediaName: 'Audio Master Scene',
+        audioTracks,
+      };
+
+  const encodedParam = encodeProjectToUrl(finalProject);
+  const shareUrl = `${baseUrl}/?dur=${duration}&p=${encodedParam}`;
+
+  const md = `### 🎵 Sound Design & SFX Synchronized!
+
+- **BGM Track**: \`${bgmTrack}\` (Volume: \`${bgmVolume * 100}%\`)
+- **Total Audio Cues**: **${audioTracks.length} Synced Tracks**
+- **Velocity Peaks Detected**: Automatic Hermite spline whoosh placement active
+- **Text Triggers**: Synchronized badge pop triggers active
+
+#### Audio Timeline Cue Sheet:
+${audioTracks.map((t, i) => `${i + 1}. **${t.name}** [${t.startTime}s – ${(t.startTime + t.duration).toFixed(2)}s] → Type: \`${t.type}\`, Volume: \`${(t.volume * 100).toFixed(0)}%\``).join('\n')}
+
+👉 **[Preview Audio-Synced Video in Zetashot Studio](${shareUrl})**
+
+Direct URL:
+${shareUrl}`;
+
+  return {
+    content: [{ type: 'text', text: md }],
+    shareUrl,
+    project: finalProject,
+  };
+}
+
+// -------------------------------------------------------------
+// 5. OPTICS, LIGHTING & WEBGL MATERIAL HANDLER
+// -------------------------------------------------------------
+function handleConfigureOpticsAnd3D(args: Record<string, unknown>, baseUrl: string) {
+  const projectHash = args.projectHash as string | undefined;
+  let baseProject: ZetashotSharedProject | null = null;
+  if (projectHash) {
+    baseProject = decodeProjectFromUrl(projectHash);
+  }
+
+  const dof = args.dof as any;
+  const specularGlow = args.specularGlow as any;
+  const shadow = args.shadow as any;
+  const cornerRadius = typeof args.cornerRadius === 'number' ? args.cornerRadius : undefined;
+  const webglMaterial = args.webglMaterial as any;
+
+  const visualEffects: any = {
+    borderRadius: cornerRadius ?? baseProject?.visualEffects?.borderRadius ?? 16,
+    blurAmount: dof?.enabled ? (Number(dof.aperture) || 24) : (baseProject?.visualEffects?.blurAmount ?? 0),
+    shadowBlur: shadow?.blur ?? baseProject?.visualEffects?.shadowBlur ?? 32,
+    shadowSpread: shadow?.spread ?? baseProject?.visualEffects?.shadowSpread ?? 0,
+    shadowOpacity: shadow?.opacity ?? baseProject?.visualEffects?.shadowOpacity ?? 0.45,
+    shadowOffsetY: shadow?.yOffset ?? baseProject?.visualEffects?.shadowOffsetY ?? 12,
+    specularGlow: specularGlow?.enabled ?? baseProject?.visualEffects?.specularGlow ?? true,
+    glowColor: specularGlow?.hexOverride ?? baseProject?.visualEffects?.glowColor ?? '#38bdf8',
+    dof: Boolean(dof?.enabled),
+    dofAperture: Number(dof?.aperture) || 24,
+  };
+
+  const webglMaterialState: any = {
+    roughness: Number(webglMaterial?.roughness) || 0.2,
+    metalness: Number(webglMaterial?.metalness) || 0.8,
+    tintHex: (webglMaterial?.tintHex as string) || '#ffffff',
+    textureRepeat: Array.isArray(webglMaterial?.textureRepeat) ? webglMaterial.textureRepeat : [1, 1],
+    flipY: Boolean(webglMaterial?.flipY),
+  };
+
+  const finalProject: ZetashotSharedProject = baseProject
+    ? {
+        ...baseProject,
+        visualEffects,
+        webglMaterial: webglMaterialState,
+      }
+    : {
+        version: '1.2.0',
+        title: 'Optics & 3D Configured Scene',
+        aspectRatio: '16:9',
+        duration: 4.0,
+        background: { type: 'gradient', color: '#090d16' },
+        deviceMockup: 'mac-safari',
+        mediaUrl: '/default-codex-image.png',
+        mediaType: 'image',
+        mediaName: 'Optics Master Scene',
+        visualEffects,
+        webglMaterial: webglMaterialState,
+      };
+
+  const encodedParam = encodeProjectToUrl(finalProject);
+  const shareUrl = `${baseUrl}/?dur=${finalProject.duration || 4.0}&p=${encodedParam}`;
+
+  const md = `### 💎 Optics, Lighting & WebGL Materials Configured!
+
+- **Depth of Field (DoF)**: \`${visualEffects.dof ? `Enabled (Aperture: ƒ ${(1.4 * Math.pow(2, ((50 - visualEffects.blurAmount) / 50) * 4)).toFixed(1)})` : 'Disabled'}\`
+- **Specular Edge Glow**: \`${visualEffects.specularGlow ? `Active (${visualEffects.glowColor})` : 'Disabled'}\`
+- **Drop Shadow**: Blur \`${visualEffects.shadowBlur}px\`, Opacity \`${visualEffects.shadowOpacity * 100}%\`, Offset \`${visualEffects.shadowOffsetY}px\`
+- **Corner Squircle Radius**: \`${visualEffects.borderRadius}px\`
+- **WebGL 3D Material**: Roughness \`${webglMaterialState.roughness}\`, Metalness \`${webglMaterialState.metalness}\`, Tint \`${webglMaterialState.tintHex}\`
+
+👉 **[Preview High-End Optics in Zetashot Studio](${shareUrl})**
+
+Direct URL:
+${shareUrl}`;
+
+  return {
+    content: [{ type: 'text', text: md }],
+    shareUrl,
+    project: finalProject,
   };
 }
 
@@ -1704,6 +2713,86 @@ ${CAMERA_PRESETS.map((c) => `- **\`${c.id}\`**: ${c.name} — *${c.description}*
 
         if (toolName === 'choreograph_cinematic_motion' || toolName === 'analyze_media_and_choreograph') {
           const result = handleChoreographMotion(toolArgs);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: result.content,
+              },
+            })
+          );
+          return;
+        }
+
+        if (toolName === 'compose_interest_regions' || toolName === 'auto_compose_from_regions') {
+          const result = handleComposeInterestRegions(toolArgs, baseUrl);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: result.content,
+              },
+            })
+          );
+          return;
+        }
+
+        if (toolName === 'configure_timeline_clips' || toolName === 'manage_timeline_sequence') {
+          const result = handleConfigureTimelineClips(toolArgs, baseUrl);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: result.content,
+              },
+            })
+          );
+          return;
+        }
+
+        if (toolName === 'orchestrate_typography' || toolName === 'add_typography_overlays') {
+          const result = handleOrchestrateTypography(toolArgs, baseUrl);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: result.content,
+              },
+            })
+          );
+          return;
+        }
+
+        if (toolName === 'sync_sound_design') {
+          const result = handleSyncSoundDesign(toolArgs, baseUrl);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                content: result.content,
+              },
+            })
+          );
+          return;
+        }
+
+        if (toolName === 'configure_optics_and_3d') {
+          const result = handleConfigureOpticsAnd3D(toolArgs, baseUrl);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(

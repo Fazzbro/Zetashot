@@ -406,6 +406,432 @@ export function generateMotionGraphicsProject(options = {}) {
   };
 }
 
+/**
+ * 1. Vision-Driven Auto-Composition for Bounding Boxes
+ */
+export function composeInterestRegions(options = {}) {
+  const {
+    regions = [],
+    aspectRatio = '16:9',
+    pacing = 'cinematic',
+    title = 'Vision-Driven Auto-Composition',
+    mediaUrl = '/default-codex-image.png',
+    deviceMockup = 'mac-safari',
+    autoExport = true,
+  } = options;
+
+  const stageW = 960;
+  const stageH = 540;
+  const stepDur = pacing === 'snappy' ? 1.0 : pacing === 'editorial' ? 2.0 : 1.5;
+
+  const cameraClips = [];
+  const textLayers = [];
+  let currentTime = 0;
+
+  // P01: Establishing Overview Shot
+  const p01Dur = pacing === 'snappy' ? 1.0 : 1.5;
+  cameraClips.push({
+    id: 'kf_p01_overview',
+    name: 'P01: Monolith Establishing View',
+    startTime: currentTime,
+    duration: p01Dur,
+    color: 'yellow',
+    blockId: 'block_compose',
+    mediaClipId: 'clip_init',
+    transition: 'fade',
+    camera: {
+      rotX: pacing === 'editorial' ? 3 : 8,
+      rotY: pacing === 'editorial' ? -2 : -12,
+      rotZ: pacing === 'editorial' ? 0 : 3,
+      zoom: 0.90,
+      panX: 0,
+      panY: 0,
+      perspective: 1100,
+    },
+  });
+  currentTime += p01Dur;
+
+  textLayers.push({
+    id: 'txt_p01_title',
+    text: title,
+    startTime: 0.2,
+    duration: Number((p01Dur - 0.4).toFixed(2)),
+    x: 50,
+    y: 14,
+    fontSize: aspectRatio === '9:16' ? 42 : 50,
+    fontFamily: 'SF Pro Display',
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
+    inAnimation: 'fade-in-blur',
+    inDuration: 0.4,
+    outAnimation: 'blur',
+    outDuration: 0.3,
+    animationScope: 'word',
+    shadow: true,
+  });
+
+  regions.forEach((r, idx) => {
+    let rx = Number(r.x) || 0;
+    let ry = Number(r.y) || 0;
+    let rw = Number(r.width) || 100;
+    let rh = Number(r.height) || 100;
+
+    if (rx <= 1.0 && ry <= 1.0 && rw <= 1.0 && rh <= 1.0) {
+      rx *= stageW;
+      ry *= stageH;
+      rw *= stageW;
+      rh *= stageH;
+    } else if (rx <= 100 && ry <= 100 && rw <= 100 && rh <= 100) {
+      rx = (rx / 100) * stageW;
+      ry = (ry / 100) * stageH;
+      rw = (rw / 100) * stageW;
+      rh = (rh / 100) * stageH;
+    }
+
+    const holdDur = Math.max(0.6, Number(r.holdDuration) || stepDur);
+    const centerX = rx + rw / 2;
+    const centerY = ry + rh / 2;
+    const offX = centerX - stageW / 2;
+    const offY = centerY - stageH / 2;
+    const normX = Math.max(-1.0, Math.min(1.0, offX / (stageW / 2)));
+    const normY = Math.max(-1.0, Math.min(1.0, offY / (stageH / 2)));
+
+    const fitScaleW = (stageW * 0.38) / Math.max(40, rw);
+    const fitScaleH = (stageH * 0.35) / Math.max(30, rh);
+    const targetZoom = Number(Math.max(0.85, Math.min(1.55, Math.min(fitScaleW, fitScaleH))).toFixed(2));
+    const panX = Number((-offX * targetZoom).toFixed(1));
+    const panY = Number((-offY * targetZoom).toFixed(1));
+
+    const readabilityDamping = Math.max(0.40, Math.min(1.0, 1.4 / targetZoom));
+    const rotX = Number(((pacing === 'editorial' ? 2.0 : 6.0) + normY * 4.0 * readabilityDamping).toFixed(1));
+    const rotY = Number((-normX * (pacing === 'editorial' ? 4.0 : 12.0) * readabilityDamping).toFixed(1));
+    const rotZ = Number((-normX * (pacing === 'editorial' ? 0.0 : 3.0) * readabilityDamping).toFixed(1));
+
+    const pNum = idx + 2;
+    const pPad = pNum < 10 ? `0${pNum}` : `${pNum}`;
+
+    cameraClips.push({
+      id: `kf_p${pPad}_region_${idx + 1}`,
+      name: `P${pPad}: ${r.label || `Region ${idx + 1}`}`,
+      startTime: Number(currentTime.toFixed(2)),
+      duration: holdDur,
+      color: 'blue',
+      blockId: 'block_compose',
+      mediaClipId: 'clip_init',
+      transition: 'cut',
+      camera: { rotX, rotY, rotZ, zoom: targetZoom, panX, panY, perspective: 1100 },
+    });
+
+    textLayers.push({
+      id: `txt_badge_region_${idx + 1}`,
+      text: r.badgeText || (r.label ? `⚡ ${r.label.toUpperCase()}` : `⚡ LANDMARK 0${idx + 1}`),
+      startTime: Number((currentTime + 0.15).toFixed(2)),
+      duration: Number(Math.max(0.5, holdDur - 0.3).toFixed(2)),
+      x: 50,
+      y: 86,
+      fontSize: 22,
+      fontFamily: 'SF Pro Display',
+      fontWeight: '600',
+      color: '#38bdf8',
+      textAlign: 'center',
+      inAnimation: pacing === 'snappy' ? 'pop' : 'fade-in-blur',
+      inDuration: 0.35,
+      outAnimation: 'fade',
+      outDuration: 0.25,
+      animationScope: 'all',
+      shadow: false,
+    });
+
+    currentTime += holdDur;
+  });
+
+  // Final Authority Resolve
+  const pFinalNum = regions.length + 2;
+  const pFinalPad = pFinalNum < 10 ? `0${pFinalNum}` : `${pFinalNum}`;
+  const resolveDur = 1.5;
+  cameraClips.push({
+    id: `kf_p${pFinalPad}_resolve`,
+    name: `P${pFinalPad}: Hero Authority Resolve`,
+    startTime: Number(currentTime.toFixed(2)),
+    duration: resolveDur,
+    color: 'yellow',
+    blockId: 'block_compose',
+    mediaClipId: 'clip_init',
+    transition: 'cut',
+    camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.88, panX: 0, panY: 0, perspective: 1000 },
+  });
+
+  currentTime += resolveDur;
+  const totalDuration = Number(currentTime.toFixed(2));
+
+  const projectPayload = {
+    version: '1.2.0',
+    title,
+    aspectRatio,
+    duration: totalDuration,
+    background: { type: 'gradient', color: '#090d16' },
+    deviceMockup,
+    mediaUrl,
+    mediaType: mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') ? 'video' : 'image',
+    mediaName: title,
+    cameraClips,
+    textLayers,
+    autoExport,
+  };
+
+  const encodedHash = encodeProjectHash(projectPayload);
+  return {
+    project: projectPayload,
+    hash: encodedHash,
+    deepLinkUrl: `http://localhost:5173/#project=${encodedHash}`,
+  };
+}
+
+/**
+ * 2. Multi-Clip Sequencer & Timeline Surgery
+ */
+export function configureTimelineClips(options = {}) {
+  const {
+    clips = [],
+    autoCompensateSpeed = true,
+    title = 'Multi-Clip Sequenced Timeline',
+    aspectRatio = '16:9',
+    deviceMockup = 'mac-safari',
+  } = options;
+
+  let currentStart = 0;
+  const mediaClips = [];
+  const cameraClips = [];
+
+  clips.forEach((c, idx) => {
+    const rawDur = Number(c.duration) || 3.5;
+    const clipDur = Math.max(0.5, rawDur);
+    const sourceUrl = c.sourceUrl || '/default-codex-image.png';
+    const cType = c.type || (sourceUrl.endsWith('.mp4') || sourceUrl.endsWith('.webm') ? 'video' : 'image');
+    const transitionIn = c.transitionIn || (idx === 0 ? 'cut' : 'gradient');
+
+    let speed = Number(c.playbackSpeed) || 1.0;
+    if (autoCompensateSpeed && cType === 'video' && c.sourceDuration) {
+      speed = Math.max(0.1, Math.min(8.0, Number((c.sourceDuration / clipDur).toFixed(2))));
+    }
+
+    const clipId = `mclip_${idx + 1}`;
+    mediaClips.push({
+      id: clipId,
+      mediaId: `source_${idx + 1}`,
+      name: c.name || `Shot 0${idx + 1}`,
+      type: cType,
+      url: sourceUrl,
+      startTime: Number(currentStart.toFixed(2)),
+      duration: clipDur,
+      speed,
+      transition: transitionIn,
+      transitionDuration: 0.45,
+    });
+
+    const kf1Dur = Number((clipDur * 0.5).toFixed(2));
+    const kf2Dur = Number((clipDur - kf1Dur).toFixed(2));
+    const num1 = idx * 2 + 1;
+    const num2 = idx * 2 + 2;
+    const pPad1 = num1 < 10 ? `0${num1}` : `${num1}`;
+    const pPad2 = num2 < 10 ? `0${num2}` : `${num2}`;
+
+    cameraClips.push({
+      id: `kf_${pPad1}`,
+      name: `P${pPad1}: ${c.name || `Shot 0${idx + 1}`} In`,
+      startTime: Number(currentStart.toFixed(2)),
+      duration: kf1Dur,
+      color: 'yellow',
+      blockId: `block_${clipId}`,
+      mediaClipId: clipId,
+      transition: transitionIn,
+      camera: { rotX: 10, rotY: idx % 2 === 0 ? 12 : -12, rotZ: idx % 2 === 0 ? -3 : 3, zoom: 1.25, panX: -8, panY: -4, perspective: 1100 },
+    });
+
+    cameraClips.push({
+      id: `kf_${pPad2}`,
+      name: `P${pPad2}: ${c.name || `Shot 0${idx + 1}`} Out`,
+      startTime: Number((currentStart + kf1Dur).toFixed(2)),
+      duration: kf2Dur,
+      color: 'yellow',
+      blockId: `block_${clipId}`,
+      mediaClipId: clipId,
+      transition: 'cut',
+      camera: { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.90, panX: 0, panY: 0, perspective: 1000 },
+    });
+
+    currentStart += clipDur;
+  });
+
+  const totalDuration = Number(currentStart.toFixed(2));
+  const projectPayload = {
+    version: '1.2.0',
+    title,
+    aspectRatio,
+    duration: totalDuration,
+    background: { type: 'gradient', color: '#090d16' },
+    deviceMockup,
+    mediaUrl: mediaClips[0]?.url || '/default-codex-image.png',
+    mediaType: mediaClips[0]?.type || 'image',
+    mediaName: title,
+    mediaClips,
+    cameraClips,
+  };
+
+  const encodedHash = encodeProjectHash(projectPayload);
+  return {
+    project: projectPayload,
+    hash: encodedHash,
+    deepLinkUrl: `http://localhost:5173/#project=${encodedHash}`,
+  };
+}
+
+/**
+ * 3. Kinetic Typography & Telemetry Badges
+ */
+export function orchestrateTypography(options = {}) {
+  const { overlays = [], title = 'Kinetic Typography' } = options;
+  const textLayers = overlays.map((o, idx) => ({
+    id: `txt_layer_${idx + 1}_${Date.now()}`,
+    text: o.text || '',
+    startTime: Number(o.startTime) || 0,
+    duration: Number(o.duration) || 2.5,
+    x: o.position3D?.x ?? 50,
+    y: o.position3D?.y ?? (o.style === 'telemetry-pill' ? 86 : 15),
+    fontSize: o.fontSize || (o.style === 'telemetry-pill' ? 22 : 48),
+    fontFamily: o.font || 'SF Pro Display',
+    fontWeight: o.style === 'telemetry-pill' ? '600' : '700',
+    color: o.color || (o.style === 'telemetry-pill' ? '#38bdf8' : '#ffffff'),
+    textAlign: 'center',
+    inAnimation: o.animation || (o.style === 'telemetry-pill' ? 'pop' : 'fade-in-blur'),
+    inDuration: 0.35,
+    outAnimation: 'fade',
+    outDuration: 0.25,
+    animationScope: o.scope || (o.style === 'telemetry-pill' ? 'all' : 'word'),
+  }));
+
+  const projectPayload = {
+    version: '1.2.0',
+    title,
+    duration: Math.max(6.0, ...textLayers.map((l) => l.startTime + l.duration)),
+    textLayers,
+  };
+
+  const encodedHash = encodeProjectHash(projectPayload);
+  return {
+    project: projectPayload,
+    hash: encodedHash,
+    deepLinkUrl: `http://localhost:5173/#project=${encodedHash}`,
+  };
+}
+
+/**
+ * 4. Sound Design & SFX Sync
+ */
+export function syncSoundDesign(options = {}) {
+  const { bgmTrack = 'cinematic-saas', bgmVolume = 0.6, autoSyncSfx = true, timelineDuration = 6.0 } = options;
+  const audioTracks = [];
+
+  if (bgmTrack !== 'none') {
+    audioTracks.push({
+      id: `bgm_${Date.now()}`,
+      name: bgmTrack === 'lofi-ambient' ? 'Lo-Fi Chill Ambient' : 'Cinematic Dawn',
+      url: `/audio/${bgmTrack}.mp3`,
+      type: 'music',
+      startTime: 0,
+      duration: timelineDuration,
+      volume: bgmVolume,
+    });
+  }
+
+  if (autoSyncSfx) {
+    audioTracks.push({
+      id: `sfx_subdrop_${Date.now()}`,
+      name: 'Sub-Drop Monolith Reveal',
+      url: '/audio/sfx-subdrop.mp3',
+      type: 'sfx',
+      startTime: 0,
+      duration: 1.2,
+      volume: 0.85,
+    });
+    audioTracks.push({
+      id: `sfx_whoosh_${Date.now()}`,
+      name: 'Camera Velocity Whoosh',
+      url: '/audio/sfx-whoosh.mp3',
+      type: 'sfx',
+      startTime: Number((timelineDuration * 0.45).toFixed(2)),
+      duration: 0.5,
+      volume: 0.75,
+    });
+    audioTracks.push({
+      id: `sfx_chime_${Date.now()}`,
+      name: 'Landing Resolve Chime',
+      url: '/audio/sfx-chime.mp3',
+      type: 'sfx',
+      startTime: Math.max(0, Number((timelineDuration - 1.2).toFixed(2))),
+      duration: 1.0,
+      volume: 0.8,
+    });
+  }
+
+  const projectPayload = {
+    version: '1.2.0',
+    title: 'Audio Synced Project',
+    duration: timelineDuration,
+    audioTracks,
+  };
+
+  const encodedHash = encodeProjectHash(projectPayload);
+  return {
+    project: projectPayload,
+    hash: encodedHash,
+    deepLinkUrl: `http://localhost:5173/#project=${encodedHash}`,
+  };
+}
+
+/**
+ * 5. Optics, Lighting & WebGL Materials
+ */
+export function configureOpticsAnd3D(options = {}) {
+  const { dof, specularGlow, shadow, cornerRadius = 16, webglMaterial } = options;
+  const visualEffects = {
+    borderRadius: cornerRadius,
+    blurAmount: dof?.enabled ? (Number(dof.aperture) || 24) : 0,
+    shadowBlur: shadow?.blur ?? 32,
+    shadowSpread: shadow?.spread ?? 0,
+    shadowOpacity: shadow?.opacity ?? 0.45,
+    shadowOffsetY: shadow?.yOffset ?? 12,
+    specularGlow: specularGlow?.enabled !== false,
+    glowColor: specularGlow?.hexOverride || '#38bdf8',
+    dof: Boolean(dof?.enabled),
+    dofAperture: Number(dof?.aperture) || 24,
+  };
+
+  const webglMaterialState = {
+    roughness: Number(webglMaterial?.roughness) || 0.2,
+    metalness: Number(webglMaterial?.metalness) || 0.8,
+    tintHex: webglMaterial?.tintHex || '#ffffff',
+    textureRepeat: webglMaterial?.textureRepeat || [1, 1],
+    flipY: Boolean(webglMaterial?.flipY),
+  };
+
+  const projectPayload = {
+    version: '1.2.0',
+    title: 'Optics Configured Project',
+    duration: 4.0,
+    visualEffects,
+    webglMaterial: webglMaterialState,
+  };
+
+  const encodedHash = encodeProjectHash(projectPayload);
+  return {
+    project: projectPayload,
+    hash: encodedHash,
+    deepLinkUrl: `http://localhost:5173/#project=${encodedHash}`,
+  };
+}
+
 // ==========================================
 // 4. CLI PARSER & EXECUTION
 // ==========================================

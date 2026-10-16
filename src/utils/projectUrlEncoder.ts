@@ -4,6 +4,30 @@ import type { TimelinePositionClip } from '../components/VideoTimeline';
 import type { Model3DTransform } from '../types/model3D';
 import type { TextLayerOverlay } from '../types/textLayer';
 
+import type { MediaTimelineClip } from '../types/mediaTimeline';
+import type { AudioTrackItem } from '../types/audioTrack';
+
+export interface VisualEffectsState {
+  borderRadius?: number;
+  blurAmount?: number;
+  shadowBlur?: number;
+  shadowSpread?: number;
+  shadowOpacity?: number;
+  shadowOffsetY?: number;
+  specularGlow?: boolean;
+  glowColor?: string;
+  dof?: boolean;
+  dofAperture?: number;
+}
+
+export interface WebGLMaterialState {
+  roughness?: number;
+  metalness?: number;
+  tintHex?: string;
+  textureRepeat?: [number, number];
+  flipY?: boolean;
+}
+
 export interface ZetashotSharedProject {
   version: string;
   title?: string;
@@ -13,6 +37,10 @@ export interface ZetashotSharedProject {
   deviceMockup?: string;
   model3DTransform?: Model3DTransform;
   textLayers?: TextLayerOverlay[];
+  mediaClips?: MediaTimelineClip[];
+  audioTracks?: AudioTrackItem[];
+  visualEffects?: VisualEffectsState;
+  webglMaterial?: WebGLMaterialState;
   duration?: number;
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | '3d' | 'blank';

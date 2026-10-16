@@ -153,7 +153,192 @@ Returns:
 
 ---
 
-### Tool 2: `render_motion_graphics_video`
+### Tool 2: `compose_interest_regions`
+**Vision-Driven Auto-Composition**: Automatically calculates exact `panX`, `panY`, `zoom`, and counter-banked `rotY`/`rotZ` Hermite waypoints to center detected UI bounding boxes/landmarks without manual coordinate guessing, attaching synchronized telemetry pill badges (`pop` or `fade-in-blur`) to each region.
+
+#### Input Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string", "description": "Landmark name (e.g. 'Revenue Chart', 'Sidebar')" },
+          "x": { "type": "number", "description": "X coordinate (0..100 percentage or 0..960 stage pixels)" },
+          "y": { "type": "number", "description": "Y coordinate (0..100 percentage or 0..540 stage pixels)" },
+          "width": { "type": "number", "description": "Bounding box width" },
+          "height": { "type": "number", "description": "Bounding box height" },
+          "holdDuration": { "type": "number", "description": "Dwell duration in seconds at this landmark" },
+          "badgeText": { "type": "string", "description": "Custom text for telemetry badge overlay" }
+        },
+        "required": ["x", "y", "width", "height"]
+      }
+    },
+    "aspectRatio": { "type": "string", "enum": ["16:9", "9:16", "1:1", "4:5", "21:9"], "default": "16:9" },
+    "pacing": { "type": "string", "enum": ["snappy", "cinematic", "editorial"], "default": "cinematic" },
+    "title": { "type": "string" },
+    "mediaUrl": { "type": "string" },
+    "deviceMockup": { "type": "string" },
+    "background": { "type": "string" },
+    "autoExport": { "type": "boolean", "default": true }
+  },
+  "required": ["regions"]
+}
+```
+
+---
+
+### Tool 3: `configure_timeline_clips`
+**Multi-Clip Sequencer & Timeline Surgery**: Sequences multiple media clips (images, videos, 3D assets, blank canvases) contiguously with automatic playback speed compensation ($0.1x\dots 8.0x$), razor trimming, and cinematic transitions (`cut`, `gradient`, `blocks`, `fade`, `push`, `zoom`).
+
+#### Input Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "clips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourceUrl": { "type": "string" },
+          "type": { "type": "string", "enum": ["image", "video", "3d", "blank"] },
+          "name": { "type": "string" },
+          "duration": { "type": "number" },
+          "playbackSpeed": { "type": "number" },
+          "trimStart": { "type": "number" },
+          "trimEnd": { "type": "number" },
+          "transitionIn": { "type": "string", "enum": ["cut", "gradient", "blocks", "fade", "push", "zoom"] },
+          "transitionDuration": { "type": "number" }
+        },
+        "required": ["sourceUrl"]
+      }
+    },
+    "autoCompensateSpeed": { "type": "boolean", "default": true },
+    "title": { "type": "string" },
+    "aspectRatio": { "type": "string" },
+    "deviceMockup": { "type": "string" },
+    "background": { "type": "string" }
+  },
+  "required": ["clips"]
+}
+```
+
+---
+
+### Tool 4: `orchestrate_typography`
+**Kinetic Typography & Telemetry Badge Layer**: Coordinates 3D vector text overlays, hero title cards, and glowing telemetry badges across granular animation scopes (`all`, `word`, `char`, `line`).
+
+#### Input Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "overlays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" },
+          "font": { "type": "string", "enum": ["SF Pro Display", "Sora", "Helvetica", "Poppins", "Geist"] },
+          "startTime": { "type": "number" },
+          "endTime": { "type": "number" },
+          "duration": { "type": "number" },
+          "animation": { "type": "string", "enum": ["fade", "fade-in-blur", "pop", "scale", "slide-up", "slide-down", "scramble", "shimmer", "roll"] },
+          "scope": { "type": "string", "enum": ["all", "word", "char", "line"] },
+          "style": { "type": "string", "enum": ["title-card", "telemetry-pill", "metric-counter", "subtitle"] },
+          "position3D": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "z": { "type": "number" } } },
+          "accentGlowHex": { "type": "string" },
+          "fontSize": { "type": "number" },
+          "color": { "type": "string" }
+        },
+        "required": ["text", "startTime"]
+      }
+    },
+    "projectHash": { "type": "string" },
+    "title": { "type": "string" }
+  },
+  "required": ["overlays"]
+}
+```
+
+---
+
+### Tool 5: `sync_sound_design`
+**Frame-Accurate Audio & SFX Sync**: Automatically aligns BGM soundtrack alongside derivative velocity peak whooshes on Hermite curve transitions, sub-drops on monolith reveals, pops on badge entries, and chimes on landing resolves.
+
+#### Input Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "bgmTrack": { "type": "string", "enum": ["lofi-ambient", "cinematic-saas", "modern-tech", "none"] },
+    "bgmVolume": { "type": "number", "default": 0.6 },
+    "autoSyncSfx": { "type": "boolean", "default": true },
+    "projectHash": { "type": "string" },
+    "timelineDuration": { "type": "number" }
+  }
+}
+```
+
+---
+
+### Tool 6: `configure_optics_and_3d`
+**Optics, Lighting & WebGL Material Controller**: Fine-tunes realistic Depth of Field blur, specular edge glow, drop shadow parameters, corner squircle radius, and Three.js WebGL material properties (roughness, metalness, tint, repeat, flipY).
+
+#### Input Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "dof": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "aperture": { "type": "number" },
+        "focusTargetKeyframe": { "type": "string" }
+      }
+    },
+    "specularGlow": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "autoExtractDominantColor": { "type": "boolean" },
+        "hexOverride": { "type": "string" }
+      }
+    },
+    "shadow": {
+      "type": "object",
+      "properties": {
+        "blur": { "type": "number" },
+        "spread": { "type": "number" },
+        "opacity": { "type": "number" },
+        "yOffset": { "type": "number" }
+      }
+    },
+    "cornerRadius": { "type": "number" },
+    "webglMaterial": {
+      "type": "object",
+      "properties": {
+        "roughness": { "type": "number" },
+        "metalness": { "type": "number" },
+        "tintHex": { "type": "string" },
+        "textureRepeat": { "type": "array", "items": { "type": "number" } },
+        "flipY": { "type": "boolean" }
+      }
+    },
+    "projectHash": { "type": "string" }
+  }
+}
+```
+
+---
+
+### Tool 7: `render_motion_graphics_video`
 Executes headless rendering of the generated motion graphics video to MP4 or WebM.
 
 #### Input Schema
@@ -163,22 +348,11 @@ Executes headless rendering of the generated motion graphics video to MP4 or Web
   "properties": {
     "projectHash": {
       "type": "string",
-      "description": "Base64url project hash generated by generate_saas_motion_project"
+      "description": "Base64url project hash generated by any Zetashot MCP tool"
     },
-    "format": {
-      "type": "string",
-      "enum": ["mp4", "webm"],
-      "default": "mp4"
-    },
-    "fps": {
-      "type": "number",
-      "enum": [24, 30, 60],
-      "default": 60
-    },
-    "outputPath": {
-      "type": "string",
-      "description": "Target video file path (e.g., ./exports/launch_video.mp4)"
-    }
+    "format": { "type": "string", "enum": ["mp4", "webm"], "default": "mp4" },
+    "fps": { "type": "number", "enum": [24, 30, 60], "default": 60 },
+    "outputPath": { "type": "string" }
   },
   "required": ["projectHash", "outputPath"]
 }
