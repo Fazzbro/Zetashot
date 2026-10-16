@@ -1,5 +1,9 @@
 import { TimelinePositionClip } from '../components/VideoTimeline';
-import { MediaTimelineClip, sequenceClipsContiguously } from '../types/mediaTimeline';
+import {
+  MediaTimelineClip,
+  sequenceClipsContiguously,
+  calculateMediaSequenceDuration,
+} from '../types/mediaTimeline';
 import { Camera3DState } from './camera3D';
 
 /**
@@ -330,4 +334,245 @@ export function splitKeyframesAtTime(
   }
 
   return result.sort((a, b) => a.startTime - b.startTime);
+}
+
+export interface DeleteMediaClipResult {
+  updatedClips: TimelinePositionClip[];
+  updatedMediaClips: MediaTimelineClip[];
+  newTotalDuration: number;
+  newMediaDuration: number;
+  deletedKeyframeIds: string[];
+}
+
+/**
+ * Cleanly removes a media clip from the sequence, completely deletes all keyframes
+ * attached or lingered to that media clip, and dynamically shifts downstream keyframes
+ * and media clips to preserve frame-accurate, contiguous timeline synchronization.
+ */
+export function deleteMediaClipAndSyncKeyframes(
+  clips: TimelinePositionClip[],
+  mediaClips: MediaTimelineClip[],
+  clipIdToDelete: string,
+  defaultCamera?: Camera3DState
+): DeleteMediaClipResult {
+  if (!mediaClips || mediaClips.length === 0) {
+    return {
+      updatedClips: clips || [],
+      updatedMediaClips: mediaClips || [],
+      newTotalDuration: 3.0,
+      newMediaDuration: 3.0,
+      deletedKeyframeIds: [],
+    };
+  }
+
+  const targetIndex = mediaClips.findIndex((c) => c.id === clipIdToDelete);
+  if (targetIndex === -1) {
+    const curDur = calculateMediaSequenceDuration(mediaClips);
+    return {
+      updatedClips: clips || [],
+      updatedMediaClips: mediaClips,
+      newTotalDuration: curDur,
+      newMediaDuration: curDur,
+      deletedKeyframeIds: [],
+    };
+  }
+
+  const targetClip = mediaClips[targetIndex];
+  const targetStartTime = targetClip.startTime;
+  const targetDuration = targetClip.duration;
+  const targetEndTime = targetStartTime + targetDuration;
+
+  const remainingMediaClips = mediaClips.filter((c) => c.id !== clipIdToDelete);
+
+  // Fallback camera
+  const fallbackCam = defaultCamera || {
+    rotX: 0,
+    rotY: 0,
+    rotZ: 0,
+    zoom: 0.85,
+    panX: 0,
+    panY: 0,
+    perspective: 1000,
+  };
+
+  // If the last remaining media clip was deleted, reset to a healthy default media clip
+  if (remainingMediaClips.length === 0) {
+    const fallbackMediaClip: MediaTimelineClip = {
+      id: 'clip_init',
+      mediaId: 'default-screen-image',
+      name: 'Codex Dashboard',
+      type: 'image',
+      url: '/default-codex-image.png',
+      startTime: 0,
+      duration: 3.0,
+    };
+    const fallbackKeyframes: TimelinePositionClip[] = [
+      {
+        id: 'P01',
+        name: 'P01',
+        startTime: 0,
+        duration: 1.5,
+        color: 'yellow',
+        camera: { ...fallbackCam },
+        transition: 'cut',
+        blockId: 'block_init',
+        mediaClipId: 'clip_init',
+      },
+      {
+        id: 'P02',
+        name: 'P02',
+        startTime: 1.5,
+        duration: 1.5,
+        color: 'yellow',
+        camera: { ...fallbackCam },
+        transition: 'cut',
+        blockId: 'block_init',
+        mediaClipId: 'clip_init',
+      },
+    ];
+    return {
+      updatedClips: fallbackKeyframes,
+      updatedMediaClips: [fallbackMediaClip],
+      newTotalDuration: 3.0,
+      newMediaDuration: 3.0,
+      deletedKeyframeIds: (clips || []).map((c) => c.id),
+    };
+  }
+
+  // Resequence remaining media clips contiguously
+  const resequencedMediaClips = sequenceClipsContiguously(remainingMediaClips);
+  const newMediaDuration = calculateMediaSequenceDuration(resequencedMediaClips);
+
+  // Filter out keyframes lingering on the deleted clip
+  const deletedKeyframeIds: string[] = [];
+  const remainingKeyframes: TimelinePositionClip[] = [];
+
+  for (const kf of clips || []) {
+    const isDirectlyLinked = kf.mediaClipId === clipIdToDelete;
+    const fallsInDeletedWindow =
+      !kf.mediaClipId &&
+      kf.startTime >= targetStartTime - 0.05 &&
+      kf.startTime < targetEndTime - 0.05;
+
+    if (isDirectlyLinked || fallsInDeletedWindow) {
+      deletedKeyframeIds.push(kf.id);
+    } else {
+      remainingKeyframes.push(kf);
+    }
+  }
+
+  // Shift downstream keyframes left by targetDuration
+  let shiftedKeyframes = remainingKeyframes.map((kf) => {
+    // If the keyframe was positioned at or after the deleted clip's time range, shift it left
+    if (kf.startTime >= targetEndTime - 0.05) {
+      return {
+        ...kf,
+        startTime: Math.max(0, Number((kf.startTime - targetDuration).toFixed(2))),
+      };
+    }
+    return { ...kf };
+  });
+
+  // If all keyframes were deleted, generate fresh keyframes for the first remaining clip
+  if (shiftedKeyframes.length === 0) {
+    const firstClip = resequencedMediaClips[0];
+    const dur = firstClip.duration;
+    const halfDur = Number((dur / 2).toFixed(2));
+    const remDur = Number((dur - halfDur).toFixed(2));
+    shiftedKeyframes = [
+      {
+        id: `clip_${Date.now()}_P01`,
+        name: 'P01',
+        startTime: 0,
+        duration: halfDur,
+        color: 'yellow',
+        camera: { ...fallbackCam },
+        transition: 'cut',
+        blockId: `block_${firstClip.id}`,
+        mediaClipId: firstClip.id,
+      },
+      {
+        id: `clip_${Date.now()}_P02`,
+        name: 'P02',
+        startTime: halfDur,
+        duration: remDur,
+        color: 'yellow',
+        camera: { ...fallbackCam },
+        transition: 'cut',
+        blockId: `block_${firstClip.id}`,
+        mediaClipId: firstClip.id,
+      },
+    ];
+  }
+
+  // Sort remaining keyframes contiguously by startTime ascending
+  shiftedKeyframes.sort((a, b) => a.startTime - b.startTime);
+
+  // Cleanly re-index keyframe names: P01, P02, P03...
+  const reindexedKeyframes = shiftedKeyframes.map((kf, idx) => {
+    const num = idx + 1;
+    const newName = `P${num < 10 ? '0' + num : num}`;
+    return {
+      ...kf,
+      name: newName,
+    };
+  });
+
+  return {
+    updatedClips: reindexedKeyframes,
+    updatedMediaClips: resequencedMediaClips,
+    newTotalDuration: newMediaDuration,
+    newMediaDuration,
+    deletedKeyframeIds,
+  };
+}
+
+/**
+ * Synchronizes text layers after a media clip is deleted:
+ * - Drops text layers strictly enclosed inside the deleted clip's time range.
+ * - Shifts downstream text layers left by the deleted clip's duration.
+ * - Clamps any straddling text layers to the new total duration.
+ */
+export function syncTextLayersAfterMediaClipDeletion(
+  textLayers: any[],
+  deletedStart: number,
+  deletedDuration: number
+): any[] {
+  if (!textLayers || textLayers.length === 0) return [];
+  const deletedEnd = deletedStart + deletedDuration;
+  const result: any[] = [];
+
+  for (const layer of textLayers) {
+    const start = layer.startTime ?? 0;
+    const dur = layer.duration ?? 3.0;
+    const end = start + dur;
+
+    // Completely within deleted segment -> prune
+    if (start >= deletedStart - 0.05 && end <= deletedEnd + 0.05) {
+      continue;
+    }
+
+    // Downstream of deleted segment -> shift left
+    if (start >= deletedEnd - 0.05) {
+      result.push({
+        ...layer,
+        startTime: Math.max(0, Number((start - deletedDuration).toFixed(2))),
+      });
+      continue;
+    }
+
+    // Straddles or upstream:
+    if (end > deletedStart && end <= deletedEnd) {
+      // Ends within deleted segment -> shorten to deletedStart
+      const newDur = Math.max(0.5, Number((deletedStart - start).toFixed(2)));
+      result.push({
+        ...layer,
+        duration: newDur,
+      });
+    } else {
+      result.push({ ...layer });
+    }
+  }
+
+  return result;
 }

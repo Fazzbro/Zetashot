@@ -9,6 +9,8 @@ import {
   generateKeyframesForNewMediaClip,
   syncKeyframesForResizedMediaClip,
   splitKeyframesAtTime,
+  deleteMediaClipAndSyncKeyframes,
+  syncTextLayersAfterMediaClipDeletion,
 } from './keyframeMediaSyncEngine';
 import { MediaTimelineClip, calculateMediaSequenceDuration } from '../types/mediaTimeline';
 
@@ -447,5 +449,147 @@ it('adjusting divider between two keyframes in a block expands one and contracts
     expect(updated[1].startTime).toBe(4.0);
     expect(updated[1].duration).toBe(2.0);
     expect(updated[1].startTime + updated[1].duration).toBe(6.0);
+  });
+
+  describe('deleteMediaClipAndSyncKeyframes - lingering keyframe prevention and resequencing', () => {
+    const defaultCam = { rotX: 0, rotY: 0, rotZ: 0, zoom: 0.85, panX: 0, panY: 0, perspective: 1000 };
+
+    it('deleting the second media clip completely removes its keyframes and leaves the first clip intact', () => {
+      const mediaClips: MediaTimelineClip[] = [
+        { id: 'clip1', mediaId: 'img1', name: 'Intro', type: 'image', url: '/img1.png', startTime: 0, duration: 3.0 },
+        { id: 'clip2', mediaId: 'img2', name: 'Feature', type: 'image', url: '/img2.png', startTime: 3.0, duration: 3.0 },
+      ];
+
+      const clips: TimelinePositionClip[] = [
+        { id: 'P01', name: 'P01', startTime: 0, duration: 1.5, camera: defaultCam, mediaClipId: 'clip1', blockId: 'b1' },
+        { id: 'P02', name: 'P02', startTime: 1.5, duration: 1.5, camera: defaultCam, mediaClipId: 'clip1', blockId: 'b1' },
+        { id: 'P03', name: 'P03', startTime: 3.0, duration: 1.5, camera: defaultCam, mediaClipId: 'clip2', blockId: 'b2' },
+        { id: 'P04', name: 'P04', startTime: 4.5, duration: 1.5, camera: defaultCam, mediaClipId: 'clip2', blockId: 'b2' },
+      ];
+
+      const result = deleteMediaClipAndSyncKeyframes(clips, mediaClips, 'clip2', defaultCam);
+
+      expect(result.updatedMediaClips.length).toBe(1);
+      expect(result.updatedMediaClips[0].id).toBe('clip1');
+      expect(result.newMediaDuration).toBe(3.0);
+      expect(result.newTotalDuration).toBe(3.0);
+
+      // Keyframes for clip2 are deleted completely; clip1 keyframes are preserved
+      expect(result.updatedClips.length).toBe(2);
+      expect(result.updatedClips[0].name).toBe('P01');
+      expect(result.updatedClips[0].startTime).toBe(0);
+      expect(result.updatedClips[0].mediaClipId).toBe('clip1');
+
+      expect(result.updatedClips[1].name).toBe('P02');
+      expect(result.updatedClips[1].startTime).toBe(1.5);
+      expect(result.updatedClips[1].mediaClipId).toBe('clip1');
+
+      // Deleted keyframes reported accurately
+      expect(result.deletedKeyframeIds).toEqual(['P03', 'P04']);
+    });
+
+    it('deleting the first media clip removes its keyframes and shifts the second clip keyframes to 0s', () => {
+      const mediaClips: MediaTimelineClip[] = [
+        { id: 'clip1', mediaId: 'img1', name: 'Intro', type: 'image', url: '/img1.png', startTime: 0, duration: 3.0 },
+        { id: 'clip2', mediaId: 'img2', name: 'Feature', type: 'image', url: '/img2.png', startTime: 3.0, duration: 3.0 },
+      ];
+
+      const clips: TimelinePositionClip[] = [
+        { id: 'P01', name: 'P01', startTime: 0, duration: 1.5, camera: defaultCam, mediaClipId: 'clip1', blockId: 'b1' },
+        { id: 'P02', name: 'P02', startTime: 1.5, duration: 1.5, camera: defaultCam, mediaClipId: 'clip1', blockId: 'b1' },
+        { id: 'P03', name: 'P03', startTime: 3.0, duration: 1.5, camera: defaultCam, mediaClipId: 'clip2', blockId: 'b2' },
+        { id: 'P04', name: 'P04', startTime: 4.5, duration: 1.5, camera: defaultCam, mediaClipId: 'clip2', blockId: 'b2' },
+      ];
+
+      const result = deleteMediaClipAndSyncKeyframes(clips, mediaClips, 'clip1', defaultCam);
+
+      expect(result.updatedMediaClips.length).toBe(1);
+      expect(result.updatedMediaClips[0].id).toBe('clip2');
+      expect(result.updatedMediaClips[0].startTime).toBe(0);
+      expect(result.newMediaDuration).toBe(3.0);
+
+      // Clip 1 keyframes deleted; Clip 2 keyframes shifted from 3.0s/4.5s to 0s/1.5s
+      expect(result.updatedClips.length).toBe(2);
+      expect(result.updatedClips[0].name).toBe('P01');
+      expect(result.updatedClips[0].startTime).toBe(0);
+      expect(result.updatedClips[0].mediaClipId).toBe('clip2');
+
+      expect(result.updatedClips[1].name).toBe('P02');
+      expect(result.updatedClips[1].startTime).toBe(1.5);
+      expect(result.updatedClips[1].mediaClipId).toBe('clip2');
+
+      expect(result.deletedKeyframeIds).toEqual(['P01', 'P02']);
+    });
+
+    it('deleting a middle clip in a 3-clip sequence removes middle keyframes and shifts downstream clips left', () => {
+      const mediaClips: MediaTimelineClip[] = [
+        { id: 'clip1', mediaId: 'img1', name: 'Intro', type: 'image', url: '/img1.png', startTime: 0, duration: 3.0 },
+        { id: 'clip2', mediaId: 'img2', name: 'Middle', type: 'image', url: '/img2.png', startTime: 3.0, duration: 4.0 },
+        { id: 'clip3', mediaId: 'img3', name: 'Outro', type: 'image', url: '/img3.png', startTime: 7.0, duration: 3.0 },
+      ];
+
+      const clips: TimelinePositionClip[] = [
+        { id: 'P01', name: 'P01', startTime: 0, duration: 3.0, camera: defaultCam, mediaClipId: 'clip1' },
+        { id: 'P02', name: 'P02', startTime: 3.0, duration: 4.0, camera: defaultCam, mediaClipId: 'clip2' },
+        { id: 'P03', name: 'P03', startTime: 7.0, duration: 3.0, camera: defaultCam, mediaClipId: 'clip3' },
+      ];
+
+      const result = deleteMediaClipAndSyncKeyframes(clips, mediaClips, 'clip2', defaultCam);
+
+      expect(result.updatedMediaClips.length).toBe(2);
+      expect(result.updatedMediaClips[0].id).toBe('clip1');
+      expect(result.updatedMediaClips[1].id).toBe('clip3');
+      expect(result.updatedMediaClips[1].startTime).toBe(3.0);
+      expect(result.newMediaDuration).toBe(6.0);
+
+      expect(result.updatedClips.length).toBe(2);
+      expect(result.updatedClips[0].mediaClipId).toBe('clip1');
+      expect(result.updatedClips[0].startTime).toBe(0);
+
+      // Clip 3's keyframe shifted from 7.0 to 3.0 (7.0 - 4.0 = 3.0)
+      expect(result.updatedClips[1].mediaClipId).toBe('clip3');
+      expect(result.updatedClips[1].startTime).toBe(3.0);
+      expect(result.deletedKeyframeIds).toEqual(['P02']);
+    });
+
+    it('deleting the only remaining media clip cleanly resets to default media and fallback keyframes', () => {
+      const mediaClips: MediaTimelineClip[] = [
+        { id: 'clip1', mediaId: 'img1', name: 'Solo', type: 'image', url: '/img1.png', startTime: 0, duration: 5.0 },
+      ];
+
+      const clips: TimelinePositionClip[] = [
+        { id: 'P01', name: 'P01', startTime: 0, duration: 2.5, camera: defaultCam, mediaClipId: 'clip1' },
+        { id: 'P02', name: 'P02', startTime: 2.5, duration: 2.5, camera: defaultCam, mediaClipId: 'clip1' },
+      ];
+
+      const result = deleteMediaClipAndSyncKeyframes(clips, mediaClips, 'clip1', defaultCam);
+
+      expect(result.updatedMediaClips.length).toBe(1);
+      expect(result.updatedMediaClips[0].id).toBe('clip_init');
+      expect(result.newMediaDuration).toBe(3.0);
+      expect(result.updatedClips.length).toBe(2);
+      expect(result.updatedClips[0].name).toBe('P01');
+      expect(result.updatedClips[1].name).toBe('P02');
+    });
+
+    it('synchronizes and prunes text layers during clip deletion', () => {
+      const textLayers = [
+        { id: 't1', text: 'Intro Title', startTime: 0, duration: 2.0 },
+        { id: 't2', text: 'Middle Badge', startTime: 3.5, duration: 2.0 }, // inside clip 2 (3..7s)
+        { id: 't3', text: 'Outro CTA', startTime: 7.5, duration: 2.0 },   // downstream of clip 2
+      ];
+
+      // Deleting clip2 which spans from 3.0s to 7.0s (duration 4.0s)
+      const synced = syncTextLayersAfterMediaClipDeletion(textLayers, 3.0, 4.0);
+
+      expect(synced.length).toBe(2);
+      expect(synced[0].id).toBe('t1');
+      expect(synced[0].startTime).toBe(0);
+
+      // t2 was inside deleted segment so it was pruned
+      // t3 shifted left from 7.5s to 3.5s (7.5 - 4.0)
+      expect(synced[1].id).toBe('t3');
+      expect(synced[1].startTime).toBe(3.5);
+    });
   });
 });

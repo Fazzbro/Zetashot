@@ -50,6 +50,8 @@ import {
   syncKeyframesForResizedMediaClip,
   splitKeyframesAtTime,
   getNextKeyframeIndex,
+  deleteMediaClipAndSyncKeyframes,
+  syncTextLayersAfterMediaClipDeletion,
 } from '../utils/keyframeMediaSyncEngine';
 import { AudioTrackItem } from '../types/audioTrack';
 import { AudioManagerModal } from './AudioManagerModal';
@@ -531,14 +533,72 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     [mediaDuration, onClipsChange, onMediaClipsChange, onMediaDurationChange]
   );
 
-  const handleDeleteMediaClip = useCallback((clipId: string) => {
-    const currentClips = mediaClipsRef.current.filter((c) => c.id !== clipId);
-    const resequenced = sequenceClipsContiguously(currentClips);
-    onMediaClipsChange?.(resequenced);
-    if (selectedMediaClipId === clipId && resequenced.length > 0) {
-      onSelectMediaClip?.(resequenced[0].id);
-    }
-  }, [onMediaClipsChange, onSelectMediaClip, selectedMediaClipId]);
+  const handleDeleteMediaClip = useCallback(
+    (clipId: string) => {
+      const targetClip = mediaClipsRef.current?.find((c) => c.id === clipId);
+      const targetStart = targetClip?.startTime ?? 0;
+      const targetDuration = targetClip?.duration ?? 0;
+
+      const {
+        updatedClips,
+        updatedMediaClips,
+        newTotalDuration,
+        newMediaDuration,
+        deletedKeyframeIds,
+      } = deleteMediaClipAndSyncKeyframes(
+        clipsRef.current,
+        mediaClipsRef.current,
+        clipId
+      );
+
+      mediaClipsRef.current = updatedMediaClips;
+      onMediaClipsChange?.(updatedMediaClips);
+
+      clipsRef.current = updatedClips;
+      onClipsChange(updatedClips);
+
+      onMediaDurationChange?.(newMediaDuration);
+      onTotalDurationChange?.(newTotalDuration);
+
+      if (textLayers && textLayers.length > 0 && onTextLayersChange) {
+        const syncedText = syncTextLayersAfterMediaClipDeletion(
+          textLayers,
+          targetStart,
+          targetDuration
+        );
+        onTextLayersChange(syncedText);
+      }
+
+      if (selectedMediaClipId === clipId) {
+        const nextSelected = updatedMediaClips.length > 0 ? updatedMediaClips[0].id : null;
+        onSelectMediaClip?.(nextSelected);
+      }
+
+      if (deletedKeyframeIds.includes(selectedClipId)) {
+        if (updatedClips.length > 0) {
+          onSelectClip(updatedClips[0].id);
+        }
+      }
+
+      if (currentTime > newMediaDuration) {
+        onSeek(Math.max(0, Number((newMediaDuration - 0.05).toFixed(2))));
+      }
+    },
+    [
+      onMediaClipsChange,
+      onClipsChange,
+      onMediaDurationChange,
+      onTotalDurationChange,
+      textLayers,
+      onTextLayersChange,
+      selectedMediaClipId,
+      onSelectMediaClip,
+      selectedClipId,
+      onSelectClip,
+      currentTime,
+      onSeek,
+    ]
+  );
 
   const handleDeleteSelectedMedia = useCallback(() => {
     if (!mediaClipsRef.current || mediaClipsRef.current.length === 0) return;
@@ -550,32 +610,15 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
     if (!targetClipId) return;
 
-    if (mediaClipsRef.current.length > 1) {
-      handleDeleteMediaClip(targetClipId);
-    } else {
-      // Single clip remaining: reset to default screen media
-      const defaultClip = mediaClipsRef.current[0];
-      const resetClips: MediaTimelineClip[] = [
-        {
-          ...defaultClip,
-          mediaId: 'default-screen-image',
-          name: 'Codex Dashboard',
-          type: 'image',
-          url: '/default-codex-image.png',
-          modelTransform: undefined,
-        },
-      ];
-      mediaClipsRef.current = resetClips;
-      onMediaClipsChange?.(resetClips);
-      onSelectMediaClip?.(resetClips[0].id);
+    const wasSingle = mediaClipsRef.current.length <= 1;
+    handleDeleteMediaClip(targetClipId);
+    if (wasSingle) {
       onResetToDefaultMedia?.();
     }
   }, [
     selectedMediaClipId,
     currentTime,
     handleDeleteMediaClip,
-    onMediaClipsChange,
-    onSelectMediaClip,
     onResetToDefaultMedia,
   ]);
 

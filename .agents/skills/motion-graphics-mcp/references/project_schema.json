@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ZetashotSharedProject",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Zetashot project schema version"
+    },
+    "title": {
+      "type": "string",
+      "description": "Project title displayed in UI and export headers"
+    },
+    "aspectRatio": {
+      "type": "string",
+      "enum": ["16:9", "9:16", "1:1", "4:5", "21:9"]
+    },
+    "duration": {
+      "type": "number",
+      "description": "Master timeline duration in seconds"
+    },
+    "background": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["gradient", "solid", "image", "blur"] },
+        "gradientType": { "type": "string", "enum": ["linear", "radial", "mesh"] },
+        "color1": { "type": "string" },
+        "color2": { "type": "string" },
+        "angle": { "type": "number" }
+      },
+      "required": ["type"]
+    },
+    "deviceMockup": {
+      "type": "string",
+      "enum": [
+        "mac-safari",
+        "mac-chrome",
+        "windows-fluent",
+        "macbook-pro",
+        "studio-display",
+        "ipad-pro",
+        "iphone-pro",
+        "frameless"
+      ]
+    },
+    "mediaUrl": {
+      "type": "string"
+    },
+    "mediaType": {
+      "type": "string",
+      "enum": ["image", "video", "3d", "blank"]
+    },
+    "mediaName": {
+      "type": "string"
+    },
+    "cameraClips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "startTime": { "type": "number" },
+          "duration": { "type": "number" },
+          "camera": {
+            "type": "object",
+            "properties": {
+              "rotX": { "type": "number" },
+              "rotY": { "type": "number" },
+              "rotZ": { "type": "number" },
+              "zoom": { "type": "number" },
+              "panX": { "type": "number" },
+              "panY": { "type": "number" },
+              "perspective": { "type": "number" }
+            },
+            "required": ["rotX", "rotY", "rotZ", "zoom", "panX", "panY", "perspective"]
+          },
+          "transition": {
+            "type": "string",
+            "enum": ["cut", "spline"]
+          },
+          "blockId": { "type": "string" },
+          "mediaClipId": { "type": "string" }
+        },
+        "required": ["id", "startTime", "duration", "camera"]
+      }
+    },
+    "textLayers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "startTime": { "type": "number" },
+          "duration": { "type": "number" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "fontSize": { "type": "number" },
+          "fontFamily": { "type": "string" },
+          "fontWeight": { "type": "string" },
+          "color": { "type": "string" },
+          "textAlign": { "type": "string", "enum": ["left", "center", "right"] },
+          "inAnimation": { "type": "string" },
+          "outAnimation": { "type": "string" },
+          "animationScope": { "type": "string", "enum": ["all", "word", "char", "line"] }
+        },
+        "required": ["id", "text", "startTime", "duration", "x", "y", "fontSize", "fontFamily"]
+      }
+    },
+    "mediaClips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "mediaId": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["video", "image", "demo", "3d", "blank"] },
+          "url": { "type": "string" },
+          "startTime": { "type": "number" },
+          "duration": { "type": "number" },
+          "transition": { "type": "string", "enum": ["cut", "gradient", "blocks", "fade", "push", "zoom"] },
+          "transitionDuration": { "type": "number" }
+        },
+        "required": ["id", "name", "type", "url", "startTime", "duration"]
+      }
+    },
+    "autoExport": {
+      "type": "boolean"
+    }
+  },
+  "required": ["version"]
+}

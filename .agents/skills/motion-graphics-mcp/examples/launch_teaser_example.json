@@ -1,0 +1,161 @@
+{
+  "version": "1.2.0",
+  "title": "Linear Telemetry 2.0",
+  "aspectRatio": "16:9",
+  "duration": 7,
+  "background": {
+    "type": "gradient",
+    "gradientType": "linear",
+    "color1": "#0f172a",
+    "color2": "#09090b",
+    "angle": 145
+  },
+  "deviceMockup": "mac-safari",
+  "mediaUrl": "/default-codex-image.png",
+  "mediaType": "image",
+  "mediaName": "Dashboard Core",
+  "cameraClips": [
+    {
+      "id": "kf_1",
+      "name": "P01",
+      "startTime": 0,
+      "duration": 1.75,
+      "camera": {
+        "rotX": 14,
+        "rotY": -16,
+        "rotZ": 5,
+        "zoom": 0.88,
+        "panX": -8,
+        "panY": 6,
+        "perspective": 1050
+      },
+      "transition": "cut",
+      "blockId": "block_mclip_1",
+      "mediaClipId": "mclip_1"
+    },
+    {
+      "id": "kf_2",
+      "name": "P02",
+      "startTime": 1.75,
+      "duration": 1.75,
+      "camera": {
+        "rotX": 8,
+        "rotY": 12,
+        "rotZ": -4,
+        "zoom": 1.25,
+        "panX": 12,
+        "panY": -8,
+        "perspective": 1100
+      },
+      "transition": "cut",
+      "blockId": "block_mclip_1",
+      "mediaClipId": "mclip_1"
+    },
+    {
+      "id": "kf_3",
+      "name": "P03",
+      "startTime": 3.5,
+      "duration": 1.75,
+      "camera": {
+        "rotX": -4,
+        "rotY": -8,
+        "rotZ": 3,
+        "zoom": 1.1,
+        "panX": -6,
+        "panY": 4,
+        "perspective": 1000
+      },
+      "transition": "cut",
+      "blockId": "block_mclip_2",
+      "mediaClipId": "mclip_2"
+    },
+    {
+      "id": "kf_4",
+      "name": "P04",
+      "startTime": 5.25,
+      "duration": 1.75,
+      "camera": {
+        "rotX": 0,
+        "rotY": 0,
+        "rotZ": 0,
+        "zoom": 0.86,
+        "panX": 0,
+        "panY": 0,
+        "perspective": 1000
+      },
+      "transition": "cut",
+      "blockId": "block_mclip_2",
+      "mediaClipId": "mclip_2"
+    }
+  ],
+  "textLayers": [
+    {
+      "id": "txt_hero_hook",
+      "text": "Linear Telemetry 2.0",
+      "startTime": 0.25,
+      "duration": 3,
+      "x": 50,
+      "y": 14,
+      "fontSize": 52,
+      "fontFamily": "Sora",
+      "fontWeight": "700",
+      "color": "#ffffff",
+      "textAlign": "center",
+      "letterSpacing": -1,
+      "lineHeight": 1.05,
+      "shadow": true,
+      "inAnimation": "fade-in-blur",
+      "inDuration": 0.45,
+      "outAnimation": "blur",
+      "outDuration": 0.35,
+      "animationScope": "word"
+    },
+    {
+      "id": "txt_cta_resolve",
+      "text": "Engineered for Unmatched Velocity",
+      "startTime": 3.9,
+      "duration": 2.9,
+      "x": 50,
+      "y": 88,
+      "fontSize": 28,
+      "fontFamily": "Sora",
+      "fontWeight": "600",
+      "color": "#818cf8",
+      "textAlign": "center",
+      "letterSpacing": 0,
+      "shadow": true,
+      "inAnimation": "slide-up",
+      "inDuration": 0.4,
+      "outAnimation": "none",
+      "outDuration": 0.2,
+      "animationScope": "word"
+    }
+  ],
+  "mediaClips": [
+    {
+      "id": "mclip_1",
+      "mediaId": "source_1",
+      "name": "Dashboard Core",
+      "type": "image",
+      "url": "/default-codex-image.png",
+      "startTime": 0,
+      "duration": 3.5,
+      "transition": "gradient",
+      "transitionDuration": 0.45,
+      "transitionScope": "clip"
+    },
+    {
+      "id": "mclip_2",
+      "mediaId": "source_2",
+      "name": "Analytics Telemetry",
+      "type": "image",
+      "url": "/default-codex-image.png",
+      "startTime": 3.5,
+      "duration": 3.5,
+      "transition": "cut",
+      "transitionDuration": 0.45,
+      "transitionScope": "clip"
+    }
+  ],
+  "autoExport": false
+}
