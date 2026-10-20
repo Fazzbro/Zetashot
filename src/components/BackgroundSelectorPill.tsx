@@ -27,6 +27,7 @@ export interface BackgroundSelectorPillProps {
   onClipBackgroundChange?: (clipId: string, bg: BackgroundConfig | null) => void;
   onApplyToAllClips?: (bg: BackgroundConfig) => void;
   allClipsCount?: number;
+  hideScopeBar?: boolean;
 }
 
 export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
@@ -36,6 +37,7 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
   onClipBackgroundChange,
   onApplyToAllClips,
   allClipsCount = 1,
+  hideScopeBar = false,
 }) => {
   const colorInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,7 +134,7 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
   return (
     <div className="backdrop-selector-pill-wrap">
       {/* 0. Scope Selector Switch (When editing multi-clip or specific clip) */}
-      {selectedClip && allClipsCount > 1 && (
+      {selectedClip && allClipsCount > 1 && !hideScopeBar && (
         <div className="bg-pill-scope-bar">
           <div className="bg-pill-scope-pill" role="tablist">
             <button
@@ -144,7 +146,7 @@ export const BackgroundSelectorPill: React.FC<BackgroundSelectorPillProps> = ({
             >
               <span
                 className="bg-scope-dot"
-                style={{ backgroundColor: selectedClip.background ? '#38bdf8' : '#94a3b8' }}
+                style={{ backgroundColor: selectedClip.background ? '#ffffff' : '#71717a' }}
               />
               <span className="bg-scope-text">
                 Clip: <strong>{selectedClip.name}</strong>

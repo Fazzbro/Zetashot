@@ -1947,42 +1947,80 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
 
         const globalBg: BackgroundConfig = background || { type: 'solid', color: '#ffffff' };
         const clipBg: BackgroundConfig = targetMedia.background || globalBg;
+        const isCustom = Boolean(targetMedia.background);
 
         const modalNode = (
-          <div className="transition-sheet-backdrop" onClick={() => setActiveMediaBackgroundPopover(null)}>
-            <div className="transition-sheet-modal clip-background-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="transition-sheet-header">
-                <div className="transition-sheet-title-group">
-                  <span className="transition-sheet-badge">CLIP BACKGROUND</span>
-                  <strong className="transition-sheet-clip-name">{targetMedia.name}</strong>
-                  <span className={`transition-current-fx ${targetMedia.background ? 'is-custom' : ''}`}>
-                    {targetMedia.background ? 'CUSTOM BACKGROUND' : 'PROJECT DEFAULT'}
-                  </span>
+          <div className="media-bg-modal-backdrop" onClick={() => setActiveMediaBackgroundPopover(null)}>
+            <div className="media-bg-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="media-bg-modal-header">
+                <div className="media-bg-modal-title-group">
+                  <div className="media-bg-modal-top-row">
+                    <span className="media-bg-modal-kicker">CLIP BACKGROUND</span>
+                    <span className={`media-bg-badge ${isCustom ? 'is-custom' : 'is-default'}`}>
+                      {isCustom ? 'CUSTOM' : 'DEFAULT'}
+                    </span>
+                  </div>
+                  <strong className="media-bg-modal-clip-name" title={targetMedia.name}>
+                    {targetMedia.name}
+                  </strong>
                 </div>
-                <div className="transition-sheet-actions">
-                  {targetMedia.background && (
+
+                <div className="media-bg-modal-actions">
+                  {isCustom && (
                     <button
                       type="button"
-                      className="transition-sheet-reset-btn"
+                      className="media-bg-reset-btn"
                       onClick={() => handleUpdateMediaClipBackground(targetMedia.id, null)}
                       title="Reset this clip to use project default background"
                     >
-                      Reset (Default)
+                      Reset to Default
                     </button>
                   )}
                   <button
                     type="button"
-                    className="transition-sheet-close-btn"
+                    className="media-bg-close-btn"
                     onClick={() => setActiveMediaBackgroundPopover(null)}
                     aria-label="Close background selector"
                   >
-                    <X size={16} />
+                    <X size={15} />
                   </button>
                 </div>
               </div>
 
-              {/* Embedded BackgroundSelectorPill */}
-              <div className="clip-background-pill-container">
+              {/* Scope Segmented Switch */}
+              <div className="media-bg-scope-bar" role="tablist">
+                <button
+                  type="button"
+                  className={`media-bg-scope-item ${isCustom ? 'is-active' : ''}`}
+                  onClick={() => {
+                    if (!targetMedia.background) {
+                      handleUpdateMediaClipBackground(targetMedia.id, globalBg);
+                    }
+                  }}
+                  role="tab"
+                  aria-selected={isCustom}
+                  title="Apply background style only to this media clip"
+                >
+                  <span className="media-bg-scope-indicator" />
+                  <span>This Clip</span>
+                </button>
+                <button
+                  type="button"
+                  className={`media-bg-scope-item ${!isCustom ? 'is-active' : ''}`}
+                  onClick={() => {
+                    handleUpdateMediaClipBackground(targetMedia.id, null);
+                  }}
+                  role="tab"
+                  aria-selected={!isCustom}
+                  title="Inherit project default background"
+                >
+                  <span className="media-bg-scope-indicator" />
+                  <span>Project Default</span>
+                </button>
+              </div>
+
+              {/* Embedded BackgroundSelectorPill (scope bar hidden since modal handles it) */}
+              <div className="media-bg-palette-container">
                 <BackgroundSelectorPill
                   background={clipBg}
                   onBackgroundChange={(newBg) => {
@@ -1998,41 +2036,28 @@ export const VideoTimeline: React.FC<VideoTimelineProps> = ({
                     }
                   }}
                   allClipsCount={mediaClips?.length || 1}
+                  hideScopeBar={true}
                 />
               </div>
 
-              <div className="transition-coverage-wrap">
-                <span className="transition-coverage-label">ASSIGNMENT:</span>
-                <div className="transition-coverage-toggle">
+              {/* Apply to All clips action if custom and multi-clip */}
+              {isCustom && onApplyBackgroundToAllClips && (mediaClips?.length || 0) > 1 && (
+                <div className="media-bg-secondary-actions">
                   <button
                     type="button"
-                    className={`transition-coverage-pill ${targetMedia.background ? 'is-active' : ''}`}
-                    onClick={() => {
-                      if (!targetMedia.background) {
-                        handleUpdateMediaClipBackground(targetMedia.id, globalBg);
-                      }
-                    }}
-                    title="Separate custom background for this media clip only"
+                    className="media-bg-apply-all-btn"
+                    onClick={() => onApplyBackgroundToAllClips(clipBg)}
+                    title="Apply this clip's background style to all clips in the project"
                   >
-                    This Clip Only
-                  </button>
-                  <button
-                    type="button"
-                    className={`transition-coverage-pill ${!targetMedia.background ? 'is-active' : ''}`}
-                    onClick={() => {
-                      handleUpdateMediaClipBackground(targetMedia.id, null);
-                    }}
-                    title="Inherit global background from project settings"
-                  >
-                    Project Default
+                    Apply this background to all clips
                   </button>
                 </div>
-              </div>
+              )}
 
-              <div className="transition-sheet-footer">
+              <div className="media-bg-modal-footer">
                 <button
                   type="button"
-                  className="transition-sheet-done-btn"
+                  className="media-bg-done-btn"
                   onClick={() => setActiveMediaBackgroundPopover(null)}
                 >
                   Done
