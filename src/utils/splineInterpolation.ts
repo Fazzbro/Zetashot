@@ -254,119 +254,101 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
   if (!spans || spans.length === 0) {
     return { ...DEFAULT_SPLINE_CAMERA };
   }
+
+  // 1. Before first span
+  if (time <= spans[0].startTime) {
+    return safeCamera(spans[0].startCamera);
+  }
+
   const lastSpan = spans[spans.length - 1];
-
-  // If single isolated span (e.g. 2 keyframes), use Perlin quintic smootherstep with zero start/end velocity
-  if (spans.length === 1) {
-    const span = spans[0];
-    const spanDur = Math.max(0.0001, span.endTime - span.startTime);
-    const u = Math.max(0, Math.min(1, (time - span.startTime) / spanDur));
-    const t = u * u * u * (u * (u * 6 - 15) + 10);
-    const lerp = (a: number, b: number) => a + (b - a) * t;
-    const p1 = safeCamera(span.startCamera);
-    const p2 = safeCamera(span.endCamera);
-
-    return {
-      rotX: lerp(p1.rotX, p2.rotX),
-      rotY: lerp(p1.rotY, p2.rotY),
-      rotZ: lerp(p1.rotZ, p2.rotZ),
-      zoom: lerp(p1.zoom, p2.zoom),
-      panX: lerp(p1.panX, p2.panX),
-      panY: lerp(p1.panY, p2.panY),
-      perspective: Math.round(lerp(p1.perspective, p2.perspective)),
-    };
+  // 2. After last span
+  if (time >= lastSpan.endTime) {
+    return safeCamera(lastSpan.endCamera);
   }
 
-  // Multi-span continuous trajectory: Monotone Cubic Hermite Spline (PCHIP)
-  // Extracts unique nodes from connected spans to build strictly C1 continuous velocity
-  // with zero wobble or overshoot on hold keyframes.
-  const nodeCount = spans.length + 1;
-  const T = new Array<number>(nodeCount);
-  const nodes = new Array<Camera3DState>(nodeCount);
-
-  for (let k = 0; k < spans.length; k++) {
-    T[k] = spans[k].startTime;
-    nodes[k] = safeCamera(spans[k].startCamera);
-  }
-  T[spans.length] = spans[spans.length - 1].endTime;
-  nodes[spans.length] = safeCamera(spans[spans.length - 1].endCamera);
-
-  // Helper: compute monotone PCHIP interpolated channel value at time
-  const interpolateChannel = (
-    getter: (c: Camera3DState) => number,
-    clampMin?: number,
-    clampMax?: number
-  ): number => {
-    const Y = nodes.map(getter);
-    const H: number[] = [];
-    const S: number[] = []; // secant slopes
-
-    for (let k = 0; k < spans.length; k++) {
-      const h = Math.max(0.0001, T[k + 1] - T[k]);
-      H.push(h);
-      S.push((Y[k + 1] - Y[k]) / h);
-    }
-
-    // Node physical velocities (tangents d_k with respect to seconds)
-    const D = new Array<number>(nodeCount);
-    D[0] = 0; // start smoothly from rest
-    D[nodeCount - 1] = 0; // settle smoothly to rest
-
-    for (let k = 1; k < nodeCount - 1; k++) {
-      const sPrev = S[k - 1];
-      const sNext = S[k];
-
-      // Local extremum or flat hold: velocity MUST be 0 (guarantees zero overshoot/wobble)
-      if (sPrev * sNext <= 0) {
-        D[k] = 0;
-      } else {
-        // Weighted harmonic mean (Fritsch-Carlson PCHIP)
-        const w1 = 2 * H[k] + H[k - 1];
-        const w2 = H[k] + 2 * H[k - 1];
-        D[k] = (w1 + w2) / (w1 / sPrev + w2 / sNext);
-      }
-    }
-
-    // Find active span segment
-    for (let i = 0; i < spans.length; i++) {
-      if (time >= T[i] && time <= T[i + 1]) {
-        const h = H[i];
-        const u = Math.max(0, Math.min(1, (time - T[i]) / h));
-        const u2 = u * u;
-        const u3 = u2 * u;
-
-        const h00 = 2 * u3 - 3 * u2 + 1;
-        const h10 = u3 - 2 * u2 + u;
-        const h01 = -2 * u3 + 3 * u2;
-        const h11 = u3 - u2;
-
-        const m0 = h * D[i];
-        const m1 = h * D[i + 1];
-
-        const val = h00 * Y[i] + h10 * m0 + h01 * Y[i + 1] + h11 * m1;
-        if (typeof clampMin === 'number' && typeof clampMax === 'number') {
-          return Math.max(clampMin, Math.min(clampMax, val));
-        }
-        if (typeof clampMin === 'number') return Math.max(clampMin, val);
-        return val;
-      }
-    }
-
-    return Y[nodeCount - 1];
-  };
-
-  // Find active span for boundary checks
+  // 3. Find active span
   for (let i = 0; i < spans.length; i++) {
     const span = spans[i];
+
     if (time >= span.startTime && time <= span.endTime) {
+      const spanDur = Math.max(0.0001, span.endTime - span.startTime);
+      const u = Math.max(0, Math.min(1, (time - span.startTime) / spanDur));
+      const p1 = safeCamera(span.startCamera);
+      const p2 = safeCamera(span.endCamera);
+
+      // If single isolated span, use Perlin quintic smootherstep with zero start/end velocity
+      if (spans.length === 1) {
+        const t = u * u * u * (u * (u * 6 - 15) + 10);
+        const lerp = (a: number, b: number) => a + (b - a) * t;
+
+        return {
+          rotX: lerp(p1.rotX, p2.rotX),
+          rotY: lerp(p1.rotY, p2.rotY),
+          rotZ: lerp(p1.rotZ, p2.rotZ),
+          zoom: Math.max(0.25, Math.min(4.0, lerp(p1.zoom, p2.zoom))),
+          panX: lerp(p1.panX, p2.panX),
+          panY: lerp(p1.panY, p2.panY),
+          perspective: Math.round(lerp(p1.perspective, p2.perspective)),
+        };
+      }
+
+      // Continuous Monotone Hermite interpolation for multi-span sequences
+      const u2 = u * u;
+      const u3 = u2 * u;
+      const h00 = 2 * u3 - 3 * u2 + 1;
+      const h10 = u3 - 2 * u2 + u;
+      const h01 = -2 * u3 + 3 * u2;
+      const h11 = u3 - u2;
+
+      const interpolateChannel = (getter: (c: Camera3DState) => number): number => {
+        const y1 = getter(p1);
+        const y2 = getter(p2);
+
+        // Flat hold: strictly zero velocity, zero movement
+        if (y1 === y2) {
+          return y1;
+        }
+
+        const sCurr = (y2 - y1) / spanDur;
+
+        // Start velocity v0 at span.startTime
+        let v0 = 0;
+        if (i > 0 && spans[i - 1].endTime === span.startTime) {
+          const yPrev = getter(safeCamera(spans[i - 1].startCamera));
+          const durPrev = Math.max(0.0001, spans[i - 1].endTime - spans[i - 1].startTime);
+          const sPrev = (y1 - yPrev) / durPrev;
+          if (sPrev * sCurr > 0) {
+            const weightedSlope = (sPrev * spanDur + sCurr * durPrev) / (durPrev + spanDur);
+            v0 = Math.sign(sCurr) * Math.min(Math.abs(weightedSlope), 2 * Math.min(Math.abs(sPrev), Math.abs(sCurr)));
+          }
+        }
+
+        // End velocity v1 at span.endTime
+        let v1 = 0;
+        if (i < spans.length - 1 && spans[i + 1].startTime === span.endTime) {
+          const yNext = getter(safeCamera(spans[i + 1].endCamera));
+          const durNext = Math.max(0.0001, spans[i + 1].endTime - spans[i + 1].startTime);
+          const sNext = (yNext - y2) / durNext;
+          if (sCurr * sNext > 0) {
+            const weightedSlope = (sCurr * durNext + sNext * spanDur) / (spanDur + durNext);
+            v1 = Math.sign(sCurr) * Math.min(Math.abs(weightedSlope), 2 * Math.min(Math.abs(sCurr), Math.abs(sNext)));
+          }
+        }
+
+        const m0 = spanDur * v0;
+        const m1 = spanDur * v1;
+
+        return h00 * y1 + h10 * m0 + h01 * y2 + h11 * m1;
+      };
+
       return {
         rotX: interpolateChannel((c) => c.rotX),
         rotY: interpolateChannel((c) => c.rotY),
         rotZ: interpolateChannel((c) => c.rotZ),
-        zoom: interpolateChannel((c) => c.zoom, 0.25, 4.0),
+        zoom: Math.max(0.25, Math.min(4.0, interpolateChannel((c) => c.zoom))),
         panX: interpolateChannel((c) => c.panX),
         panY: interpolateChannel((c) => c.panY),
-        perspective: Math.round(interpolateChannel((c) => c.perspective, 200, 3000)),
+        perspective: Math.round(interpolateChannel((c) => c.perspective)),
       };
     }
 

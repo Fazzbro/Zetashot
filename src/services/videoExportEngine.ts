@@ -714,7 +714,10 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           ctx.shadowBlur = shadowBlur;
           const offX = -camera.rotY * 1.5 * baseScale;
           const offY = (25 + camera.rotX * 1.5) * baseScale;
-          ctx.drawImage(webglRenderer.getCanvas(), offX, offY);
+          const FAR_OFFSET = 10000;
+          ctx.shadowOffsetX = offX + FAR_OFFSET;
+          ctx.shadowOffsetY = offY;
+          ctx.drawImage(webglRenderer.getCanvas(), -FAR_OFFSET, 0);
           ctx.restore();
         }
 
