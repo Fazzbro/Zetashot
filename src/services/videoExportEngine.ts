@@ -62,6 +62,7 @@ export interface VideoExportOptions {
   crop?: { x: number; y: number; width: number; height: number };
   cropRect?: { x: number; y: number; width: number; height: number };
   textLayers?: TextLayerOverlay[];
+  isComposed?: boolean;
   onProgress?: (progress: number) => void;
 }
 
@@ -83,7 +84,8 @@ export function getCameraAtTime(clips: TimelinePositionClip[], time: number, med
  * Robustly seeks an HTMLVideoElement to targetTime and awaits presentation frame decoding.
  */
 async function seekVideoAccurate(video: HTMLVideoElement, targetTime: number): Promise<void> {
-  if (Math.abs(video.currentTime - targetTime) < 0.005) {
+  const safeTime = Math.max(0, targetTime);
+  if (Math.abs(video.currentTime - safeTime) < 0.001) {
     return;
   }
 
@@ -93,21 +95,23 @@ async function seekVideoAccurate(video: HTMLVideoElement, targetTime: number): P
       if (resolved) return;
       resolved = true;
       video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
       clearTimeout(timer);
       resolve();
     };
 
     const onSeeked = () => {
-      if ('requestVideoFrameCallback' in video && typeof (video as any).requestVideoFrameCallback === 'function') {
-        (video as any).requestVideoFrameCallback(() => finish());
-      } else {
-        finish();
-      }
+      finish();
     };
 
-    const timer = setTimeout(finish, 300);
+    const onError = () => {
+      finish();
+    };
+
+    const timer = setTimeout(finish, 200);
     video.addEventListener('seeked', onSeeked, { once: true });
-    video.currentTime = targetTime;
+    video.addEventListener('error', onError, { once: true });
+    video.currentTime = safeTime;
   });
 }
 
@@ -459,10 +463,9 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
               : (options.mediaDuration || totalDuration);
             const medDuration = (options.mediaDuration && options.mediaDuration > 0) ? options.mediaDuration : totalDuration;
             const progressRatio = medDuration > 0 ? Math.min(1.0, time / medDuration) : 0;
-            const targetVidTime = Math.min(
-              naturalVidDuration > 0.05 ? naturalVidDuration - 0.03 : naturalVidDuration,
-              progressRatio * naturalVidDuration
-            );
+            const targetVidTime = options.isComposed
+              ? Math.min(naturalVidDuration > 0.05 ? naturalVidDuration - 0.03 : naturalVidDuration, progressRatio * naturalVidDuration)
+              : Math.min(naturalVidDuration > 0.05 ? naturalVidDuration - 0.03 : naturalVidDuration, time);
             await seekVideoAccurate(videoElem, targetVidTime);
           }
         } else {

@@ -1577,32 +1577,38 @@ export function App() {
       const activeProjectDuration = calculateTimelineDuration(clipsRef.current, mediaDurationRef.current);
       const isVideoMedia = media.type === 'video' && !!video && (video.duration > 0 || !isNaN(video.duration));
 
-      let nextTime: number;
-      if (isVideoMedia && !video.paused && !video.seeking) {
-        // Direct synchronization with the hardware video decoder clock:
-        // Deriving timeline progression directly from video.currentTime eliminates clock drift,
-        // decoder stall latency, and stuttering entirely.
-        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, currentTimeRef.current) : null;
+      // Master continuous 60 FPS animation clock:
+      // Driving nextTime strictly with high-precision requestAnimationFrame timestamps
+      // guarantees continuous, silky-smooth 60 FPS motion without stair-stepped decoder lag.
+      const deltaSec = Math.min(0.05, Math.max(0.001, (now - lastTimestamp) / 1000));
+      const nextTime = currentTimeRef.current + deltaSec;
+      lastTimestamp = now;
+
+      // Hardware video decoder synchronization
+      if (isVideoMedia && !video.paused) {
+        const activeClip = mediaClipsRef.current.length > 0 ? getActiveMediaClipAtTime(mediaClipsRef.current, nextTime) : null;
+        let expectedVidTime = nextTime;
         if (activeClip && activeClip.type === 'video') {
           const clipSpeed = activeClip.speed || (isComposedRef.current ? calculatePlaybackRate(video.duration, mediaDurationRef.current || 3.0) : 1.0);
           if (video.playbackRate !== clipSpeed) {
             video.playbackRate = clipSpeed;
           }
-          nextTime = activeClip.startTime + Math.max(0, (video.currentTime - (activeClip.sourceStartTime || 0))) / (clipSpeed || 1.0);
+          expectedVidTime = Math.min(
+            video.duration > 0.05 ? video.duration - 0.03 : video.duration,
+            Math.max(0, (nextTime - activeClip.startTime) * clipSpeed + (activeClip.sourceStartTime || 0))
+          );
         } else if (isComposedRef.current) {
           const medDur = mediaDurationRef.current > 0 ? mediaDurationRef.current : 3.0;
-          nextTime = (video.currentTime / (video.duration || 1)) * medDur;
+          expectedVidTime = Math.min(video.duration, (nextTime / medDur) * video.duration);
         } else {
-          nextTime = video.currentTime;
+          expectedVidTime = Math.min(video.duration, nextTime);
         }
-      } else if (isVideoMedia && video.seeking) {
-        // Hold timeline steady while the video seeks so the playhead never races ahead of the decoder
-        nextTime = currentTimeRef.current;
-      } else {
-        const deltaSec = (now - lastTimestamp) / 1000;
-        nextTime = currentTimeRef.current + deltaSec;
+
+        // Soft re-sync only if decoder drifts by more than 180ms
+        if (Math.abs(video.currentTime - expectedVidTime) > 0.18 && !video.seeking) {
+          video.currentTime = expectedVidTime;
+        }
       }
-      lastTimestamp = now;
 
       if (nextTime >= activeProjectDuration || (isVideoMedia && video.ended)) {
         isPlayingRef.current = false;
@@ -2377,6 +2383,7 @@ export function App() {
           borderRadius,
           blurAmount,
           shadowDepth,
+          isComposed: isComposedRef.current,
           projectName: activeMedia.name,
           onProgress: (p: number) => setExportProgress(p),
         });

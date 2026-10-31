@@ -309,34 +309,38 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
           return y1;
         }
 
-        const sCurr = (y2 - y1) / spanDur;
+        const dy = y2 - y1;
 
-        // Start velocity v0 at span.startTime
+        // Start velocity v0 at span.startTime (waypoint p1)
         let v0 = 0;
-        if (i > 0 && spans[i - 1].endTime === span.startTime) {
+        if (i > 0 && Math.abs(spans[i - 1].endTime - span.startTime) < 0.01) {
           const yPrev = getter(safeCamera(spans[i - 1].startCamera));
           const durPrev = Math.max(0.0001, spans[i - 1].endTime - spans[i - 1].startTime);
-          const sPrev = (y1 - yPrev) / durPrev;
-          if (sPrev * sCurr > 0) {
-            const weightedSlope = (sPrev * spanDur + sCurr * durPrev) / (durPrev + spanDur);
-            v0 = Math.sign(sCurr) * Math.min(Math.abs(weightedSlope), 2 * Math.min(Math.abs(sPrev), Math.abs(sCurr)));
-          }
+          // Centripetal Catmull-Rom tangent: natural weighted velocity across waypoint
+          v0 = (y2 - yPrev) / (durPrev + spanDur);
         }
 
-        // End velocity v1 at span.endTime
+        // End velocity v1 at span.endTime (waypoint p2)
         let v1 = 0;
-        if (i < spans.length - 1 && spans[i + 1].startTime === span.endTime) {
+        if (i < spans.length - 1 && Math.abs(spans[i + 1].startTime - span.endTime) < 0.01) {
           const yNext = getter(safeCamera(spans[i + 1].endCamera));
           const durNext = Math.max(0.0001, spans[i + 1].endTime - spans[i + 1].startTime);
-          const sNext = (yNext - y2) / durNext;
-          if (sCurr * sNext > 0) {
-            const weightedSlope = (sCurr * durNext + sNext * spanDur) / (spanDur + durNext);
-            v1 = Math.sign(sCurr) * Math.min(Math.abs(weightedSlope), 2 * Math.min(Math.abs(sCurr), Math.abs(sNext)));
-          }
+          v1 = (yNext - y1) / (spanDur + durNext);
         }
 
-        const m0 = spanDur * v0;
-        const m1 = spanDur * v1;
+        let m0 = spanDur * v0;
+        let m1 = spanDur * v1;
+
+        // Fritsch-Carlson monotone slope limiting: prevents unphysical overshoot
+        // while allowing smooth cinematic momentum through keyframe transitions
+        const maxOvershoot = 2.5 * Math.abs(dy);
+        if (dy > 0) {
+          m0 = Math.max(-0.5 * dy, Math.min(maxOvershoot, m0));
+          m1 = Math.max(-0.5 * dy, Math.min(maxOvershoot, m1));
+        } else {
+          m0 = Math.min(0.5 * Math.abs(dy), Math.max(-maxOvershoot, m0));
+          m1 = Math.min(0.5 * Math.abs(dy), Math.max(-maxOvershoot, m1));
+        }
 
         return h00 * y1 + h10 * m0 + h01 * y2 + h11 * m1;
       };
@@ -348,7 +352,7 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
         zoom: Math.max(0.25, Math.min(4.0, interpolateChannel((c) => c.zoom))),
         panX: interpolateChannel((c) => c.panX),
         panY: interpolateChannel((c) => c.panY),
-        perspective: Math.round(interpolateChannel((c) => c.perspective)),
+        perspective: Number(interpolateChannel((c) => c.perspective).toFixed(2)),
       };
     }
 
