@@ -2,7 +2,7 @@ import { Camera3DState } from '../utils/camera3D';
 import { BackgroundConfig } from '../utils/gradientUtils';
 import { TimelinePositionClip } from '../components/VideoTimeline';
 import { getMockupDimensions, getStageDimensions, calculateObjectFitCover } from '../utils/aspectRatioHelper';
-import { interpolateCameraSpline } from '../utils/splineInterpolation';
+import { interpolateCameraSpline, getKeyframeSpans, getOpticalFocusPoint, getRackFocusUnblurFactor } from '../utils/splineInterpolation';
 import { WebGL3DRenderer } from './webgl3DRenderer';
 import { isCropActive, calculateCroppedDimensions } from '../utils/cropMath';
 import {
@@ -424,6 +424,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
   // 9. Deterministic Frame-by-Frame Rendering Loop
   try {
     const frameDelta = 1 / fps;
+    const keyframeSpans = getKeyframeSpans(options.clips || []);
 
     for (let f = 0; f < totalFrames; f++) {
       const time = Math.min(totalDuration, f * frameDelta);
@@ -653,11 +654,45 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
 
       frameCtx.restore();
 
-      // --- B. Render 3D Perspective & Depth-of-Field Bokeh with WebGL on GPU ---
-      const focusPoint = (options.cropRect || options.crop)
-        ? { x: ((options.cropRect || options.crop)!.x / 100) + ((options.cropRect || options.crop)!.width / 200), y: ((options.cropRect || options.crop)!.y / 100) + ((options.cropRect || options.crop)!.height / 200) }
-        : { x: 0.5, y: 0.5 };
-      webglRenderer.render(frameCanvas, frameW, frameH, camera, baseScale, 1.0, options.blurAmount || 0, focusPoint, cornerRadius);
+      // --- B. Dynamic Focus Point & Rack Focus Unblur Timing ---
+      const focusPoint = getOpticalFocusPoint(
+        camera,
+        { width: frameW, height: frameH },
+        options.cropRect || options.crop
+          ? {
+              x: ((options.cropRect || options.crop)!.x / 100) * frameW,
+              y: ((options.cropRect || options.crop)!.y / 100) * frameH,
+              width: ((options.cropRect || options.crop)!.width / 100) * frameW,
+              height: ((options.cropRect || options.crop)!.height / 100) * frameH,
+            }
+          : null
+      );
+
+      // Dynamic gradual unblur factor: resolves smoothly to 0.0 as camera lands on focused region
+      let unblurFactor = 1.0;
+      if (keyframeSpans.length > 0) {
+        const activeSpan = keyframeSpans.find((s) => time >= s.startTime && time <= s.endTime);
+        if (activeSpan) {
+          const spanDur = Math.max(0.0001, activeSpan.endTime - activeSpan.startTime);
+          const u = Math.max(0, Math.min(1, (time - activeSpan.startTime) / spanDur));
+          unblurFactor = getRackFocusUnblurFactor(u);
+        } else if (time >= keyframeSpans[keyframeSpans.length - 1].endTime) {
+          unblurFactor = 0.0; // Holding at final keyframe: tack-sharp focus!
+        }
+      }
+
+      webglRenderer.render(
+        frameCanvas,
+        frameW,
+        frameH,
+        camera,
+        baseScale,
+        1.0,
+        options.blurAmount || 0,
+        focusPoint,
+        cornerRadius,
+        unblurFactor
+      );
 
       // --- C. Composite onto Main Export Canvas ---
       const activeClip = options.mediaClips && options.mediaClips.length > 0
@@ -679,10 +714,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
           ctx.shadowBlur = shadowBlur;
           const offX = -camera.rotY * 1.5 * baseScale;
           const offY = (25 + camera.rotX * 1.5) * baseScale;
-          const FAR_OFFSET = 10000;
-          ctx.shadowOffsetX = offX + FAR_OFFSET;
-          ctx.shadowOffsetY = offY;
-          ctx.drawImage(webglRenderer.getCanvas(), -FAR_OFFSET, 0);
+          ctx.drawImage(webglRenderer.getCanvas(), offX, offY);
           ctx.restore();
         }
 

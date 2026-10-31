@@ -23,7 +23,7 @@ import { calculatePlaybackRate, syncMediaClipsToKeyframeDuration, syncKeyframeSe
 import { AudioTrackItem } from './types/audioTrack';
 import { getActiveAudioItemsAtTime } from './utils/audioTrackHelper';
 import { CubicBezierValues } from './utils/bezierSolver';
-import { interpolateCameraSpline, getKeyframeTargetTime, getActiveClipAtTime } from './utils/splineInterpolation';
+import { interpolateCameraSpline, getKeyframeTargetTime, getActiveClipAtTime, getOpticalFocusPoint, getRackFocusUnblurFactor } from './utils/splineInterpolation';
 import { playGearSound, setSoundEnabled as setGlobalSoundEnabled, playTransitionSound } from './utils/soundEffects';
 import { getMockupDimensions, getAspectRatioCss, getStageDimensions } from './utils/aspectRatioHelper';
 import { generateVideoThumbnails } from './utils/thumbnailGenerator';

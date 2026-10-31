@@ -116,6 +116,7 @@ uniform float u_blurAmount; // blur slider value (0.0 to 50.0+)
 uniform vec2 u_resolution; // (frameW, frameH) in physical pixels
 uniform vec2 u_focusPoint; // (fx, fy) normalized [0..1]
 uniform float u_cornerRadius; // corner radius in physical pixels
+uniform float u_unblurFactor; // 0.0 = completely unblurred (tack sharp), 1.0 = full depth blur
 varying vec2 v_texCoord;
 
 void main() {
@@ -132,28 +133,41 @@ void main() {
   float sinY = sin(u_rotation.y);
   
   // 1. Physically-based 3D Distance along camera optical axis Z:
-  // sinX > 0 tilts top backward (receding); sinY > 0 tilts right backward (receding)
+  // Relative to focus point on the focal plane:
   float zPixel = -(v_texCoord.y - u_focusPoint.y) * sinX + (v_texCoord.x - u_focusPoint.x) * sinY;
   float totalTilt = sqrt(sinX * sinX + sinY * sinY);
 
   float blurFactor = 0.0;
 
-  if (totalTilt > 0.01) {
-    // Intelligent 3D Depth-of-Field:
-    // - Foreground & points near focal plane stay crisp and razor sharp (wide in-focus corridor)
-    // - Receding plane beyond the in-focus corridor smoothly blooms into cinema bokeh
-    float zDist = max(0.0, zPixel - 0.03);
-    float normDist = clamp(zDist / (0.36 * totalTilt + 0.001), 0.0, 1.0);
-    float tiltBlur = smoothstep(0.06, 0.94, normDist);
-
-    // Subtle peripheral lens aperture falloff on distant edges
-    float radialAperture = smoothstep(0.40, 1.0, length(v_texCoord - u_focusPoint));
-    blurFactor = max(tiltBlur, radialAperture * 0.25 * tiltBlur);
-  } else {
-    // Flat 2D View: Prime Lens Macro Bokeh (Generous 35% focal sweet spot, outer perimeter softens gracefully)
+  if (totalTilt > 0.015) {
+    // True two-sided optical depth-of-field:
+    // Both receding and advancing regions blur symmetrically away from the focal plane
+    float absZ = abs(zPixel);
+    
+    // In-focus optical corridor: generous area around focal point remains tack-sharp (0% blur)
+    // Dynamic rack-focus expansion: corridor expands as unblurFactor drops to 0
+    float focalCorridor = 0.05 + (1.0 - u_unblurFactor) * 0.15;
+    float zDist = max(0.0, absZ - focalCorridor);
+    float normDist = clamp(zDist / (0.35 * totalTilt + 0.001), 0.0, 1.0);
+    
+    // Silky smooth Hermite optical roll-off into creamy bokeh
+    float tiltBlur = normDist * normDist * (3.0 - 2.0 * normDist);
+    
+    // Subtle peripheral aperture falloff on distant edges
     float radialDist = length(v_texCoord - u_focusPoint);
-    blurFactor = smoothstep(0.35, 0.92, radialDist);
+    float radialAperture = smoothstep(0.35, 0.95, radialDist);
+    
+    blurFactor = max(tiltBlur, radialAperture * 0.35 * tiltBlur);
+  } else {
+    // Flat 2D View: Prime Lens Macro Bokeh
+    // Generous sweet spot centered at the focus point
+    float radialDist = length(v_texCoord - u_focusPoint);
+    float focalRadius = 0.25 + (1.0 - u_unblurFactor) * 0.25;
+    blurFactor = smoothstep(focalRadius, focalRadius + 0.55, radialDist);
   }
+
+  // Gradual unblur factor: resolves smoothly to 0.0 as camera settles on focused region
+  blurFactor *= clamp(u_unblurFactor, 0.0, 1.0);
 
   // Optical Aperture Circle of Confusion (CoC):
   // Non-linear power curve provides subtle, velvety depth at low values
@@ -165,16 +179,16 @@ void main() {
 
   vec4 finalColor = vec4(0.0);
 
-  if (blurRadius < 0.25) {
+  if (blurRadius < 0.20) {
     finalColor = texture2D(u_texture, v_texCoord);
   } else {
     vec2 texelSize = vec2(1.0 / max(1.0, u_resolution.x), 1.0 / max(1.0, u_resolution.y));
     float totalWeight = 0.0;
     const float GOLDEN_ANGLE = 2.39996323;
-    const int SAMPLES = 32;
+    const int SAMPLES = 16;
 
     // Subtle anamorphic chromatic dispersion on bokeh periphery
-    float chromaDisp = min(1.8, blurRadius * 0.05);
+    float chromaDisp = min(1.6, blurRadius * 0.04);
 
     for (int i = 0; i < SAMPLES; i++) {
       float fi = float(i) + 0.5;
@@ -196,11 +210,11 @@ void main() {
 
       // Bokeh highlight expansion: bright specular elements expand into luminous bokeh discs
       float luma = dot(sampleG.rgb, vec3(0.299, 0.587, 0.114));
-      float highlightWeight = 1.0 + pow(luma, 3.2) * 2.5;
+      float highlightWeight = 1.0 + pow(luma, 2.8) * 1.8;
 
       // Optical Gaussian-Hermite disc weighting (smooth core with soft circular aperture rim)
       float normalizedR = r / (blurRadius + 0.001);
-      float w = exp(-normalizedR * normalizedR * 2.0) * highlightWeight;
+      float w = exp(-normalizedR * normalizedR * 1.8) * highlightWeight;
 
       finalColor.r += sampleR * w;
       finalColor.g += sampleG.g * w;
@@ -224,10 +238,9 @@ void main() {
   vec3 litRgb = finalColor.rgb + vec3(sheen + fresnel);
 
   // High-end dark border frame & crisp specular edge rim
-  // cornerDist is <= 0 inside the rounded rectangle, 0.0 at the perimeter.
   float borderDist = clamp(-cornerDist, 0.0, 3.5);
   float darkBezelFactor = smoothstep(2.5, 0.0, borderDist) * 0.85;
-  vec3 darkBezelColor = vec3(0.05, 0.07, 0.09); // #0d1117 chassis dark
+  vec3 darkBezelColor = vec3(0.05, 0.07, 0.09);
 
   // Specular highlight line along inner rim (-3.0px to -1.2px)
   float specularRim = smoothstep(3.2, 2.0, borderDist) * (1.0 - smoothstep(2.0, 0.8, borderDist)) * 0.16;
@@ -252,6 +265,7 @@ export class WebGL3DRenderer {
   private uResolutionLocation: WebGLUniformLocation | null = null;
   private uFocusPointLocation: WebGLUniformLocation | null = null;
   private uCornerRadiusLocation: WebGLUniformLocation | null = null;
+  private uUnblurFactorLocation: WebGLUniformLocation | null = null;
   private isFallback2D: boolean = false;
   private ctx2d: CanvasRenderingContext2D | null = null;
 
@@ -301,6 +315,7 @@ export class WebGL3DRenderer {
         this.uResolutionLocation = gl.getUniformLocation(program, 'u_resolution');
         this.uFocusPointLocation = gl.getUniformLocation(program, 'u_focusPoint');
         this.uCornerRadiusLocation = gl.getUniformLocation(program, 'u_cornerRadius');
+        this.uUnblurFactorLocation = gl.getUniformLocation(program, 'u_unblurFactor');
 
         // Quad positions: Triangle Strip (-1,-1), (1,-1), (-1,1), (1,1)
         const positions = new Float32Array([
@@ -376,7 +391,8 @@ export class WebGL3DRenderer {
     opacity: number = 1.0,
     blurAmount: number = 0.0,
     focusPoint?: { x: number; y: number },
-    cornerRadius: number = 0
+    cornerRadius: number = 0,
+    unblurFactor: number = 1.0
   ): void {
     if (this.isFallback2D || !this.gl || !this.program) {
       if (!this.ctx2d) {
@@ -416,9 +432,12 @@ export class WebGL3DRenderer {
       // 2.5D affine transform matrix replicating 3D perspective foreshortening & shear
       ctx.transform(cosY, -sinY * 0.32, sinX * 0.32, cosX, 0, 0);
 
-      // 5. Blur filter if applicable
+      // 5. Blur filter if applicable with gradual unblur
       if (blurAmount > 0) {
-        ctx.filter = `blur(${Math.min(24, blurAmount * baseScale * 0.45)}px)`;
+        const effBlur = blurAmount * baseScale * 0.45 * (typeof unblurFactor === 'number' ? unblurFactor : 1.0);
+        if (effBlur > 0.2) {
+          ctx.filter = `blur(${Math.min(24, effBlur)}px)`;
+        }
       }
 
       // 6. Draw content centered with corner radius clipping
@@ -504,6 +523,9 @@ export class WebGL3DRenderer {
     }
     if (this.uCornerRadiusLocation) {
       gl.uniform1f(this.uCornerRadiusLocation, Math.max(0, cornerRadius));
+    }
+    if (this.uUnblurFactorLocation) {
+      gl.uniform1f(this.uUnblurFactorLocation, typeof unblurFactor === 'number' ? Math.max(0, Math.min(1, unblurFactor)) : 1.0);
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

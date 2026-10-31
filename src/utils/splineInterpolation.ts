@@ -255,100 +255,118 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
     return { ...DEFAULT_SPLINE_CAMERA };
   }
   const lastSpan = spans[spans.length - 1];
-  // 3. Find active span
+
+  // If single isolated span (e.g. 2 keyframes), use Perlin quintic smootherstep with zero start/end velocity
+  if (spans.length === 1) {
+    const span = spans[0];
+    const spanDur = Math.max(0.0001, span.endTime - span.startTime);
+    const u = Math.max(0, Math.min(1, (time - span.startTime) / spanDur));
+    const t = u * u * u * (u * (u * 6 - 15) + 10);
+    const lerp = (a: number, b: number) => a + (b - a) * t;
+    const p1 = safeCamera(span.startCamera);
+    const p2 = safeCamera(span.endCamera);
+
+    return {
+      rotX: lerp(p1.rotX, p2.rotX),
+      rotY: lerp(p1.rotY, p2.rotY),
+      rotZ: lerp(p1.rotZ, p2.rotZ),
+      zoom: lerp(p1.zoom, p2.zoom),
+      panX: lerp(p1.panX, p2.panX),
+      panY: lerp(p1.panY, p2.panY),
+      perspective: Math.round(lerp(p1.perspective, p2.perspective)),
+    };
+  }
+
+  // Multi-span continuous trajectory: Monotone Cubic Hermite Spline (PCHIP)
+  // Extracts unique nodes from connected spans to build strictly C1 continuous velocity
+  // with zero wobble or overshoot on hold keyframes.
+  const nodeCount = spans.length + 1;
+  const T = new Array<number>(nodeCount);
+  const nodes = new Array<Camera3DState>(nodeCount);
+
+  for (let k = 0; k < spans.length; k++) {
+    T[k] = spans[k].startTime;
+    nodes[k] = safeCamera(spans[k].startCamera);
+  }
+  T[spans.length] = spans[spans.length - 1].endTime;
+  nodes[spans.length] = safeCamera(spans[spans.length - 1].endCamera);
+
+  // Helper: compute monotone PCHIP interpolated channel value at time
+  const interpolateChannel = (
+    getter: (c: Camera3DState) => number,
+    clampMin?: number,
+    clampMax?: number
+  ): number => {
+    const Y = nodes.map(getter);
+    const H: number[] = [];
+    const S: number[] = []; // secant slopes
+
+    for (let k = 0; k < spans.length; k++) {
+      const h = Math.max(0.0001, T[k + 1] - T[k]);
+      H.push(h);
+      S.push((Y[k + 1] - Y[k]) / h);
+    }
+
+    // Node physical velocities (tangents d_k with respect to seconds)
+    const D = new Array<number>(nodeCount);
+    D[0] = 0; // start smoothly from rest
+    D[nodeCount - 1] = 0; // settle smoothly to rest
+
+    for (let k = 1; k < nodeCount - 1; k++) {
+      const sPrev = S[k - 1];
+      const sNext = S[k];
+
+      // Local extremum or flat hold: velocity MUST be 0 (guarantees zero overshoot/wobble)
+      if (sPrev * sNext <= 0) {
+        D[k] = 0;
+      } else {
+        // Weighted harmonic mean (Fritsch-Carlson PCHIP)
+        const w1 = 2 * H[k] + H[k - 1];
+        const w2 = H[k] + 2 * H[k - 1];
+        D[k] = (w1 + w2) / (w1 / sPrev + w2 / sNext);
+      }
+    }
+
+    // Find active span segment
+    for (let i = 0; i < spans.length; i++) {
+      if (time >= T[i] && time <= T[i + 1]) {
+        const h = H[i];
+        const u = Math.max(0, Math.min(1, (time - T[i]) / h));
+        const u2 = u * u;
+        const u3 = u2 * u;
+
+        const h00 = 2 * u3 - 3 * u2 + 1;
+        const h10 = u3 - 2 * u2 + u;
+        const h01 = -2 * u3 + 3 * u2;
+        const h11 = u3 - u2;
+
+        const m0 = h * D[i];
+        const m1 = h * D[i + 1];
+
+        const val = h00 * Y[i] + h10 * m0 + h01 * Y[i + 1] + h11 * m1;
+        if (typeof clampMin === 'number' && typeof clampMax === 'number') {
+          return Math.max(clampMin, Math.min(clampMax, val));
+        }
+        if (typeof clampMin === 'number') return Math.max(clampMin, val);
+        return val;
+      }
+    }
+
+    return Y[nodeCount - 1];
+  };
+
+  // Find active span for boundary checks
   for (let i = 0; i < spans.length; i++) {
     const span = spans[i];
-
     if (time >= span.startTime && time <= span.endTime) {
-      const spanDur = Math.max(0.0001, span.endTime - span.startTime);
-      const u = Math.max(0, Math.min(1, (time - span.startTime) / spanDur));
-
-      const p1 = safeCamera(span.startCamera);
-      const p2 = safeCamera(span.endCamera);
-
-      // If single isolated span (e.g. 2 keyframes), use Perlin's quintic smootherstep
-      if (spans.length === 1) {
-        const t = u * u * u * (u * (u * 6 - 15) + 10);
-        const lerp = (a: number, b: number) => a + (b - a) * t;
-
-        return {
-          rotX: lerp(p1.rotX, p2.rotX),
-          rotY: lerp(p1.rotY, p2.rotY),
-          rotZ: lerp(p1.rotZ, p2.rotZ),
-          zoom: lerp(p1.zoom, p2.zoom),
-          panX: lerp(p1.panX, p2.panX),
-          panY: lerp(p1.panY, p2.panY),
-          perspective: Math.round(lerp(p1.perspective, p2.perspective)),
-        };
-      }
-
-      // Multi-span continuous trajectory: Cubic Hermite Spline with C1 continuity
-      const prevCam = spans[i - 1]?.startCamera ? safeCamera(spans[i - 1].startCamera) : p1;
-      const nextCam = spans[i + 1]?.endCamera ? safeCamera(spans[i + 1].endCamera) : p2;
-
-      // Start tangent M0 for this segment:
-      // At sequence start (i === 0), start smoothly from rest (M0 = 0)
-      // Otherwise, use central difference tangent between previous span and current
-      const m0 = i === 0 ? {
-        rotX: 0,
-        rotY: 0,
-        rotZ: 0,
-        zoom: 0,
-        panX: 0,
-        panY: 0,
-        perspective: 0,
-      } : {
-        rotX: (p2.rotX - prevCam.rotX) * 0.35,
-        rotY: (p2.rotY - prevCam.rotY) * 0.35,
-        rotZ: (p2.rotZ - prevCam.rotZ) * 0.35,
-        zoom: (p2.zoom - prevCam.zoom) * 0.35,
-        panX: (p2.panX - prevCam.panX) * 0.35,
-        panY: (p2.panY - prevCam.panY) * 0.35,
-        perspective: (p2.perspective - prevCam.perspective) * 0.35,
-      };
-
-      // End tangent M1 for this segment:
-      // At sequence end (i === spans.length - 1), settle smoothly to rest (M1 = 0)
-      // Otherwise, use central difference tangent between current and next span
-      const m1 = i === spans.length - 1 ? {
-        rotX: 0,
-        rotY: 0,
-        rotZ: 0,
-        zoom: 0,
-        panX: 0,
-        panY: 0,
-        perspective: 0,
-      } : {
-        rotX: (nextCam.rotX - p1.rotX) * 0.35,
-        rotY: (nextCam.rotY - p1.rotY) * 0.35,
-        rotZ: (nextCam.rotZ - p1.rotZ) * 0.35,
-        zoom: (nextCam.zoom - p1.zoom) * 0.35,
-        panX: (nextCam.panX - p1.panX) * 0.35,
-        panY: (nextCam.panY - p1.panY) * 0.35,
-        perspective: (nextCam.perspective - p1.perspective) * 0.35,
-      };
-
-      const u2 = u * u;
-      const u3 = u2 * u;
-
-      // Hermite basis functions
-      const h00 = 2 * u3 - 3 * u2 + 1;
-      const h10 = u3 - 2 * u2 + u;
-      const h01 = -2 * u3 + 3 * u2;
-      const h11 = u3 - u2;
-
-      const hermite = (v0: number, v1: number, t0: number, t1: number) => {
-        return h00 * v0 + h10 * t0 + h01 * v1 + h11 * t1;
-      };
-
       return {
-        rotX: hermite(p1.rotX, p2.rotX, m0.rotX, m1.rotX),
-        rotY: hermite(p1.rotY, p2.rotY, m0.rotY, m1.rotY),
-        rotZ: hermite(p1.rotZ, p2.rotZ, m0.rotZ, m1.rotZ),
-        zoom: Math.max(0.4, hermite(p1.zoom, p2.zoom, m0.zoom, m1.zoom)),
-        panX: hermite(p1.panX, p2.panX, m0.panX, m1.panX),
-        panY: hermite(p1.panY, p2.panY, m0.panY, m1.panY),
-        perspective: Math.round(Math.max(200, Math.min(3000, hermite(p1.perspective, p2.perspective, m0.perspective, m1.perspective)))),
+        rotX: interpolateChannel((c) => c.rotX),
+        rotY: interpolateChannel((c) => c.rotY),
+        rotZ: interpolateChannel((c) => c.rotZ),
+        zoom: interpolateChannel((c) => c.zoom, 0.25, 4.0),
+        panX: interpolateChannel((c) => c.panX),
+        panY: interpolateChannel((c) => c.panY),
+        perspective: Math.round(interpolateChannel((c) => c.perspective, 200, 3000)),
       };
     }
 
@@ -362,6 +380,48 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
   }
 
   return safeCamera(lastSpan?.endCamera);
+}
+
+/**
+ * Resolves the optical focal center point on the media (normalized 0..1)
+ * based on camera pan, zoom, and active interest regions.
+ */
+export function getOpticalFocusPoint(
+  camera: Camera3DState,
+  stageDims: { width: number; height: number } = { width: 960, height: 540 },
+  activeRegion?: { x: number; y: number; width: number; height: number } | null
+): { x: number; y: number } {
+  if (activeRegion && activeRegion.width > 0 && activeRegion.height > 0) {
+    const rx = (activeRegion.x + activeRegion.width / 2) / stageDims.width;
+    const ry = (activeRegion.y + activeRegion.height / 2) / stageDims.height;
+    return {
+      x: Math.max(0.05, Math.min(0.95, Number(rx.toFixed(3)))),
+      y: Math.max(0.05, Math.min(0.95, Number(ry.toFixed(3)))),
+    };
+  }
+
+  const zoom = Math.max(0.2, camera.zoom || 0.9);
+  const cx = stageDims.width / 2 - (camera.panX || 0) / zoom;
+  const cy = stageDims.height / 2 - (camera.panY || 0) / zoom;
+  return {
+    x: Math.max(0.05, Math.min(0.95, Number((cx / stageDims.width).toFixed(3)))),
+    y: Math.max(0.05, Math.min(0.95, Number((cy / stageDims.height).toFixed(3)))),
+  };
+}
+
+/**
+ * Computes dynamic optical rack-focus unblur multiplier.
+ * When the camera transitions to an area and settles, the focused region
+ * smoothly unblurs (from transition motion depth) to pinpoint 0-blur sharpness.
+ */
+export function getRackFocusUnblurFactor(
+  progress: number,
+  isDwelling: boolean = false
+): number {
+  if (isDwelling) return 0.0;
+  if (progress < 0.60) return 1.0;
+  const p = (progress - 0.60) / 0.40;
+  return Math.max(0.0, Math.min(1.0, 1.0 - (p * p * (3 - 2 * p))));
 }
 
 export function interpolateCameraSpline(
