@@ -37,3 +37,8 @@ projects/
 public/user-landscape.png
 Screenshot*.png
 .agents/teamwork/
+
+recordings/
+public_assets_capture/
+release_verification_report.json
+scripts/*.png
