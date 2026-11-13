@@ -1,17 +1,21 @@
+<p align="center">
+  <img src="assets/social_preview.png" alt="Zetashot — 3D Camera Engine & SaaS Motion Studio" width="100%">
+</p>
+
 # Zetashot 🎥✨
 
-
+[![Live Studio](https://img.shields.io/badge/Live%20Studio-zetashot.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://zetashot.vercel.app)
 [![Support Creator](https://img.shields.io/badge/Support%20Creator-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/zetabyteIN)
-[![License: MIT](https://img.shields.io/badge/License-MIT-indigo.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg?style=for-the-badge)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan.svg?style=for-the-badge)](https://react.dev/)
 
 >
-> **"Cinematic 3D Camera Mockup & Video Animation Studio for Web Apps, Screen Recordings & Presentations."**
+> **"Autonomous 7-DOF Camera Engine & High-Velocity SaaS Motion Studio for AI Agents & Creators."**
 
-**Zetashot** is a free, open-source, local-first professional 3D camera mockup studio and animation tool for turning screen recordings, product screenshots, and interactive demos into stunning 60 FPS 3D videos and high-resolution captures.
+**Zetashot** is a free, open-source, local-first professional 3D camera mockup studio and motion graphics pipeline. Turn screen recordings, product screenshots, and interactive demos into stunning 60 FPS 3D videos, timeline-sequenced product teasers, and high-resolution captures.
 
-**100% Free • Local-First • Hardware-Accelerated WebGL • No Watermarks • No Account Required**
+**100% Free • Local-First • Hardware-Accelerated WebGL • In-Browser WebCodecs • Model Context Protocol (MCP) • No Watermarks**
 
 ---
 

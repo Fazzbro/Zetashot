@@ -1,7 +1,8 @@
 {
   "name": "zetashot",
-  "private": true,
+  "private": false,
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Modern 3D Camera Mockup & Video Animation Studio for web apps and screen recordings",
   "homepage": "https://zetashot.vercel.app",
   "type": "module",

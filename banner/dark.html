@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, height=640" />
+    <title>Zetashot — Social Preview (Dark)</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #09090b;
+        --surface: #121215;
+        --surface-subtle: #18181b;
+        --border: #27272a;
+        --border-light: #ffffff;
+        --text-primary: #fafafa;
+        --text-secondary: #a1a1aa;
+        --text-muted: #71717a;
+        --dither-25: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23ffffff' fill-opacity='0.20'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%23ffffff' fill-opacity='0.20'/%3E%3C/svg%3E");
+        --dither-50: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2' viewBox='0 0 2 2'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23ffffff' fill-opacity='0.35'/%3E%3Crect x='1' y='1' width='1' height='1' fill='%23ffffff' fill-opacity='0.35'/%3E%3C/svg%3E");
+        --dither-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23ffffff' fill-opacity='0.12'/%3E%3C/svg%3E");
+      }
+
+      html, body {
+        width: 1280px;
+        height: 640px;
+        overflow: hidden;
+        background-color: var(--bg);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #root {
+        position: relative;
+        width: 1280px;
+        height: 640px;
+        background: radial-gradient(circle at 50% 0%, #18181b 0%, #09090b 100%);
+        overflow: hidden;
+      }
+
+      .bg-grid {
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(circle, #ffffff 0.75px, transparent 0.75px);
+        background-size: 24px 24px;
+        opacity: 0.055;
+        pointer-events: none;
+      }
+
+      .dither-top-stripe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 8px;
+        background-image: var(--dither-50);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .header-container {
+        position: absolute;
+        top: 24px;
+        left: 56px;
+        right: 56px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 10;
+      }
+
+      .top-meta-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .badge-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .pill-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: #18181b;
+        border: 1px solid #3f3f46;
+        border-radius: 9999px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #ffffff;
+        box-shadow: 2px 2px 0px #000000;
+      }
+
+      .pill-badge .dot {
+        width: 6px;
+        height: 6px;
+        background-color: #ffffff;
+        border-radius: 50%;
+      }
+
+      .pill-badge-dither {
+        background-image: var(--dither-25);
+        background-color: #18181b;
+      }
+
+      .repo-link-badge {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        color: #e4e4e7;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border: 1px solid #3f3f46;
+        border-radius: 6px;
+        background: #121215;
+      }
+
+      .headline-row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-top: 2px;
+      }
+
+      .title-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .main-title {
+        font-size: 44px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        color: #ffffff;
+        text-transform: uppercase;
+      }
+
+      .subtitle {
+        font-size: 14.5px;
+        font-weight: 500;
+        color: #a1a1aa;
+        letter-spacing: -0.01em;
+        max-width: 640px;
+      }
+
+      .capabilities-tags {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        max-width: 460px;
+        justify-content: flex-end;
+      }
+
+      .tech-tag {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 3px 8px;
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 4px;
+        color: #d4d4d8;
+        letter-spacing: 0.02em;
+      }
+
+      .stage-3d {
+        position: absolute;
+        top: 155px;
+        left: 36px;
+        right: 36px;
+        bottom: 46px;
+        perspective: 1200px;
+        perspective-origin: 50% 35%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+
+      .cards-cluster {
+        position: relative;
+        width: 1208px;
+        height: 410px;
+        transform-style: preserve-3d;
+      }
+
+      .card-3d {
+        position: absolute;
+        top: 0;
+        width: 320px;
+        height: 380px;
+        background: #121215;
+        border: 1.5px solid #27272a;
+        border-radius: 14px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transform-style: preserve-3d;
+        box-shadow: 
+          0 1px 3px rgba(0, 0, 0, 0.5),
+          0 24px 48px -12px rgba(0, 0, 0, 0.7),
+          0 40px 80px -20px rgba(0, 0, 0, 0.9);
+      }
+
+      .card-header {
+        height: 36px;
+        padding: 0 14px;
+        border-bottom: 1.5px solid #27272a;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #18181b;
+      }
+
+      .card-header.dithered {
+        background-image: var(--dither-25);
+        background-color: #121215;
+      }
+
+      .card-index {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: #ffffff;
+      }
+
+      .card-status-pill {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9.5px;
+        font-weight: 700;
+        padding: 2px 6px;
+        background: #ffffff;
+        color: #09090b;
+        border-radius: 4px;
+        letter-spacing: 0.04em;
+      }
+
+      .card-body {
+        flex: 1;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        background: #121215;
+      }
+
+      .card-01 {
+        left: 10px;
+        transform: rotateY(7deg) rotateX(4deg) rotateZ(-6deg) translateZ(-35px);
+        z-index: 1;
+      }
+
+      .card-02 {
+        left: 295px;
+        transform: rotateY(2.5deg) rotateX(2deg) rotateZ(-2deg) translateZ(-5px);
+        z-index: 2;
+      }
+
+      .card-03 {
+        left: 585px;
+        transform: rotateY(-3deg) rotateX(2deg) rotateZ(2.5deg) translateZ(15px);
+        z-index: 3;
+      }
+
+      .card-04 {
+        left: 875px;
+        transform: rotateY(-7.5deg) rotateX(4deg) rotateZ(6deg) translateZ(-25px);
+        z-index: 1;
+      }
+
+      .dither-strip {
+        width: 100%;
+        height: 18px;
+        background-image: var(--dither-50);
+        border: 1px solid #3f3f46;
+        border-radius: 4px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .dither-meter {
+        height: 100%;
+        width: 72%;
+        background-color: #ffffff;
+        mask-image: var(--dither-50);
+        -webkit-mask-image: var(--dither-50);
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .metric-box {
+        padding: 8px 10px;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        background: #18181b;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .metric-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9px;
+        color: #a1a1aa;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+
+      .metric-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .spline-canvas-mock {
+        position: relative;
+        height: 95px;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        background-color: #09090b;
+        background-image: var(--dither-fine);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .spline-curve {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+      }
+
+      .timeline-track-view {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .track-lane {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .track-header {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9.5px;
+        font-weight: 600;
+        color: #a1a1aa;
+      }
+
+      .track-blocks {
+        display: flex;
+        gap: 4px;
+        height: 28px;
+      }
+
+      .clip-block {
+        height: 100%;
+        border: 1px solid #3f3f46;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9.5px;
+        font-weight: 700;
+        background: #18181b;
+        color: #fafafa;
+      }
+
+      .clip-block.dither-block {
+        background-image: var(--dither-25);
+        background-color: #27272a;
+      }
+
+      .clip-block.solid-block {
+        background: #ffffff;
+        color: #09090b;
+      }
+
+      .razor-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 8px;
+        background: #18181b;
+        border: 1px dashed #71717a;
+        border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9.5px;
+        color: #d4d4d8;
+      }
+
+      .code-snippet {
+        background: #09090b;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        padding: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        line-height: 1.45;
+        color: #e4e4e7;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .code-token-func { color: #ffffff; font-weight: 700; }
+      .code-token-key { color: #a1a1aa; }
+      .code-token-str { color: #d4d4d8; font-weight: 600; }
+      .code-token-accent { color: #ffffff; text-decoration: underline; }
+
+      .mcp-pill-banner {
+        padding: 7px 10px;
+        background-image: var(--dither-25);
+        background-color: #18181b;
+        border: 1px solid #3f3f46;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+
+      .viewport-mock {
+        height: 110px;
+        border: 1.5px solid #3f3f46;
+        border-radius: 6px;
+        background: #000000;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 8px;
+      }
+
+      .viewport-chassis-dither {
+        position: absolute;
+        inset: 0;
+        background-image: var(--dither-50);
+        opacity: 0.15;
+      }
+
+      .viewport-notch {
+        align-self: center;
+        width: 38px;
+        height: 5px;
+        background: #27272a;
+        border-radius: 999px;
+      }
+
+      .viewport-timecode {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: 0.05em;
+        z-index: 1;
+      }
+
+      .viewport-footer-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9px;
+        color: #a1a1aa;
+        z-index: 1;
+      }
+
+      .specs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: #a1a1aa;
+      }
+
+      .specs-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 3px 0;
+        border-bottom: 1px dashed #27272a;
+      }
+
+      .bottom-bar {
+        position: absolute;
+        bottom: 12px;
+        left: 56px;
+        right: 56px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        font-weight: 600;
+        color: #71717a;
+        border-top: 1px solid #27272a;
+        padding-top: 4px;
+      }
+
+      .bottom-dither-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-image: var(--dither-25);
+        background-color: #18181b;
+        border: 1px solid #3f3f46;
+        padding: 1px 8px;
+        border-radius: 4px;
+        color: #ffffff;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="banner-dark"
+      data-start="0"
+      data-duration="1"
+      data-width="1280"
+      data-height="640"
+    >
+      <div class="bg-grid"></div>
+      <div class="dither-top-stripe"></div>
+
+      <!-- Top Header Typographic Anchor -->
+      <div class="header-container clip" data-start="0" data-duration="1">
+        <div class="top-meta-row">
+          <div class="badge-group">
+            <div class="pill-badge pill-badge-dither">
+              <span class="dot"></span>
+              <span>ZETASHOT v2.0 • OPEN SOURCE</span>
+            </div>
+            <div class="pill-badge">
+              <span>MIT LICENSED</span>
+            </div>
+          </div>
+          <div class="repo-link-badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+            </svg>
+            <span>github.com/Fazzbro/Zetashot</span>
+          </div>
+        </div>
+
+        <div class="headline-row">
+          <div class="title-wrap">
+            <h1 class="main-title">Zetashot</h1>
+            <p class="subtitle">Autonomous 7-DOF Camera Engine & High-Velocity Motion Studio for AI Agents</p>
+          </div>
+          <div class="capabilities-tags">
+            <span class="tech-tag">7-DOF HERMITE SPLINES</span>
+            <span class="tech-tag">WEBCODECS 60FPS</span>
+            <span class="tech-tag">MCP PROTOCOL</span>
+            <span class="tech-tag">TIMELINE SURGERY</span>
+            <span class="tech-tag">THREE.JS OPTICS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D Floating Cards Cluster -->
+      <div class="stage-3d clip" data-start="0" data-duration="1">
+        <div class="cards-cluster">
+          
+          <!-- Card 01: 7-DOF Trajectory -->
+          <div class="card-3d card-01">
+            <div class="card-header dithered">
+              <span class="card-index">01 / TRAJECTORY</span>
+              <span class="card-status-pill">7-DOF</span>
+            </div>
+            <div class="card-body">
+              <div class="spline-canvas-mock">
+                <svg class="spline-curve" viewBox="0 0 286 95" fill="none">
+                  <path d="M 10 75 C 60 75, 80 20, 140 20 C 200 20, 220 50, 276 35" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="140" cy="20" r="4.5" fill="#ffffff"/>
+                  <circle cx="140" cy="20" r="8" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="2 2"/>
+                  <path d="M 10 75 C 60 75, 80 20, 140 20 C 200 20, 220 50, 276 35 L 276 95 L 10 95 Z" fill="#ffffff" fill-opacity="0.06"/>
+                </svg>
+              </div>
+              <div class="metric-grid">
+                <div class="metric-box">
+                  <span class="metric-label">Pitch / Yaw</span>
+                  <span class="metric-value">+14.2° / -22.5°</span>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">Roll (Bank)</span>
+                  <span class="metric-value">+4.8° Dynamic</span>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">Optical Zoom</span>
+                  <span class="metric-value">2.35x Focal</span>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">Spline Damping</span>
+                  <span class="metric-value">Hermite 0.85</span>
+                </div>
+              </div>
+              <div class="dither-strip">
+                <div class="dither-meter" style="width: 82%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 02: Timeline Sequencer -->
+          <div class="card-3d card-02">
+            <div class="card-header">
+              <span class="card-index">02 / SEQUENCER</span>
+              <span class="card-status-pill">TIMELINE</span>
+            </div>
+            <div class="card-body">
+              <div class="timeline-track-view">
+                <div class="track-lane">
+                  <span class="track-header">TRACK 1: HERO_RECORDING.MP4</span>
+                  <div class="track-blocks">
+                    <div class="clip-block solid-block" style="flex: 3;">0.5x WARP</div>
+                    <div class="clip-block dither-block" style="flex: 2;">HOLD</div>
+                    <div class="clip-block" style="flex: 2;">2.0x CUT</div>
+                  </div>
+                </div>
+                <div class="razor-indicator">
+                  <span>⚡ RAZOR SPLIT: 00:01:24</span>
+                  <span style="font-weight:700;">BLOCKS IN</span>
+                </div>
+                <div class="track-lane">
+                  <span class="track-header">TRACK 2: 3D_OVERLAY.WEBM</span>
+                  <div class="track-blocks">
+                    <div class="clip-block dither-block" style="flex: 2;">FADE</div>
+                    <div class="clip-block" style="flex: 4;">7-DOF CAMERA</div>
+                    <div class="clip-block solid-block" style="flex: 1;">END</div>
+                  </div>
+                </div>
+              </div>
+              <div class="dither-strip" style="height: 22px;">
+                <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-around; padding: 0 4px;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:700; color:#fff;">SYNC SFX</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:700; color:#fff;">PEAK VELOCITY</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:700; color:#fff;">SUB-DROP</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 03: MCP Autonomous Server -->
+          <div class="card-3d card-03">
+            <div class="card-header dithered">
+              <span class="card-index">03 / MCP TOOLS</span>
+              <span class="card-status-pill">AI AGENT</span>
+            </div>
+            <div class="card-body">
+              <div class="code-snippet">
+                <span class="code-token-func">compose_interest_regions</span>({<br/>
+                &nbsp;&nbsp;<span class="code-token-key">pacing</span>: <span class="code-token-str">"cinematic"</span>,<br/>
+                &nbsp;&nbsp;<span class="code-token-key">trajectory</span>: <span class="code-token-str">"7-dof-hermite"</span>,<br/>
+                &nbsp;&nbsp;<span class="code-token-key">regions</span>: [<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;{ <span class="code-token-key">id</span>: <span class="code-token-str">"hero"</span>, <span class="code-token-key">zoom</span>: <span class="code-token-accent">2.4</span> },<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;{ <span class="code-token-key">id</span>: <span class="code-token-str">"metrics"</span>, <span class="code-token-key">rotY</span>: <span class="code-token-accent">-22</span> }<br/>
+                &nbsp;&nbsp;]<br/>
+                });
+              </div>
+              <div class="mcp-pill-banner">
+                <span>TELEMETRY BADGE</span>
+                <span>POP + BLUR</span>
+              </div>
+              <div class="specs-list">
+                <div class="specs-row">
+                  <span>ORCHESTRATE TYPOGRAPHY</span>
+                  <span style="font-weight:700;">SF Pro / Sora</span>
+                </div>
+                <div class="specs-row">
+                  <span>AUDIO DERIVATIVE SYNC</span>
+                  <span style="font-weight:700;">Hermite Peak</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 04: 4K 60FPS WebCodecs Engine -->
+          <div class="card-3d card-04">
+            <div class="card-header">
+              <span class="card-index">04 / WEBCODECS</span>
+              <span class="card-status-pill">60 FPS</span>
+            </div>
+            <div class="card-body">
+              <div class="viewport-mock">
+                <div class="viewport-chassis-dither"></div>
+                <div class="viewport-notch"></div>
+                <div class="viewport-timecode">00:04:18:32</div>
+                <div class="viewport-footer-row">
+                  <span>3840×2160 UHD</span>
+                  <span>CFR ZERO-DROP</span>
+                </div>
+              </div>
+              <div class="specs-list">
+                <div class="specs-row">
+                  <span>PIPELINE</span>
+                  <span style="font-weight:700;">In-Browser WebCodecs</span>
+                </div>
+                <div class="specs-row">
+                  <span>GPU MEMORY</span>
+                  <span style="font-weight:700;">Discrete CFR Buffer</span>
+                </div>
+                <div class="specs-row">
+                  <span>COLOR GRADE</span>
+                  <span style="font-weight:700;">Master Normalized</span>
+                </div>
+              </div>
+              <div class="dither-strip">
+                <div class="dither-meter" style="width: 100%;"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Bottom Status Strip -->
+      <div class="bottom-bar clip" data-start="0" data-duration="1">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="bottom-dither-pill">ENGINE STATUS: OK</span>
+          <span>DISCRETE CFR FRAME RENDERER • HARDWARE ACCELERATED</span>
+        </div>
+        <div>
+          <span>github.com/Fazzbro/Zetashot • 100% BIT-EXACT EXPORT</span>
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines = window.__timelines || {};
+      window.__timelines["banner-dark"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
