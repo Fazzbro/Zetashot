@@ -162,13 +162,14 @@ export class WebCodecsMP4Session {
       }
     }
 
-    // Configure H.264 with verified supported codec
+    // Configure H.264 with verified supported codec and constant frame rate quality mode
     this.videoEncoder.configure({
       codec,
       width: this.width,
       height: this.height,
       bitrate: targetBitrate,
       framerate: this.fps,
+      latencyMode: 'quality',
       avc: { format: 'avc' },
     });
 
@@ -225,9 +226,9 @@ export class WebCodecsMP4Session {
     this.videoEncoder.encode(videoFrame, { keyFrame: isKeyframe });
     videoFrame.close();
 
-    // Prevent GPU queue starvation if the system renders faster than hardware encode
-    if (this.videoEncoder.encodeQueueSize > 6) {
-      await new Promise((r) => setTimeout(r, 6));
+    // Prevent GPU queue starvation or memory buildup if the system renders faster than hardware encode
+    while (this.videoEncoder.encodeQueueSize > 4) {
+      await new Promise((r) => setTimeout(r, 4));
     }
   }
 

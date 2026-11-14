@@ -81,19 +81,27 @@ export function getCameraAtTime(clips: TimelinePositionClip[], time: number, med
 }
 
 /**
- * Robustly seeks an HTMLVideoElement to targetTime and awaits presentation frame decoding.
+ * Robustly seeks an HTMLVideoElement to targetTime and awaits presentation frame decoding
+ * via requestVideoFrameCallback barrier to guarantee a fresh, non-stale GPU frame is painted.
  */
 async function seekVideoAccurate(video: HTMLVideoElement, targetTime: number): Promise<void> {
   const safeTime = Math.max(0, targetTime);
-  if (Math.abs(video.currentTime - safeTime) < 0.001) {
+  if (Math.abs(video.currentTime - safeTime) < 0.0005) {
     return;
   }
 
   return new Promise((resolve) => {
     let resolved = false;
+    let rVfcId: number | null = null;
+
     const finish = () => {
       if (resolved) return;
       resolved = true;
+      if (rVfcId !== null && typeof (video as any).cancelVideoFrameCallback === 'function') {
+        try {
+          (video as any).cancelVideoFrameCallback(rVfcId);
+        } catch {}
+      }
       video.removeEventListener('seeked', onSeeked);
       video.removeEventListener('error', onError);
       clearTimeout(timer);
@@ -101,14 +109,23 @@ async function seekVideoAccurate(video: HTMLVideoElement, targetTime: number): P
     };
 
     const onSeeked = () => {
-      finish();
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        try {
+          rVfcId = video.requestVideoFrameCallback(() => finish());
+          setTimeout(finish, 40);
+        } catch {
+          finish();
+        }
+      } else {
+        finish();
+      }
     };
 
     const onError = () => {
       finish();
     };
 
-    const timer = setTimeout(finish, 200);
+    const timer = setTimeout(finish, 250);
     video.addEventListener('seeked', onSeeked, { once: true });
     video.addEventListener('error', onError, { once: true });
     video.currentTime = safeTime;
@@ -340,18 +357,51 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     }
   }
 
+  const dynamicallyCreatedElements: HTMLElement[] = [];
   if (options.mediaClips && options.mediaClips.length > 0) {
     for (const c of options.mediaClips) {
       if (c.type === 'video') {
+        // Reuse active DOM video if matching URL
+        const domVideo = (options.mediaElement as HTMLVideoElement) || (document.getElementById('mockup-video-player') as HTMLVideoElement | null);
+        if (domVideo && domVideo.src && (domVideo.src === c.url || domVideo.currentSrc === c.url || c.url.includes(domVideo.src) || domVideo.src.includes(c.url))) {
+          mediaClipElements.set(c.id, domVideo);
+          continue;
+        }
+
         const v = document.createElement('video');
         v.crossOrigin = 'anonymous';
-        v.src = c.url;
+        v.playsInline = true;
         v.muted = true;
         v.preload = 'auto';
+        v.src = c.url;
+
+        // Attach to DOM offscreen to activate hardware-accelerated decoding heuristics in Chromium
+        if (typeof document !== 'undefined' && document.body) {
+          v.style.position = 'fixed';
+          v.style.top = '-9999px';
+          v.style.left = '-9999px';
+          v.style.width = '16px';
+          v.style.height = '16px';
+          v.style.opacity = '0';
+          v.style.pointerEvents = 'none';
+          document.body.appendChild(v);
+          dynamicallyCreatedElements.push(v);
+        }
+
+        v.load();
         await new Promise<void>((resolve) => {
-          v.onloadeddata = () => resolve();
-          v.onerror = () => resolve();
-          setTimeout(resolve, 800);
+          if (v.readyState >= 2) return resolve();
+          const onReady = () => {
+            v.removeEventListener('loadeddata', onReady);
+            v.removeEventListener('canplay', onReady);
+            v.removeEventListener('error', onReady);
+            clearTimeout(timer);
+            resolve();
+          };
+          const timer = setTimeout(onReady, 2500);
+          v.addEventListener('loadeddata', onReady, { once: true });
+          v.addEventListener('canplay', onReady, { once: true });
+          v.addEventListener('error', onReady, { once: true });
         });
         mediaClipElements.set(c.id, v);
       } else if (c.type === '3d') {
@@ -361,6 +411,7 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         img.crossOrigin = 'anonymous';
         img.src = c.url;
         await new Promise<void>((resolve) => {
+          if (img.complete && img.naturalWidth > 0) return resolve();
           img.onload = () => resolve();
           img.onerror = () => resolve();
           setTimeout(resolve, 800);
@@ -713,19 +764,19 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
         if (options.shadowDepth !== 'none') {
           ctx.save();
           const shadowBlur = (options.shadowDepth === 'small' ? 20 : options.shadowDepth === 'medium' ? 35 : 55) * (baseScale * 0.8);
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-          ctx.shadowBlur = shadowBlur;
           const offX = -camera.rotY * 1.5 * baseScale;
           const offY = (25 + camera.rotX * 1.5) * baseScale;
-          const FAR_OFFSET = 10000;
-          ctx.shadowOffsetX = offX + FAR_OFFSET;
-          ctx.shadowOffsetY = offY;
-          ctx.drawImage(webglRenderer.getCanvas(), -FAR_OFFSET, 0);
-          ctx.restore();
-        }
 
-        // Main 3D frame pass: single crisp render with zero corner-radius ghosting
-        ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+          // Native canvas drop-shadow filter: renders 3D frame and natural shadow in a single pass without Far-Offset ghosting
+          try {
+            ctx.filter = `drop-shadow(${offX.toFixed(1)}px ${offY.toFixed(1)}px ${shadowBlur.toFixed(1)}px rgba(0, 0, 0, 0.45))`;
+          } catch {}
+          ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+          ctx.restore();
+        } else {
+          // Main 3D frame pass: single crisp render with zero corner-radius ghosting
+          ctx.drawImage(webglRenderer.getCanvas(), 0, 0);
+        }
       }
 
       const isCanvasScope = (mediaTrans.scope || 'canvas') === 'canvas';
@@ -807,6 +858,13 @@ export async function exportMockupVideo(options: VideoExportOptions): Promise<Vi
     }
   } finally {
     webglRenderer.destroy();
+    for (const el of dynamicallyCreatedElements) {
+      if (el && el.parentNode) {
+        try {
+          el.parentNode.removeChild(el);
+        } catch {}
+      }
+    }
   }
 
   // 10. Container Finalization & Encoding

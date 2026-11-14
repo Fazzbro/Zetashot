@@ -292,7 +292,7 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
         };
       }
 
-      // Continuous Monotone Hermite interpolation for multi-span sequences
+      // Continuous Monotone Steffen-Hermite interpolation with strict C1 velocity continuity
       const u2 = u * u;
       const u3 = u2 * u;
       const h00 = 2 * u3 - 3 * u2 + 1;
@@ -309,38 +309,45 @@ function evaluateSpans(spans: KeyframeSpan[], time: number): Camera3DState {
           return y1;
         }
 
-        const dy = y2 - y1;
+        // Chord slope of current span
+        const deltaCurr = (y2 - y1) / spanDur;
 
-        // Start velocity v0 at span.startTime (waypoint p1)
+        // Waypoint velocity V0 at span start (p1)
         let v0 = 0;
-        if (i > 0 && Math.abs(spans[i - 1].endTime - span.startTime) < 0.01) {
+        if (i > 0 && Math.abs(spans[i - 1].endTime - span.startTime) < 0.02) {
           const yPrev = getter(safeCamera(spans[i - 1].startCamera));
           const durPrev = Math.max(0.0001, spans[i - 1].endTime - spans[i - 1].startTime);
-          // Centripetal Catmull-Rom tangent: natural weighted velocity across waypoint
-          v0 = (y2 - yPrev) / (durPrev + spanDur);
+          const deltaPrev = (y1 - yPrev) / durPrev;
+
+          // If extremum (direction change or flat segment), tangent must be strictly 0
+          if (deltaPrev * deltaCurr <= 0) {
+            v0 = 0;
+          } else {
+            // Weighted harmonic mean with Steffen slope limiter (guarantees C1 velocity continuity)
+            const rawV = (spanDur * deltaPrev + durPrev * deltaCurr) / (durPrev + spanDur);
+            v0 = Math.sign(deltaCurr) * Math.min(Math.abs(rawV), 2 * Math.abs(deltaPrev), 2 * Math.abs(deltaCurr));
+          }
         }
 
-        // End velocity v1 at span.endTime (waypoint p2)
+        // Waypoint velocity V1 at span end (p2)
         let v1 = 0;
-        if (i < spans.length - 1 && Math.abs(spans[i + 1].startTime - span.endTime) < 0.01) {
+        if (i < spans.length - 1 && Math.abs(spans[i + 1].startTime - span.endTime) < 0.02) {
           const yNext = getter(safeCamera(spans[i + 1].endCamera));
           const durNext = Math.max(0.0001, spans[i + 1].endTime - spans[i + 1].startTime);
-          v1 = (yNext - y1) / (spanDur + durNext);
+          const deltaNext = (yNext - y2) / durNext;
+
+          // If extremum, tangent must be strictly 0
+          if (deltaCurr * deltaNext <= 0) {
+            v1 = 0;
+          } else {
+            // Weighted harmonic mean with Steffen slope limiter
+            const rawV = (durNext * deltaCurr + spanDur * deltaNext) / (spanDur + durNext);
+            v1 = Math.sign(deltaCurr) * Math.min(Math.abs(rawV), 2 * Math.abs(deltaCurr), 2 * Math.abs(deltaNext));
+          }
         }
 
-        let m0 = spanDur * v0;
-        let m1 = spanDur * v1;
-
-        // Fritsch-Carlson monotone slope limiting: prevents unphysical overshoot
-        // while allowing smooth cinematic momentum through keyframe transitions
-        const maxOvershoot = 2.5 * Math.abs(dy);
-        if (dy > 0) {
-          m0 = Math.max(-0.5 * dy, Math.min(maxOvershoot, m0));
-          m1 = Math.max(-0.5 * dy, Math.min(maxOvershoot, m1));
-        } else {
-          m0 = Math.min(0.5 * Math.abs(dy), Math.max(-maxOvershoot, m0));
-          m1 = Math.min(0.5 * Math.abs(dy), Math.max(-maxOvershoot, m1));
-        }
+        const m0 = spanDur * v0;
+        const m1 = spanDur * v1;
 
         return h00 * y1 + h10 * m0 + h01 * y2 + h11 * m1;
       };
