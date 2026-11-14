@@ -168,6 +168,13 @@
   color: #0f172a;
 }
 
+.top-utility-btn:disabled,
+.top-utility-btn.is-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .studio-root.dark-theme .top-utility-btn {
   color: #94a3b8;
 }

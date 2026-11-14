@@ -61,7 +61,18 @@ import {
   Pause,
   Square,
   ChevronDown,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
+import {
+  createHistoryState,
+  recordAction,
+  undoAction,
+  redoAction,
+  MAX_HISTORY_LIMIT,
+  StudioHistorySnapshot,
+  HistoryState,
+} from './utils/historyManager';
 
 import { FBX3DRenderer } from './services/fbx3DRenderer';
 import {
@@ -1742,6 +1753,226 @@ export function App() {
     }
   }, [isPlaying, isProcessing]);
 
+  // --- HISTORY & UNDO/REDO (Ctrl+Z / Ctrl+Shift+Z, up to last 5 actions) ---
+  const historyRef = useRef<HistoryState | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const isRestoringHistoryRef = useRef(false);
+  const lastRecordedStrRef = useRef<string>('');
+  const dragStartSnapshotRef = useRef<StudioHistorySnapshot | null>(null);
+
+  // Synchronous refs for capturing complete current studio state
+  const cameraRef = useRef<Camera3DState>(camera);
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
+
+  const aspectRatioRef = useRef<string>(aspectRatio);
+  useEffect(() => {
+    aspectRatioRef.current = aspectRatio;
+  }, [aspectRatio]);
+
+  const shadowDepthRef = useRef<'none' | 'small' | 'medium' | 'large'>(shadowDepth);
+  useEffect(() => {
+    shadowDepthRef.current = shadowDepth;
+  }, [shadowDepth]);
+
+  const borderRadiusRef = useRef<number>(borderRadius);
+  useEffect(() => {
+    borderRadiusRef.current = borderRadius;
+  }, [borderRadius]);
+
+  const blurAmountRef = useRef<number>(blurAmount);
+  useEffect(() => {
+    blurAmountRef.current = blurAmount;
+  }, [blurAmount]);
+
+  const interestRegionsRef = useRef<InterestRegion[]>(interestRegions);
+  useEffect(() => {
+    interestRegionsRef.current = interestRegions;
+  }, [interestRegions]);
+
+  useEffect(() => {
+    activeMediaRef.current = activeMedia;
+  }, [activeMedia]);
+
+  useEffect(() => {
+    selectedClipIdRef.current = selectedClipId;
+  }, [selectedClipId]);
+
+  const selectedMediaClipIdRef = useRef<string | null>(selectedMediaClipId);
+  useEffect(() => {
+    selectedMediaClipIdRef.current = selectedMediaClipId;
+  }, [selectedMediaClipId]);
+
+  const selectedTextLayerIdRef = useRef<string | null>(selectedTextLayerId);
+  useEffect(() => {
+    selectedTextLayerIdRef.current = selectedTextLayerId;
+  }, [selectedTextLayerId]);
+
+  const model3DTransformRef = useRef<Model3DTransform>(model3DTransform);
+  useEffect(() => {
+    model3DTransformRef.current = model3DTransform;
+  }, [model3DTransform]);
+
+  const model3DTexturesRef = useRef<Model3DTextureConfig>(model3DTextures);
+  useEffect(() => {
+    model3DTexturesRef.current = model3DTextures;
+  }, [model3DTextures]);
+
+  const takeCurrentSnapshot = useCallback((): StudioHistorySnapshot => {
+    return {
+      clips: JSON.parse(JSON.stringify(clipsRef.current)),
+      mediaClips: JSON.parse(JSON.stringify(mediaClipsRef.current)),
+      camera: { ...cameraRef.current },
+      textLayers: JSON.parse(JSON.stringify(textLayersRef.current)),
+      background: JSON.parse(JSON.stringify(backgroundRef.current)),
+      aspectRatio: aspectRatioRef.current,
+      shadowDepth: shadowDepthRef.current,
+      borderRadius: borderRadiusRef.current,
+      blurAmount: blurAmountRef.current,
+      audioTracks: JSON.parse(JSON.stringify(audioTracksRef.current)),
+      interestRegions: JSON.parse(JSON.stringify(interestRegionsRef.current)),
+      activeMedia: JSON.parse(JSON.stringify(activeMediaRef.current)),
+      selectedClipId: selectedClipIdRef.current,
+      selectedMediaClipId: selectedMediaClipIdRef.current,
+      selectedTextLayerId: selectedTextLayerIdRef.current,
+      model3DTransform: { ...model3DTransformRef.current },
+      model3DTextures: JSON.parse(JSON.stringify(model3DTexturesRef.current)),
+    };
+  }, []);
+
+  const pushHistorySnapshot = useCallback((forcedSnapshot?: StudioHistorySnapshot) => {
+    if (isRestoringHistoryRef.current) return;
+    const snap = forcedSnapshot || takeCurrentSnapshot();
+    const str = JSON.stringify(snap);
+    if (str === lastRecordedStrRef.current) return;
+
+    if (!historyRef.current) {
+      historyRef.current = createHistoryState(snap);
+      lastRecordedStrRef.current = str;
+      return;
+    }
+
+    historyRef.current = recordAction(historyRef.current, snap, MAX_HISTORY_LIMIT);
+    lastRecordedStrRef.current = str;
+    setCanUndo(historyRef.current.past.length > 0);
+    setCanRedo(historyRef.current.future.length > 0);
+  }, [takeCurrentSnapshot]);
+
+  // Initialize history on mount
+  useEffect(() => {
+    if (!historyRef.current) {
+      const initial = takeCurrentSnapshot();
+      historyRef.current = createHistoryState(initial);
+      lastRecordedStrRef.current = JSON.stringify(initial);
+    }
+  }, [takeCurrentSnapshot]);
+
+  // Debounced auto-recorder for continuous changes (sliders, text edits, drag)
+  useEffect(() => {
+    if (isRestoringHistoryRef.current) return;
+    const timer = setTimeout(() => {
+      pushHistorySnapshot();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    clips,
+    mediaClips,
+    camera,
+    textLayers,
+    background,
+    aspectRatio,
+    shadowDepth,
+    borderRadius,
+    blurAmount,
+    audioTracks,
+    interestRegions,
+    activeMedia,
+    model3DTransform,
+    pushHistorySnapshot,
+  ]);
+
+  const applyRestoredSnapshot = useCallback((snapshot: StudioHistorySnapshot) => {
+    isRestoringHistoryRef.current = true;
+    try {
+      setClips(snapshot.clips);
+      clipsRef.current = snapshot.clips;
+      setMediaClips(snapshot.mediaClips);
+      mediaClipsRef.current = snapshot.mediaClips;
+      setCamera({ ...snapshot.camera });
+      cameraRef.current = { ...snapshot.camera };
+      setTextLayers(snapshot.textLayers);
+      textLayersRef.current = snapshot.textLayers;
+      setBackground({ ...snapshot.background });
+      backgroundRef.current = { ...snapshot.background };
+      setAspectRatio(snapshot.aspectRatio);
+      aspectRatioRef.current = snapshot.aspectRatio;
+      setShadowDepth(snapshot.shadowDepth);
+      shadowDepthRef.current = snapshot.shadowDepth;
+      setBorderRadius(snapshot.borderRadius);
+      borderRadiusRef.current = snapshot.borderRadius;
+      setBlurAmount(snapshot.blurAmount);
+      blurAmountRef.current = snapshot.blurAmount;
+      setAudioTracks(snapshot.audioTracks);
+      audioTracksRef.current = snapshot.audioTracks;
+      setInterestRegions(snapshot.interestRegions);
+      interestRegionsRef.current = snapshot.interestRegions;
+      setActiveMedia(snapshot.activeMedia);
+      activeMediaRef.current = snapshot.activeMedia;
+      setSelectedClipId(snapshot.selectedClipId);
+      selectedClipIdRef.current = snapshot.selectedClipId;
+      setSelectedMediaClipId(snapshot.selectedMediaClipId);
+      selectedMediaClipIdRef.current = snapshot.selectedMediaClipId;
+      setSelectedTextLayerId(snapshot.selectedTextLayerId);
+      selectedTextLayerIdRef.current = snapshot.selectedTextLayerId;
+      if (snapshot.model3DTransform) {
+        setModel3DTransform(snapshot.model3DTransform);
+        model3DTransformRef.current = snapshot.model3DTransform;
+      }
+      if (snapshot.model3DTextures) {
+        setModel3DTextures(snapshot.model3DTextures);
+        model3DTexturesRef.current = snapshot.model3DTextures;
+      }
+      lastRecordedStrRef.current = JSON.stringify(snapshot);
+      playGearSound();
+    } finally {
+      setTimeout(() => {
+        isRestoringHistoryRef.current = false;
+      }, 50);
+    }
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    // If there is any uncommitted pending change, commit it before undoing
+    const current = takeCurrentSnapshot();
+    const currentStr = JSON.stringify(current);
+    if (historyRef.current && currentStr !== lastRecordedStrRef.current) {
+      historyRef.current = recordAction(historyRef.current, current, MAX_HISTORY_LIMIT);
+      lastRecordedStrRef.current = currentStr;
+    }
+
+    if (!historyRef.current) return;
+    const res = undoAction(historyRef.current);
+    if (!res) return;
+
+    historyRef.current = res.nextState;
+    applyRestoredSnapshot(res.restoredSnapshot);
+    setCanUndo(res.nextState.past.length > 0);
+    setCanRedo(res.nextState.future.length > 0);
+  }, [takeCurrentSnapshot, applyRestoredSnapshot]);
+
+  const handleRedo = useCallback(() => {
+    if (!historyRef.current) return;
+    const res = redoAction(historyRef.current, MAX_HISTORY_LIMIT);
+    if (!res) return;
+
+    historyRef.current = res.nextState;
+    applyRestoredSnapshot(res.restoredSnapshot);
+    setCanUndo(res.nextState.past.length > 0);
+    setCanRedo(res.nextState.future.length > 0);
+  }, [applyRestoredSnapshot]);
+
   // Stage Mouse Move (Cursor follower)
   const handleStageMouseMove = (e: React.MouseEvent) => {
     if (!frameSceneRef.current) return;
@@ -1759,6 +1990,23 @@ export function App() {
         e.target instanceof HTMLTextAreaElement ||
         (e.target as HTMLElement).isContentEditable
       ) {
+        return;
+      }
+
+      // Undo (Ctrl+Z / Cmd+Z) & Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)
+      const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z');
+      const isRedo =
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z')) ||
+        ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'y' || e.key === 'Y'));
+
+      if (isUndo) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (isRedo) {
+        e.preventDefault();
+        handleRedo();
         return;
       }
 
@@ -1794,7 +2042,7 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePlayPause]);
+  }, [handlePlayPause, handleUndo, handleRedo]);
 
   // Direct 3D Scene Dragging with smooth pointer tracking (Move/Pan vs Orbit)
   const handleSceneMouseDown = (e: React.MouseEvent) => {
@@ -1805,6 +2053,7 @@ export function App() {
     const effectiveMode = isModifierPan ? 'move' : dragMode;
 
     e.preventDefault();
+    dragStartSnapshotRef.current = takeCurrentSnapshot();
     setIsDraggingScene(true);
     dragStartRef.current = {
       x: e.clientX,
@@ -1850,6 +2099,10 @@ export function App() {
       setIsDraggingScene(false);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (dragStartSnapshotRef.current) {
+        pushHistorySnapshot();
+        dragStartSnapshotRef.current = null;
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -2245,6 +2498,7 @@ export function App() {
 
   // Reset Camera Scene
   const handleResetScene = () => {
+    pushHistorySnapshot();
     setIsComposed(false);
     isComposedRef.current = false;
     setInterestRegions([]);
@@ -2749,8 +3003,29 @@ export function App() {
 
         {/* 3. TOP-RIGHT TOOLBAR: Structured in clear hierarchy (Utilities -> Secondary Actions -> Primary CTA) */}
         <div className="top-right-toolbar">
-          {/* Tier 1: Scene & Audio Utilities (Unified Segmented Pill Group) */}
-          <div className="top-utility-group desktop-only-btn" title="Scene camera & audio utilities">
+          {/* Tier 1: History, Scene & Audio Utilities (Unified Segmented Pill Group) */}
+          <div className="top-utility-group desktop-only-btn" title="Undo, Redo, Scene camera & audio utilities">
+            <button
+              type="button"
+              className={`top-utility-btn ${!canUndo ? 'is-disabled' : ''}`}
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Undo previous action (Ctrl+Z)"
+              aria-label="Undo previous action (Ctrl+Z)"
+            >
+              <Undo2 size={14} />
+            </button>
+            <button
+              type="button"
+              className={`top-utility-btn ${!canRedo ? 'is-disabled' : ''}`}
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Redo action (Ctrl+Shift+Z)"
+              aria-label="Redo action (Ctrl+Shift+Z)"
+            >
+              <Redo2 size={14} />
+            </button>
+            <div className="top-utility-divider" />
             <button
               type="button"
               className="top-utility-btn"
